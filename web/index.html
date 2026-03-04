@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KnobMan</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="loading">Loading KnobMan...</div>
+
+    <div id="app" style="display:none">
+      <header id="toolbar">
+        <span class="app-title">KnobMan</span>
+        <button id="btnNew" title="New">New</button>
+        <button id="btnOpen" title="Open .knob file">Open</button>
+        <button id="btnSave" title="Save .knob file">Save</button>
+        <span class="sep"></span>
+        <button id="btnExport" title="Export image strip">Export</button>
+        <span class="sep"></span>
+        <button id="btnUndo" title="Undo (Ctrl+Z)">Undo</button>
+        <button id="btnRedo" title="Redo (Ctrl+Y)">Redo</button>
+        <input type="file" id="fileInput" accept=".knob" style="display:none" />
+      </header>
+
+      <main id="workspace">
+        <!-- Left: Layer panel -->
+        <aside id="layerPanel">
+          <div id="layerPanelHeader">Layers</div>
+          <ul id="layerList"></ul>
+          <div id="layerControls">
+            <button id="btnAddLayer" title="Add layer">+</button>
+            <button id="btnDeleteLayer" title="Delete layer">−</button>
+            <button id="btnMoveUp" title="Move up">↑</button>
+            <button id="btnMoveDown" title="Move down">↓</button>
+            <button id="btnDuplicate" title="Duplicate layer">⊕</button>
+          </div>
+        </aside>
+
+        <!-- Center: Preview canvas -->
+        <section id="previewSection">
+          <div id="canvasWrap">
+            <canvas id="knobCanvas"></canvas>
+          </div>
+          <div id="frameScrubber">
+            <label for="frameSlider">Frame:</label>
+            <input type="range" id="frameSlider" min="0" max="30" value="0" step="1" />
+            <span id="frameValue">0</span>
+          </div>
+          <div id="statusBar">Ready</div>
+        </section>
+
+        <!-- Right: Parameters panel -->
+        <aside id="paramPanel">
+          <div id="paramPanelHeader">Parameters</div>
+          <div id="paramContent">
+            <p class="placeholder">Select a layer to edit its parameters.</p>
+          </div>
+        </aside>
+      </main>
+
+      <!-- Bottom: Document preferences -->
+      <footer id="prefsBar">
+        <label>Size:
+          <input type="number" id="prefWidth"  value="64" min="8" max="512" step="1" /> ×
+          <input type="number" id="prefHeight" value="64" min="8" max="512" step="1" />
+        </label>
+        <label>Frames:
+          <input type="number" id="prefFrames" value="31" min="1" max="256" step="1" />
+        </label>
+        <label>BG:
+          <input type="color" id="prefBgColor" value="#000000" />
+        </label>
+        <label>Oversample:
+          <select id="prefOversample">
+            <option value="0">1×</option>
+            <option value="1">2×</option>
+            <option value="2">4×</option>
+            <option value="3">8×</option>
+          </select>
+        </label>
+        <label>Export:
+          <select id="prefExport">
+            <option value="0">PNG Strip (V)</option>
+            <option value="1">PNG Strip (H)</option>
+            <option value="2">PNG Frames</option>
+            <option value="3">Animated GIF</option>
+            <option value="4">APNG</option>
+          </select>
+        </label>
+      </footer>
+    </div>
+
+    <script src="wasm_exec.js"></script>
+    <script src="main.js"></script>
+  </body>
+</html>
