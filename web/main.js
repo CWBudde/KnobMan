@@ -116,6 +116,157 @@ const PARAMS_BY_PRIM_TYPE = {
   15: ['color', 'shape', 'fill', 'round', 'diffuse', 'width']
 };
 
+const CURVE_OPTIONS = [
+  { value: 0, label: 'Linear' },
+  { value: 1, label: 'Curve 1' },
+  { value: 2, label: 'Curve 2' },
+  { value: 3, label: 'Curve 3' },
+  { value: 4, label: 'Curve 4' },
+  { value: 5, label: 'Curve 5' },
+  { value: 6, label: 'Curve 6' },
+  { value: 7, label: 'Curve 7' },
+  { value: 8, label: 'Curve 8' }
+];
+
+const EFFECT_DEFS = {
+  antiAlias:   { label: 'AntiAlias', type: 'checkbox' },
+  unfold:      { label: 'Unfold', type: 'checkbox' },
+  animStep:    { label: 'AnimStep', type: 'number', numeric: 'int', min: 0, max: 1024, step: 1 },
+  zoomXYSepa:  { label: 'Zoom XY Sepa', type: 'checkbox' },
+  zoomXF:      { label: 'Zoom X From', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  zoomXT:      { label: 'Zoom X To', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  zoomXAnim:   { label: 'Zoom X Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  zoomYF:      { label: 'Zoom Y From', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  zoomYT:      { label: 'Zoom Y To', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  zoomYAnim:   { label: 'Zoom Y Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  offXF:       { label: 'Offset X From', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  offXT:       { label: 'Offset X To', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  offXAnim:    { label: 'Offset X Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  offYF:       { label: 'Offset Y From', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  offYT:       { label: 'Offset Y To', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  offYAnim:    { label: 'Offset Y Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  keepDir:     { label: 'Keep Dir', type: 'checkbox' },
+  centerX:     { label: 'Center X', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  centerY:     { label: 'Center Y', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  angleF:      { label: 'Angle From', type: 'number', numeric: 'float', min: -3600, max: 3600, step: 0.1 },
+  angleT:      { label: 'Angle To', type: 'number', numeric: 'float', min: -3600, max: 3600, step: 0.1 },
+  angleAnim:   { label: 'Angle Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+
+  alphaF:      { label: 'Alpha From', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  alphaT:      { label: 'Alpha To', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  alphaAnim:   { label: 'Alpha Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  brightF:     { label: 'Brightness From', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
+  brightT:     { label: 'Brightness To', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
+  brightAnim:  { label: 'Brightness Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  contrastF:   { label: 'Contrast From', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
+  contrastT:   { label: 'Contrast To', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
+  contrastAnim:{ label: 'Contrast Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  saturationF: { label: 'Saturation From', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
+  saturationT: { label: 'Saturation To', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
+  saturationAnim: { label: 'Saturation Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  hueF:        { label: 'Hue From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  hueT:        { label: 'Hue To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  hueAnim:     { label: 'Hue Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+
+  mask1Ena:    { label: 'Enable', type: 'checkbox' },
+  mask1Type:   { label: 'Type', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'Rotation' }, { value: 1, label: 'Radial' }, { value: 2, label: 'Horizontal' }, { value: 3, label: 'Vertical' }
+  ] },
+  mask1Grad:   { label: 'Gradation', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  mask1GradDir:{ label: 'Grad Dir', type: 'number', numeric: 'int', min: 0, max: 8, step: 1 },
+  mask1StartF: { label: 'Start From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  mask1StartT: { label: 'Start To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  mask1StartAnim: { label: 'Start Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  mask1StopF:  { label: 'Stop From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  mask1StopT:  { label: 'Stop To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  mask1StopAnim: { label: 'Stop Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+
+  mask2Ena:    { label: 'Enable', type: 'checkbox' },
+  mask2Op:     { label: 'Operation', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'AND' }, { value: 1, label: 'OR' }
+  ] },
+  mask2Type:   { label: 'Type', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'Rotation' }, { value: 1, label: 'Radial' }, { value: 2, label: 'Horizontal' }, { value: 3, label: 'Vertical' }
+  ] },
+  mask2Grad:   { label: 'Gradation', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  mask2GradDir:{ label: 'Grad Dir', type: 'number', numeric: 'int', min: 0, max: 8, step: 1 },
+  mask2StartF: { label: 'Start From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  mask2StartT: { label: 'Start To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  mask2StartAnim: { label: 'Start Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  mask2StopF:  { label: 'Stop From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  mask2StopT:  { label: 'Stop To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  mask2StopAnim: { label: 'Stop Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+
+  fMaskEna:    { label: 'Mode', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'Off' }, { value: 1, label: 'Range' }, { value: 2, label: 'Bitmask' }
+  ] },
+  fMaskStart:  { label: 'Range Start', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  fMaskStop:   { label: 'Range Stop', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  fMaskBits:   { label: 'Bitmask', type: 'text' },
+
+  sLightDirF:  { label: 'LightDir From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  sLightDirT:  { label: 'LightDir To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  sLightDirAnim: { label: 'LightDir Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  sDensityF:   { label: 'Density From', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  sDensityT:   { label: 'Density To', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  sDensityAnim:{ label: 'Density Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+
+  dLightDirEna:{ label: 'Enable', type: 'checkbox' },
+  dLightDirF:  { label: 'LightDir From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  dLightDirT:  { label: 'LightDir To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  dLightDirAnim: { label: 'LightDir Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  dOffsetF:    { label: 'Offset From', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  dOffsetT:    { label: 'Offset To', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  dOffsetAnim: { label: 'Offset Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  dDensityF:   { label: 'Density From', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  dDensityT:   { label: 'Density To', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  dDensityAnim:{ label: 'Density Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  dDiffuseF:   { label: 'Diffuse From', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  dDiffuseT:   { label: 'Diffuse To', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  dDiffuseAnim:{ label: 'Diffuse Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  dsType:      { label: 'Shadow Type', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'Soft' }, { value: 1, label: 'Hard' }
+  ] },
+  dsGrad:      { label: 'Gradient', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+
+  iLightDirEna:{ label: 'Enable', type: 'checkbox' },
+  iLightDirF:  { label: 'LightDir From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  iLightDirT:  { label: 'LightDir To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  iLightDirAnim: { label: 'LightDir Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  iOffsetF:    { label: 'Offset From', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  iOffsetT:    { label: 'Offset To', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  iOffsetAnim: { label: 'Offset Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  iDensityF:   { label: 'Density From', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  iDensityT:   { label: 'Density To', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  iDensityAnim:{ label: 'Density Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  iDiffuseF:   { label: 'Diffuse From', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  iDiffuseT:   { label: 'Diffuse To', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  iDiffuseAnim:{ label: 'Diffuse Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+
+  eLightDirEna:{ label: 'Enable', type: 'checkbox' },
+  eLightDirF:  { label: 'LightDir From', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  eLightDirT:  { label: 'LightDir To', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  eLightDirAnim: { label: 'LightDir Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  eOffsetF:    { label: 'Offset From', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  eOffsetT:    { label: 'Offset To', type: 'number', numeric: 'float', min: -500, max: 500, step: 0.1 },
+  eOffsetAnim: { label: 'Offset Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS },
+  eDensityF:   { label: 'Density From', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  eDensityT:   { label: 'Density To', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
+  eDensityAnim:{ label: 'Density Curve', type: 'select', numeric: 'int', options: CURVE_OPTIONS }
+};
+
+const EFFECT_SECTIONS = [
+  { title: 'Transform', open: true, fields: ['antiAlias', 'unfold', 'animStep', 'zoomXYSepa', 'zoomXF', 'zoomXT', 'zoomXAnim', 'zoomYF', 'zoomYT', 'zoomYAnim', 'offXF', 'offXT', 'offXAnim', 'offYF', 'offYT', 'offYAnim', 'keepDir', 'centerX', 'centerY', 'angleF', 'angleT', 'angleAnim'] },
+  { title: 'Color', open: true, fields: ['alphaF', 'alphaT', 'alphaAnim', 'brightF', 'brightT', 'brightAnim', 'contrastF', 'contrastT', 'contrastAnim', 'saturationF', 'saturationT', 'saturationAnim', 'hueF', 'hueT', 'hueAnim'] },
+  { title: 'Mask 1', fields: ['mask1Ena', 'mask1Type', 'mask1Grad', 'mask1GradDir', 'mask1StartF', 'mask1StartT', 'mask1StartAnim', 'mask1StopF', 'mask1StopT', 'mask1StopAnim'] },
+  { title: 'Mask 2', fields: ['mask2Ena', 'mask2Op', 'mask2Type', 'mask2Grad', 'mask2GradDir', 'mask2StartF', 'mask2StartT', 'mask2StartAnim', 'mask2StopF', 'mask2StopT', 'mask2StopAnim'] },
+  { title: 'Frame Mask', fields: ['fMaskEna', 'fMaskStart', 'fMaskStop', 'fMaskBits'] },
+  { title: 'Specular Highlight', fields: ['sLightDirF', 'sLightDirT', 'sLightDirAnim', 'sDensityF', 'sDensityT', 'sDensityAnim'] },
+  { title: 'Drop Shadow', fields: ['dLightDirEna', 'dLightDirF', 'dLightDirT', 'dLightDirAnim', 'dOffsetF', 'dOffsetT', 'dOffsetAnim', 'dDensityF', 'dDensityT', 'dDensityAnim', 'dDiffuseF', 'dDiffuseT', 'dDiffuseAnim', 'dsType', 'dsGrad'] },
+  { title: 'Inner Shadow', fields: ['iLightDirEna', 'iLightDirF', 'iLightDirT', 'iLightDirAnim', 'iOffsetF', 'iOffsetT', 'iOffsetAnim', 'iDensityF', 'iDensityT', 'iDensityAnim', 'iDiffuseF', 'iDiffuseT', 'iDiffuseAnim'] },
+  { title: 'Emboss', fields: ['eLightDirEna', 'eLightDirF', 'eLightDirT', 'eLightDirAnim', 'eOffsetF', 'eOffsetT', 'eOffsetAnim', 'eDensityF', 'eDensityT', 'eDensityAnim'] }
+];
+
 // ── Initialise after WASM load ────────────────────────────────────────────────
 
 function onWasmReady() {
@@ -350,6 +501,13 @@ function applyParamChange(key, value) {
   return true;
 }
 
+function applyEffectParamChange(key, value) {
+  const ok = window.knobman_setEffectParam(selectedLayer, key, value);
+  if (!ok) return false;
+  markDirty();
+  return true;
+}
+
 function buildParamRow(key, value) {
   const def = PARAM_DEFS[key];
   if (!def) return null;
@@ -456,6 +614,87 @@ function buildParamRow(key, value) {
   return row;
 }
 
+function buildEffectRow(key, value) {
+  const def = EFFECT_DEFS[key];
+  if (!def) return null;
+
+  const row = document.createElement('div');
+  row.className = 'param-row';
+  if (def.type === 'checkbox') row.classList.add('checkbox');
+
+  const caption = document.createElement('span');
+  caption.textContent = def.label;
+
+  let input;
+  if (def.type === 'select') {
+    input = document.createElement('select');
+    (def.options || []).forEach(opt => {
+      const el = document.createElement('option');
+      el.value = String(opt.value);
+      el.textContent = opt.label;
+      input.appendChild(el);
+    });
+    input.value = String(value ?? 0);
+  } else if (def.type === 'textarea') {
+    input = document.createElement('textarea');
+    input.rows = 3;
+    input.value = String(value ?? '');
+  } else {
+    input = document.createElement('input');
+    input.type = def.type;
+    if (def.min != null) input.min = String(def.min);
+    if (def.max != null) input.max = String(def.max);
+    if (def.step != null) input.step = String(def.step);
+    if (def.type === 'checkbox') {
+      input.checked = Boolean(value);
+    } else {
+      input.value = String(value ?? '');
+    }
+  }
+
+  const eventName = (def.type === 'select' || def.type === 'checkbox') ? 'change' : 'input';
+  input.addEventListener(eventName, () => {
+    const v = coerceParamValue(def, input);
+    applyEffectParamChange(key, v);
+  });
+
+  if (def.type === 'checkbox') {
+    row.appendChild(caption);
+    row.appendChild(input);
+  } else {
+    row.appendChild(caption);
+    row.appendChild(input);
+  }
+  return row;
+}
+
+function appendEffectSections(content) {
+  const title = document.createElement('div');
+  title.className = 'param-group-title';
+  title.textContent = 'Effects';
+  content.appendChild(title);
+
+  EFFECT_SECTIONS.forEach(section => {
+    const details = document.createElement('details');
+    details.className = 'effect-section';
+    details.open = Boolean(section.open);
+
+    const summary = document.createElement('summary');
+    summary.textContent = section.title;
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'effect-section-body';
+    section.fields.forEach(key => {
+      const value = window.knobman_getEffectParam(selectedLayer, key);
+      const row = buildEffectRow(key, value);
+      if (row) body.appendChild(row);
+    });
+    details.appendChild(body);
+    content.appendChild(details);
+  });
+}
+
 function refreshParamPanel() {
   const content = document.getElementById('paramContent');
   content.innerHTML = '';
@@ -478,6 +717,8 @@ function refreshParamPanel() {
     const row = buildParamRow(key, value);
     if (row) content.appendChild(row);
   });
+
+  appendEffectSections(content);
 }
 
 // ── Toolbar handlers ──────────────────────────────────────────────────────────
