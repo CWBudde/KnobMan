@@ -401,6 +401,34 @@ function closeDetachedPreviewWindow() {
   cleanupDetachedPreviewWindow();
 }
 
+function syncCanvasElementSize(canvas, width, height, setStyleSize = true) {
+  if (!canvas) return false;
+  const w = Math.max(1, Math.round(Number(width) || 0));
+  const h = Math.max(1, Math.round(Number(height) || 0));
+  let resized = false;
+  if (canvas.width !== w) {
+    canvas.width = w;
+    resized = true;
+  }
+  if (canvas.height !== h) {
+    canvas.height = h;
+    resized = true;
+  }
+  if (setStyleSize) {
+    const cssW = `${w}px`;
+    const cssH = `${h}px`;
+    if (canvas.style.width !== cssW) canvas.style.width = cssW;
+    if (canvas.style.height !== cssH) canvas.style.height = cssH;
+  }
+  return resized;
+}
+
+function syncCanvasBackingToDisplaySize(canvas) {
+  if (!canvas) return false;
+  const rect = canvas.getBoundingClientRect();
+  return syncCanvasElementSize(canvas, rect.width, rect.height, false);
+}
+
 function renderDetachedPreviewFrame(frame) {
   if (!isDetachedPreviewOpen() || !window.knobman_renderFrameRaw) return;
   const raw = window.knobman_renderFrameRaw(frame);
@@ -412,15 +440,11 @@ function renderDetachedPreviewFrame(frame) {
 
   const width = Number(raw.width) || 1;
   const height = Number(raw.height) || 1;
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-  }
+  syncCanvasElementSize(canvas, width, height);
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
+  ctx.imageSmoothingEnabled = false;
   const px = new Uint8ClampedArray(raw.data.length);
   px.set(raw.data);
   ctx.putImageData(new ImageData(px, width, height), 0, 0);
@@ -653,6 +677,10 @@ function curveCanvasMetrics() {
   };
 }
 
+function syncCurveCanvasSize() {
+  syncCanvasBackingToDisplaySize(curveCanvas);
+}
+
 function curveToCanvasPoint(tm, lv, m) {
   return {
     x: m.pad.left + (tm / 100) * m.plotW,
@@ -768,7 +796,6 @@ function applyCurveEditorCollapsedState() {
   if (!panel || !toggle) return;
   panel.classList.toggle('collapsed', curveEditorCollapsed);
   const expanded = !curveEditorCollapsed;
-  toggle.textContent = expanded ? 'v' : '>';
   toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
   toggle.setAttribute('aria-label', expanded ? 'Collapse curve editor' : 'Expand curve editor');
   toggle.title = expanded ? 'Collapse curve editor' : 'Expand curve editor';
@@ -777,10 +804,12 @@ function applyCurveEditorCollapsedState() {
 function toggleCurveEditorCollapsed() {
   curveEditorCollapsed = !curveEditorCollapsed;
   applyCurveEditorCollapsedState();
+  if (!curveEditorCollapsed) refreshCurveEditor();
 }
 
 function drawCurveEditor() {
   if (!curveCanvas || !curveCtx) return;
+  syncCurveCanvasSize();
   const m = curveCanvasMetrics();
   const state = readSelectedCurve();
 
@@ -1837,24 +1866,21 @@ function refreshFromDoc() {
 function syncCanvasSize() {
   const dims = window.knobman_getDimensions();
   if (!dims) return;
-  if (canvasW === dims.width && canvasH === dims.height && pixelBuf && imageData) return;
-
-  canvasW = dims.width;
-  canvasH = dims.height;
+  const targetW = Math.max(1, Math.round(Number(dims.width) || 0));
+  const targetH = Math.max(1, Math.round(Number(dims.height) || 0));
+  const docSizeChanged = (canvasW !== targetW || canvasH !== targetH);
 
   const canvas = document.getElementById('knobCanvas');
-  canvas.width = canvasW;
-  canvas.height = canvasH;
-  canvas.style.width = canvasW + 'px';
-  canvas.style.height = canvasH + 'px';
+  syncCanvasElementSize(canvas, targetW, targetH);
 
   const overlay = document.getElementById('shapeOverlay');
   if (overlay) {
-    overlay.width = canvasW;
-    overlay.height = canvasH;
-    overlay.style.width = canvasW + 'px';
-    overlay.style.height = canvasH + 'px';
+    syncCanvasElementSize(overlay, targetW, targetH);
   }
+
+  canvasW = targetW;
+  canvasH = targetH;
+  if (!docSizeChanged && pixelBuf && imageData && imageData.width === canvasW && imageData.height === canvasH) return;
 
   imageData = new ImageData(canvasW, canvasH);
   pixelBuf = new Uint8Array(canvasW * canvasH * 4);
@@ -1877,7 +1903,10 @@ function renderFrame() {
   imageData.data.set(pixelBuf);
 
   const canvas = document.getElementById('knobCanvas');
-  canvas.getContext('2d').putImageData(imageData, 0, 0);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.imageSmoothingEnabled = false;
+  ctx.putImageData(imageData, 0, 0);
 }
 
 function markDirty() {
@@ -1956,6 +1985,12 @@ function wireControls() {
   }
 
   document.addEventListener('keydown', onKeyDown);
+  window.addEventListener('resize', () => {
+    syncCanvasSize();
+    refreshCurveEditor();
+    drawShapeOverlay();
+    markDirty();
+  });
 }
 
 function syncAspectRatioFromInputs() {
@@ -2807,6 +2842,7 @@ function applyLoadedProjectBytes(bytes, fileName, statusPrefix) {
   currentFrame = 0;
   refreshFromDoc();
   ensureBuiltinTextures().then(() => refreshParamPanel());
+  markDirty();
   setStatus((statusPrefix || 'Loaded') + ' ' + fileName);
   return true;
 }
