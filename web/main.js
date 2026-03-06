@@ -459,15 +459,16 @@ const PARAMS_BY_PRIM_TYPE = {
 };
 
 const CURVE_OPTIONS = [
-  { value: 0, label: "Linear" },
-  { value: 1, label: "Curve 1" },
-  { value: 2, label: "Curve 2" },
-  { value: 3, label: "Curve 3" },
-  { value: 4, label: "Curve 4" },
-  { value: 5, label: "Curve 5" },
-  { value: 6, label: "Curve 6" },
-  { value: 7, label: "Curve 7" },
-  { value: 8, label: "Curve 8" },
+  { value: 0, label: "Off" },
+  { value: 1, label: "Linear" },
+  { value: 2, label: "Curve 1" },
+  { value: 3, label: "Curve 2" },
+  { value: 4, label: "Curve 3" },
+  { value: 5, label: "Curve 4" },
+  { value: 6, label: "Curve 5" },
+  { value: 7, label: "Curve 6" },
+  { value: 8, label: "Curve 7" },
+  { value: 9, label: "Curve 8" },
 ];
 
 const EFFECT_DEFS = {

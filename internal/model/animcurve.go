@@ -80,14 +80,20 @@ func (c *AnimCurve) Eval(ratio float64) float64 {
 }
 
 // EvalParam returns the interpolated value between from and to, driven by
-// the given ratio and using curveIdx to select which curve to apply.
-// curveIdx == 0 means linear (no curve); 1–8 reference curves[0..7].
+// the given ratio and using curveIdx to select how animation is applied.
+// Legacy mapping:
+//
+//	curveIdx == 0 => animation off (returns from)
+//	curveIdx == 1 => linear interpolation
+//	curveIdx >= 2 => anim curves 1..8 (curves[0..7])
 func EvalParam(from, to float64, curveIdx int, curves *[8]AnimCurve, ratio float64) float64 {
-	var t float64
-	if curveIdx <= 0 || curves == nil {
-		t = ratio
-	} else {
-		idx := curveIdx - 1
+	if curveIdx <= 0 {
+		return from
+	}
+
+	t := ratio
+	if curveIdx >= 2 && curves != nil {
+		idx := curveIdx - 2
 		if idx >= 8 {
 			idx = 7
 		}

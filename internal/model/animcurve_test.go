@@ -58,13 +58,20 @@ func TestEvalParam(t *testing.T) {
 	for i := range curves {
 		curves[i] = NewAnimCurve()
 	}
-	// Linear (no curve): from=10, to=20, ratio=0.5 → 15
+	// Disabled animation: returns From.
 	got := EvalParam(10, 20, 0, &curves, 0.5)
+	if math.Abs(got-10.0) > 1e-9 {
+		t.Errorf("EvalParam off: got %v want 10", got)
+	}
+
+	// Linear interpolation.
+	got = EvalParam(10, 20, 1, &curves, 0.5)
 	if math.Abs(got-15.0) > 1e-9 {
 		t.Errorf("EvalParam linear: got %v want 15", got)
 	}
-	// Curve index 1 (default linear curve): same result
-	got = EvalParam(10, 20, 1, &curves, 0.5)
+
+	// Curve 1 (legacy selector value 2) uses curves[0].
+	got = EvalParam(10, 20, 2, &curves, 0.5)
 	if math.Abs(got-15.0) > 1e-9 {
 		t.Errorf("EvalParam curve1: got %v want 15", got)
 	}
