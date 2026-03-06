@@ -27,6 +27,7 @@
 
 - [ ] **Phase 6** — Complete primitive/effect parameter panels (partial: 6.1 done)
 - [x] **Phase 6.1** — Primitive panel per type (JS + WASM primitive param bridge)
+- [x] **Phase 6.2** — Effect stack panel (JS + WASM effect param bridge)
 - [ ] **Phase 7** — Advanced editors (curve, shape, preview tools)
 - [ ] **Phase 8** — Export pipeline (PNG strip/frames, GIF, APNG)
 
@@ -324,7 +325,7 @@ Responsive: on narrow viewports, panels stack vertically.
 ## Phase 6 — Complete Parameter Panels
 
 **Goal:** Full fidelity of all parameter controls for all 16 primitive types and the full effect stack.
-**Status:** [ ] Partial (6.1 done; 6.2+ pending)
+**Status:** [ ] Partial (6.1/6.2 done; 6.3+ pending)
 
 ### [x] 6.1 — Primitive Panel per Type
 
@@ -348,7 +349,7 @@ Each PrimitiveType maps to a set of visible parameters. The JS panel shows/hides
 | Text | Color, Text, Font, TextAlign, FrameAlign, Bold, Italic |
 | Shape | Color, Shape (path editor), Fill, Round, Diffuse |
 
-### [ ] 6.2 — Effect Stack Panel
+### [x] 6.2 — Effect Stack Panel
 
 Collapsible sections (mirroring Java's EffPanel):
 - **Transform** — ZoomX, ZoomY, OffsetX, OffsetY, Angle, Center, KeepDir, Unfold, AnimStep, AntiAlias
