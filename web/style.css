@@ -294,6 +294,12 @@ button:active { background: var(--accent); }
   font-size: 12px;
 }
 
+#prefPreviewFrames,
+#prefDuration,
+#prefLoop {
+  width: 68px;
+}
+
 #prefsBar input[type=color] {
   width: 32px; height: 22px;
   padding: 0; border: 1px solid var(--border); border-radius: 3px; cursor: pointer;

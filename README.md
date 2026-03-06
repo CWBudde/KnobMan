@@ -3,6 +3,8 @@
 KnobMan is a **fully in-browser** knob / UI-asset renderer and exporter, implemented as a **Go** application compiled to **WebAssembly**.
 It aims for feature parity with the original KnobMan / JKnobMan 1.3.3 workflow while being **offline-capable** and **static-hostable** (no server required).
 
+Try online: https://cwbudde.github.io/KnobMan/
+
 ## Highlights
 
 - **Runs locally or on static hosting** (GitHub Pages, S3, …) — just HTML/CSS/JS + a WASM binary.

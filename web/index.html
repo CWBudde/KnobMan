@@ -65,8 +65,12 @@
           <input type="number" id="prefWidth"  value="64" min="8" max="512" step="1" /> ×
           <input type="number" id="prefHeight" value="64" min="8" max="512" step="1" />
         </label>
-        <label>Frames:
+        <label><input type="checkbox" id="prefLockAspect" /> Lock Ratio</label>
+        <label>Render:
           <input type="number" id="prefFrames" value="31" min="1" max="256" step="1" />
+        </label>
+        <label>Preview:
+          <input type="number" id="prefPreviewFrames" value="31" min="1" max="256" step="1" />
         </label>
         <label>BG:
           <input type="color" id="prefBgColor" value="#000000" />
@@ -88,6 +92,19 @@
             <option value="4">APNG</option>
           </select>
         </label>
+        <label>Align:
+          <select id="prefAlign">
+            <option value="0">Vertical</option>
+            <option value="1">Horizontal</option>
+          </select>
+        </label>
+        <label>Duration:
+          <input type="number" id="prefDuration" value="100" min="1" max="10000" step="1" />
+        </label>
+        <label>Loop:
+          <input type="number" id="prefLoop" value="0" min="0" max="9999" step="1" />
+        </label>
+        <label><input type="checkbox" id="prefBiDir" /> BiDir</label>
       </footer>
     </div>
 

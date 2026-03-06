@@ -27,6 +27,8 @@ let rafPending = false;
 let pixelBuf = null;
 let imageData = null;
 let selectedLayer = 0;
+let prefAspectLock = false;
+let prefAspectRatio = 1;
 
 const PRIM_TYPES = [
   { value: 0, label: 'None' },
@@ -288,10 +290,13 @@ function refreshFromDoc() {
   refreshLayerList();
   refreshParamPanel();
 
-  const frames = parseInt(document.getElementById('prefFrames').value, 10) || 1;
-  if (currentFrame >= frames) currentFrame = frames - 1;
+  const renderFrames = parseInt(document.getElementById('prefFrames').value, 10) || 1;
+  const previewFrames = parseInt(document.getElementById('prefPreviewFrames').value, 10) || renderFrames;
+  const visibleFrames = Math.max(1, previewFrames);
+  const maxPreviewFrame = Math.max(0, Math.min(renderFrames, visibleFrames) - 1);
+  if (currentFrame > maxPreviewFrame) currentFrame = maxPreviewFrame;
   if (currentFrame < 0) currentFrame = 0;
-  document.getElementById('frameSlider').max = Math.max(0, frames - 1);
+  document.getElementById('frameSlider').max = Math.max(0, visibleFrames - 1);
   document.getElementById('frameSlider').value = currentFrame;
   document.getElementById('frameValue').textContent = String(currentFrame);
   window.knobman_setPreviewFrame(currentFrame);
@@ -350,18 +355,28 @@ function wireControls() {
   const slider = document.getElementById('frameSlider');
   slider.addEventListener('input', () => {
     currentFrame = parseInt(slider.value, 10) || 0;
+    const renderFrames = parseInt(document.getElementById('prefFrames').value, 10) || 1;
+    if (currentFrame >= renderFrames) currentFrame = renderFrames - 1;
+    if (currentFrame < 0) currentFrame = 0;
+    slider.value = String(currentFrame);
     document.getElementById('frameValue').textContent = String(currentFrame);
     window.knobman_setPreviewFrame(currentFrame);
     markDirty();
   });
 
   // Prefs bar
-  document.getElementById('prefWidth').addEventListener('change', onPrefsChange);
-  document.getElementById('prefHeight').addEventListener('change', onPrefsChange);
+  document.getElementById('prefWidth').addEventListener('change', onPrefWidthChange);
+  document.getElementById('prefHeight').addEventListener('change', onPrefHeightChange);
+  document.getElementById('prefLockAspect').addEventListener('change', onPrefLockAspectChange);
   document.getElementById('prefFrames').addEventListener('change', onPrefsChange);
+  document.getElementById('prefPreviewFrames').addEventListener('change', onPrefsChange);
   document.getElementById('prefBgColor').addEventListener('input', onPrefsChange);
   document.getElementById('prefOversample').addEventListener('change', onPrefsChange);
   document.getElementById('prefExport').addEventListener('change', onPrefsChange);
+  document.getElementById('prefAlign').addEventListener('change', onPrefsChange);
+  document.getElementById('prefDuration').addEventListener('change', onPrefsChange);
+  document.getElementById('prefLoop').addEventListener('change', onPrefsChange);
+  document.getElementById('prefBiDir').addEventListener('change', onPrefsChange);
 
   // Toolbar
   document.getElementById('btnNew').addEventListener('click', onNew);
@@ -382,13 +397,54 @@ function wireControls() {
   document.addEventListener('keydown', onKeyDown);
 }
 
+function syncAspectRatioFromInputs() {
+  const w = parseInt(document.getElementById('prefWidth').value, 10) || 64;
+  const h = parseInt(document.getElementById('prefHeight').value, 10) || 64;
+  prefAspectRatio = Math.max(0.01, w / Math.max(1, h));
+}
+
+function onPrefLockAspectChange() {
+  prefAspectLock = document.getElementById('prefLockAspect').checked;
+  if (prefAspectLock) {
+    syncAspectRatioFromInputs();
+  }
+}
+
+function onPrefWidthChange() {
+  if (prefAspectLock) {
+    const w = parseInt(document.getElementById('prefWidth').value, 10) || 64;
+    const h = Math.max(1, Math.round(w / Math.max(0.01, prefAspectRatio)));
+    document.getElementById('prefHeight').value = h;
+  }
+  syncAspectRatioFromInputs();
+  onPrefsChange();
+}
+
+function onPrefHeightChange() {
+  if (prefAspectLock) {
+    const h = parseInt(document.getElementById('prefHeight').value, 10) || 64;
+    const w = Math.max(1, Math.round(h * Math.max(0.01, prefAspectRatio)));
+    document.getElementById('prefWidth').value = w;
+  }
+  syncAspectRatioFromInputs();
+  onPrefsChange();
+}
+
 function onPrefsChange() {
+  const renderFrames = parseInt(document.getElementById('prefFrames').value, 10) || 1;
+  const previewFrames = parseInt(document.getElementById('prefPreviewFrames').value, 10) || renderFrames;
   const prefs = {
     width: parseInt(document.getElementById('prefWidth').value, 10) || 64,
     height: parseInt(document.getElementById('prefHeight').value, 10) || 64,
-    frames: parseInt(document.getElementById('prefFrames').value, 10) || 1,
+    frames: renderFrames,
+    renderFrames: renderFrames,
+    previewFrames: previewFrames,
     oversampling: parseInt(document.getElementById('prefOversample').value, 10) || 0,
+    alignHorizontal: parseInt(document.getElementById('prefAlign').value, 10) || 0,
     exportOption: parseInt(document.getElementById('prefExport').value, 10) || 0,
+    duration: parseInt(document.getElementById('prefDuration').value, 10) || 100,
+    loop: parseInt(document.getElementById('prefLoop').value, 10) || 0,
+    biDir: document.getElementById('prefBiDir').checked,
     bgColor: document.getElementById('prefBgColor').value
   };
   window.knobman_setPrefs(prefs);
@@ -400,10 +456,18 @@ function syncPrefsFromGo() {
   if (!p) return;
   if (p.width != null) document.getElementById('prefWidth').value = p.width;
   if (p.height != null) document.getElementById('prefHeight').value = p.height;
-  if (p.frames != null) document.getElementById('prefFrames').value = p.frames;
+  if (p.renderFrames != null) document.getElementById('prefFrames').value = p.renderFrames;
+  else if (p.frames != null) document.getElementById('prefFrames').value = p.frames;
+  if (p.previewFrames != null) document.getElementById('prefPreviewFrames').value = p.previewFrames;
   if (p.oversampling != null) document.getElementById('prefOversample').value = p.oversampling;
+  if (p.alignHorizontal != null) document.getElementById('prefAlign').value = p.alignHorizontal;
   if (p.exportOption != null) document.getElementById('prefExport').value = p.exportOption;
+  if (p.duration != null) document.getElementById('prefDuration').value = p.duration;
+  if (p.loop != null) document.getElementById('prefLoop').value = p.loop;
+  if (p.biDir != null) document.getElementById('prefBiDir').checked = Boolean(p.biDir);
   if (p.bgColor) document.getElementById('prefBgColor').value = p.bgColor;
+  prefAspectLock = document.getElementById('prefLockAspect').checked;
+  syncAspectRatioFromInputs();
 }
 
 // ── Layers ────────────────────────────────────────────────────────────────────

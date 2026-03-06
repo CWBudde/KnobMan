@@ -28,6 +28,7 @@
 - [ ] **Phase 6** — Complete primitive/effect parameter panels (partial: 6.1 done)
 - [x] **Phase 6.1** — Primitive panel per type (JS + WASM primitive param bridge)
 - [x] **Phase 6.2** — Effect stack panel (JS + WASM effect param bridge)
+- [x] **Phase 6.3** — Prefs panel expansion (preview/export frames, duration/loop/bidir, align, lock-aspect)
 - [ ] **Phase 7** — Advanced editors (curve, shape, preview tools)
 - [ ] **Phase 8** — Export pipeline (PNG strip/frames, GIF, APNG)
 
@@ -325,7 +326,7 @@ Responsive: on narrow viewports, panels stack vertically.
 ## Phase 6 — Complete Parameter Panels
 
 **Goal:** Full fidelity of all parameter controls for all 16 primitive types and the full effect stack.
-**Status:** [ ] Partial (6.1/6.2 done; 6.3+ pending)
+**Status:** [ ] Partial (6.1/6.2/6.3 done; 6.4+ pending)
 
 ### [x] 6.1 — Primitive Panel per Type
 
@@ -366,7 +367,7 @@ Each animatable parameter shows:
 - A From/To range (two inputs or a dual-handle range slider)
 - An AnimCurve selector (dropdown: Linear, Curve 1..8)
 
-### [ ] 6.3 — Prefs Panel
+### [x] 6.3 — Prefs Panel
 
 Bottom bar with: Width × Height (with lock-aspect option), Oversampling selector, PreviewFrames, ExportFrames, Background Color, Strip Orientation (H/V), Export Format, Duration (ms), Loop, BiDir.
 
