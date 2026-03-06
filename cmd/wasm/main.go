@@ -300,6 +300,8 @@ func jsSetParam(this js.Value, args []js.Value) any {
 		ly.Prim.Step.Val = v.Float()
 	case "angleStep":
 		ly.Prim.AngleStep.Val = v.Float()
+	case "lightDir":
+		ly.Prim.LightDir.Val = v.Float()
 	case "diffuse":
 		ly.Prim.Diffuse.Val = v.Float()
 	case "fontSize":
@@ -342,6 +344,36 @@ func jsGetParam(this js.Value, args []js.Value) any {
 		return ly.Prim.Shape.Val
 	case "fill":
 		return ly.Prim.Fill.Val != 0
+	case "width":
+		return ly.Prim.Width.Val
+	case "length":
+		return ly.Prim.Length.Val
+	case "aspect":
+		return ly.Prim.Aspect.Val
+	case "round":
+		return ly.Prim.Round.Val
+	case "step":
+		return ly.Prim.Step.Val
+	case "angleStep":
+		return ly.Prim.AngleStep.Val
+	case "lightDir":
+		return ly.Prim.LightDir.Val
+	case "diffuse":
+		return ly.Prim.Diffuse.Val
+	case "fontSize":
+		return ly.Prim.FontSize.Val
+	case "textAlign":
+		return ly.Prim.TextAlign.Val
+	case "frameAlign":
+		return ly.Prim.FrameAlign.Val
+	case "numFrame":
+		return ly.Prim.NumFrame.Val
+	case "autoFit":
+		return ly.Prim.AutoFit.Val != 0
+	case "transparent":
+		return ly.Prim.Transparent.Val
+	case "intelliAlpha":
+		return ly.Prim.IntelliAlpha.Val
 	default:
 		return nil
 	}
