@@ -49,7 +49,6 @@ let curveCanvas = null;
 let curveCtx = null;
 let curveDragPoint = -1;
 let curveSelectedPoint = -1;
-let curveEditorCollapsed = false;
 let shapeMode = "L";
 let shapeCanvas = null;
 let shapeCtx = null;

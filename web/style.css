@@ -270,55 +270,29 @@ button:active {
 
 #curveEditorPanel {
   width: min(560px, 100%);
-  background: var(--bg2);
+}
+
+#curveEditorDetails {
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 8px;
+  background: var(--bg2);
+}
+
+#curveEditorDetails > summary {
+  cursor: pointer;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  user-select: none;
+}
+
+.curve-editor-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-#curveEditorHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-}
-
-#curveEditorHeader .curve-editor-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-#curveEditorHeader strong {
-  font-size: 12px;
-  letter-spacing: 0.02em;
-}
-
-#curveEditorToggle {
-  min-width: 22px;
-  height: 22px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#curveEditorToggle::before {
-  content: "›";
-  display: block;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  transform: rotate(90deg);
-  transition: transform 160ms ease;
-}
-
-#curveEditorToggle[aria-expanded="false"]::before {
-  transform: rotate(0deg);
+  padding: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .curve-editor-tools {
@@ -376,13 +350,6 @@ button:active {
 #curveHelp {
   font-size: 11px;
   color: var(--text-dim);
-}
-
-#curveEditorPanel.collapsed #curveTabs,
-#curveEditorPanel.collapsed #curveCanvas,
-#curveEditorPanel.collapsed #curveHelp,
-#curveEditorPanel.collapsed .curve-editor-tools {
-  display: none;
 }
 
 #shapeEditorPanel {
