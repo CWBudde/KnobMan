@@ -8,50 +8,19 @@
 
 ## TODO Checklist (Current Progress)
 
-- [x] **Done (condensed)**
-    - Phase 0 (0.1–0.4): legacy archived, Go skeleton + build system, WASM boots with `agg_go`
-    - Phase 1 (1.1–1.8): model + `.knob` load/save + round-trip tests
-    - Phase 2: baseline primitive rendering pipeline implemented (parity pending)
-    - Phase 5.2: basic three-column HTML/CSS UI shell
-    - Phase 9.1: undo/redo history model (integration pending)
+- [x] **Completed (condensed)**
+    - Phases 0–1: repo skeleton + full model + `.knob` load/save + tests
+    - Phase 5–7: WASM + web UI (layers/params), editors (curve/shape), preview tooling
+    - Phase 4 (partial items): AnimStep, DynamicText, multi-frame image-strip support
+    - Phase 8 (partial items): PNG strip/frames + GIF export (8.1–8.3)
 
-- [x] **Phase 3** — Effect stack renderer (`internal/render/*`) (baseline implementation done; parity pending)
-- [x] **Phase 4.2** — AnimStep support
-- [x] **Phase 4.3** — DynamicText implementation
-- [x] **Phase 4.4** — Multi-frame image strip support
-
-- [x] **Phase 5.1** — Full JS API surface from WASM (currently partial)
-- [x] **Phase 5.3** — Layer panel behavior (list/selection/reorder) (currently stubbed)
-- [x] **Phase 5.4** — Parameter panel behavior (basic primitive panel wired)
-- [x] **Phase 5.5** — End-to-end live preview with document state wiring (currently partial)
-
-- [x] **Phase 6** — Complete primitive/effect parameter panels
-- [x] **Phase 6.1** — Primitive panel per type (JS + WASM primitive param bridge)
-- [x] **Phase 6.2** — Effect stack panel (JS + WASM effect param bridge)
-- [x] **Phase 6.3** — Prefs panel expansion (preview/export frames, duration/loop/bidir, align, lock-aspect)
-- [x] **Phase 6.4** — Texture panel (built-ins + upload + slot assignment + previews)
-- [x] **Phase 6.5** — Color picker (native color + alpha controls)
-- [x] **Phase 7.1** — Animation curve editor (tabs + canvas keypoint editing)
-- [x] **Phase 7.2** — Shape path editor (overlay + M/L/C/Q/Z tools)
-- [x] **Phase 7.3** — Layer bitmap previews (frame 0/1 primitive thumbnails)
-- [x] **Phase 7.4** — Floating preview window (detached animated popup)
-- [x] **Phase 7** — Advanced editors (curve, shape, preview tools)
-- [x] **Phase 8.1** — PNG strip export (vertical/horizontal)
-- [x] **Phase 8.2** — PNG frames export (ZIP download)
-- [ ] **Phase 8** — Export pipeline (PNG strip/frames, GIF, APNG)
-
-- [ ] **Phase 9.1** — Undo/redo integrated into app mutations (history model exists)
-- [ ] **Phase 9.2** — Complete shortcut set (currently partial)
-- [x] **Phase 9.3** — Browser file open/save fully wired (currently stubbed)
-- [ ] **Phase 9.4** — Sample project browser
-- [ ] **Phase 9.5** — Recent files/session persistence
-- [ ] **Phase 9.6** — Full status bar metrics
-- [ ] **Phase 9.7** — Localization (optional)
-
-- [ ] **Phase 10.1** — Visual regression suite
-- [ ] **Phase 10.2** — Full unit test matrix (currently partial: model + fileio + render baseline + phase3 pipeline)
-- [ ] **Phase 10.3** — Performance tuning targets
-- [ ] **Phase 10.4** — Deployment automation
+- [ ] **Still partial / pending**
+    - Phase 2: primitive render parity against Java reference output
+    - Phase 3: effect stack parity against Java reference output
+    - Phase 4: complete render-side animation pipeline integration
+    - Phase 8: APNG export + download wiring (8.4–8.5)
+    - Phase 9: app-level undo/redo integration, shortcuts, samples, persistence, status metrics
+    - Phase 10: regression tests, perf targets, deployment automation
 
 ---
 
@@ -68,23 +37,16 @@
 **Goal:** Archive the original Java source, create the new Go project skeleton, and establish the build system. No rendering code yet.
 **Status:** [x] Completed
 
-### [x] 0.1 — Move Legacy Code
+**Completed (condensed):**
 
-Done — legacy Java sources/resources archived under `legacy/`.
+- [x] 0.1 Legacy archived under `legacy/`
+- [x] 0.2 Go module + folder layout (`cmd/wasm`, `internal/*`, `web/*`, `assets/*`) + `agg_go` wiring
+- [x] 0.3 Build/test/dev loop via `justfile`
+- [x] 0.4 Minimal WASM skeleton (canvas boot + agg_go proof)
 
-### [x] 0.2 — Go Module Setup
+**Where:** `cmd/wasm/`, `web/`, `justfile`, `go.mod`
 
-Done — Go module + folder layout created (`cmd/wasm`, `internal/*`, `web/*`, `assets/*`), including `agg_go` replace wiring.
-
-### [x] 0.3 — Build System
-
-Done — build/test/dev loop scripted via `justfile`.
-
-### [x] 0.4 — Minimal Skeleton
-
-`cmd/wasm/main.go` that compiles to WASM, opens a blank canvas, and proves the agg_go integration works. `web/index.html` with just the canvas and WASM loader.
-
-**Deliverable:** `go build ./...` passes, WASM builds, blank white canvas appears in browser.
+**Deliverable:** `go build ./...` passes; WASM boots and renders a blank canvas.
 
 ---
 
@@ -93,40 +55,16 @@ Done — build/test/dev loop scripted via `justfile`.
 **Goal:** Go types for every parameter from the original, plus .knob file load/save. No rendering yet.
 **Status:** [x] Completed
 
-### [x] 1.1 — Parameter Types (`internal/model/params.go`)
+**Completed (condensed):**
 
-Done — parameter types implemented with JSON/INI serialization.
-
-### [x] 1.2 — AnimCurve (`internal/model/animcurve.go`)
-
-- Up to 12 keypoints: `[12]AnimPoint` where `AnimPoint{Time, Level float64}` (0–100 range)
-- `Eval(t float64) float64` — piecewise-linear interpolation
-- `EvalStepped(t float64, steps int) float64` — quantized version
-- 8 global curves per document, indexed 0–7
-
-### [x] 1.3 — Prefs (`internal/model/prefs.go`)
-
-Done — prefs model implemented (canvas size, oversampling, frames, export options).
-
-### [x] 1.4 — Primitive (`internal/model/primitive.go`)
-
-Done — primitive model implemented (all primitive types + all parameters).
-
-### [x] 1.5 — Effect Stack (`internal/model/effect.go`)
-
-Done — effect stack model implemented (animatable from/to parameters + curve selectors; Java field parity).
-
-### [x] 1.6 — Layer (`internal/model/layer.go`)
-
-Done — layer model implemented.
-
-### [x] 1.7 — Document (`internal/model/document.go`)
-
-Done — document model implemented (prefs + curves + layers + texture entries).
-
-### [x] 1.8 — File Format (`internal/fileio/`)
-
-Done — `.knob` load/save implemented with round-trip tests.
+- [x] 1.1 Params + serialization: `internal/model/params.go`
+- [x] 1.2 AnimCurve model + eval: `internal/model/animcurve.go`
+- [x] 1.3 Prefs: `internal/model/prefs.go`
+- [x] 1.4 Primitives: `internal/model/primitive.go`
+- [x] 1.5 Effects: `internal/model/effect.go`
+- [x] 1.6 Layers: `internal/model/layer.go`
+- [x] 1.7 Document root: `internal/model/document.go`
+- [x] 1.8 `.knob` load/save + round-trip tests: `internal/fileio/`
 
 ---
 
@@ -238,96 +176,15 @@ func ExtractFrame(strip *PixBuf, numFrames, frame, totalFrames int) *PixBuf
 **Goal:** A functioning web UI with canvas preview, layer list, and primitive parameter panel. Establishes the JS↔Go communication pattern.
 **Status:** [x] Completed (basic WASM shell UI wired end-to-end)
 
-### [x] 5.1 — WASM Entry Point (`cmd/wasm/main.go`)
+**Completed (condensed):**
 
-```go
-//go:build js && wasm
+- [x] 5.1 WASM entrypoint + JS API bridge: `cmd/wasm/main.go`
+- [x] 5.2 Three-column web UI shell + responsive layout: `web/index.html`, `web/style.css`
+- [x] 5.3 Layer panel (list, selection, reorder, basic actions): `web/main.js`
+- [x] 5.4 Primitive parameter panel wired to Go state: `web/main.js`
+- [x] 5.5 Canvas preview with dirty rendering + frame scrubber: `web/main.js`
 
-package main
-
-import "syscall/js"
-
-func main() {
-    // Expose all Go functions to JS
-    js.Global().Set("knobman_init",         js.FuncOf(init_))
-    js.Global().Set("knobman_render",       js.FuncOf(render))
-    js.Global().Set("knobman_getLayerList", js.FuncOf(getLayerList))
-    js.Global().Set("knobman_addLayer",     js.FuncOf(addLayer))
-    js.Global().Set("knobman_deleteLayer",  js.FuncOf(deleteLayer))
-    js.Global().Set("knobman_moveLayer",    js.FuncOf(moveLayer))
-    js.Global().Set("knobman_setLayerVisible", js.FuncOf(setLayerVisible))
-    js.Global().Set("knobman_setLayerSolo",    js.FuncOf(setLayerSolo))
-    js.Global().Set("knobman_duplicateLayer",  js.FuncOf(duplicateLayer))
-    js.Global().Set("knobman_selectLayer",     js.FuncOf(selectLayer))
-    js.Global().Set("knobman_setParam",        js.FuncOf(setParam))
-    js.Global().Set("knobman_getParam",        js.FuncOf(getParam))
-    js.Global().Set("knobman_setPrefs",        js.FuncOf(setPrefs))
-    js.Global().Set("knobman_getPrefs",        js.FuncOf(getPrefs))
-    js.Global().Set("knobman_loadFile",        js.FuncOf(loadFile))
-    js.Global().Set("knobman_saveFile",        js.FuncOf(saveFile))
-    js.Global().Set("knobman_exportPNG",       js.FuncOf(exportPNG))
-    js.Global().Set("knobman_exportGIF",       js.FuncOf(exportGIF))
-    js.Global().Set("knobman_exportAPNG",      js.FuncOf(exportAPNG))
-    js.Global().Set("knobman_setTexture",      js.FuncOf(setTexture))
-    js.Global().Set("knobman_setAnimCurve",    js.FuncOf(setAnimCurve))
-    js.Global().Set("knobman_getAnimCurve",    js.FuncOf(getAnimCurve))
-    js.Global().Set("knobman_setPreviewFrame", js.FuncOf(setPreviewFrame))
-    js.Global().Set("knobman_undo",            js.FuncOf(undo_))
-    js.Global().Set("knobman_redo",            js.FuncOf(redo_))
-    select {}
-}
-```
-
-Go-side state: a single global `*model.Document` + `[]*render.Texture` + undo stack.
-
-The `render` function renders the current document at the current preview frame and copies the pixel buffer to a JS `Uint8ClampedArray` for drawing to `<canvas>`.
-
-### [x] 5.2 — HTML/CSS Layout (`web/index.html`, `web/style.css`)
-
-Three-column layout mirroring the Java Swing UI:
-
-```
-┌─────────────────────────────────────────────────┐
-│  Toolbar: New | Open | Save | Export | Undo/Redo │
-├──────────┬─────────────────────┬─────────────────┤
-│  Layer   │   Canvas Preview    │  Parameters     │
-│  Panel   │                     │  Panel          │
-│          │   [canvas element]  │                 │
-│  ┌─┐Name │                     │  [Prim Type]    │
-│  ├─┤Name │   Frame scrubber    │  [Prim Params]  │
-│  ├─┤Name │   ← ──────── →      │  ─────────────  │
-│  └─┘     │                     │  [Effect Params]│
-│  [+][-]↑↓│                     │                 │
-├──────────┴─────────────────────┴─────────────────┤
-│  Prefs: Size | Frames | BgColor | Export Options  │
-└─────────────────────────────────────────────────-─┘
-```
-
-Responsive: on narrow viewports, panels stack vertically.
-
-### [x] 5.3 — Layer Panel (JS)
-
-- Renders the layer list as a `<ul>` with drag-to-reorder
-- Each row: visibility toggle (eye icon), solo toggle, layer name (dblclick to rename), layer type indicator
-- Buttons: Add, Delete, Move Up, Move Down, Duplicate
-- Click to select — triggers parameter panel refresh
-
-### [x] 5.4 — Basic Parameter Panel (JS)
-
-- Primitive type selector (dropdown with 16 options)
-- On type change: show/hide relevant parameter fields
-- Each parameter rendered as: label + appropriate input (range slider, number input, color picker, text input, file picker, checkbox, select)
-- All changes call `knobman_setParam(layerIdx, paramKey, value)` → triggers re-render
-
-### [x] 5.5 — Canvas & Preview
-
-- HTML5 `<canvas>` element
-- `requestAnimationFrame`-based render loop (only re-renders when dirty)
-- Frame scrubber: range input 0..N → calls `knobman_setPreviewFrame(n)`
-- Zoom: pixel-doubled preview for small canvases (e.g. 64×64 at 4× zoom)
-- Background checkerboard pattern shows transparency
-
-**Deliverable:** Can load a `.knob` file, see the layers, select them, and see a rendered preview updating in real time as parameters change.
+**Deliverable:** Load a `.knob`, edit layers/params, and see a live preview in the browser.
 
 ---
 
@@ -336,60 +193,17 @@ Responsive: on narrow viewports, panels stack vertically.
 **Goal:** Full fidelity of all parameter controls for all 16 primitive types and the full effect stack.
 **Status:** [x] Completed
 
-### [x] 6.1 — Primitive Panel per Type
+**Completed (condensed):**
 
-Each PrimitiveType maps to a set of visible parameters. The JS panel shows/hides parameter groups based on selected type:
+- [x] 6.1 Primitive parameter panels for all primitive types (show/hide per type)
+- [x] 6.2 Effect stack panel with animatable From/To + curve selection
+- [x] 6.3 Prefs panel (size/frames/bg/export options) wired to document
+- [x] 6.4 Texture UI (built-ins + upload + assignment)
+- [x] 6.5 Color picking with alpha support
 
-| Type | Visible Parameters |
-|------|--------------------|
-| None | (none) |
-| Image | File picker, AutoFit, IntelliAlpha, NumFrame |
-| Circle | Color, Width, Round, Diffuse, Emboss, EmbossDiffuse, Ambient, LightDir, Specular, SpecularWidth, TextureDepth, TextureZoom, TextureFile |
-| CircleFill | Color, Aspect, Diffuse, Ambient, LightDir, Specular, SpecularWidth, TextureDepth, TextureZoom, TextureFile |
-| MetalCircle | Color, Aspect, Diffuse, Ambient, LightDir, Specular, SpecularWidth, TextureDepth, TextureZoom, TextureFile |
-| WaveCircle | Color, Width, Step, Length, Diffuse, Emboss, ... |
-| GradientCircle | Color, Aspect, Diffuse, Step, AngleStep |
-| Rect | Color, Width, Round, Length, Aspect, Diffuse, Emboss, ... |
-| RectFill | Color, Round, Aspect, Diffuse, Emboss, EmbossDiffuse, Ambient, LightDir, Specular, SpecularWidth, TextureDepth, TextureZoom, TextureFile |
-| Triangle | Color, Width, Round, Length, Diffuse, Fill |
-| Line | Color, Width, Length, LightDir (angle) |
-| RadiateLine | Color, Width, Length, AngleStep, Step |
-| HLines/VLines | Color, Width, Step |
-| Text | Color, Text, Font, TextAlign, FrameAlign, Bold, Italic |
-| Shape | Color, Shape (path editor), Fill, Round, Diffuse |
+**Where:** UI wiring in `web/main.js`; model/behavior lives in `internal/model/*` and `cmd/wasm/main.go` bridge.
 
-### [x] 6.2 — Effect Stack Panel
-
-Collapsible sections (mirroring Java's EffPanel):
-- **Transform** — ZoomX, ZoomY, OffsetX, OffsetY, Angle, Center, KeepDir, Unfold, AnimStep, AntiAlias
-- **Color** — Alpha, Brightness, Contrast, Saturation, Hue
-- **Mask 1** — Enable, Type, Start, Stop, Gradient, GradDir
-- **Mask 2** — Enable, Type, Start, Stop, Gradient, GradDir, Operation
-- **Frame Mask** — Enable, Type, Start/Stop or Bitmask
-- **Specular Highlight** — Enable, LightDir, Density
-- **Drop Shadow** — Enable, LightDir, Offset, Density, Diffuse, Grad, Type
-- **Inner Shadow** — Enable, LightDir, Offset, Density, Diffuse
-- **Emboss** — Enable, LightDir, Offset, Density
-
-Each animatable parameter shows:
-- A From/To range (two inputs or a dual-handle range slider)
-- An AnimCurve selector (dropdown: Linear, Curve 1..8)
-
-### [x] 6.3 — Prefs Panel
-
-Bottom bar with: Width × Height (with lock-aspect option), Oversampling selector, PreviewFrames, ExportFrames, Background Color, Strip Orientation (H/V), Export Format, Duration (ms), Loop, BiDir.
-
-Canvas resize: triggers full document re-render.
-
-### [x] 6.4 — Texture Panel
-
-A dropdown or palette showing the 18 built-in textures with thumbnail previews. Plus an "Add Texture" button that opens a file picker (PNG/JPG/BMP). Loaded textures are stored in the document and embedded in saved `.knob` files or referenced by path (to be decided).
-
-### [x] 6.5 — Color Picker
-
-Custom `<canvas>`-based HSV color picker (or use the browser's native `<input type="color">` with an additional alpha slider). Used for all `ColorParam` inputs.
-
-**Deliverable:** All parameters from all 16 primitive types and the full effect stack are editable via the web UI.
+**Deliverable:** All primitive + effect parameters are editable from the web UI.
 
 ---
 
@@ -398,76 +212,29 @@ Custom `<canvas>`-based HSV color picker (or use the browser's native `<input ty
 **Goal:** Visual editors for animation curves and shape paths, completing the feature set of `CurveEditor` and `ShapeEditor`.
 **Status:** [x] Completed
 
-### [x] 7.1 — Animation Curve Editor
+**Completed (condensed):**
 
-A `<canvas>`-based interactive editor:
-- Displays the piecewise-linear curve as a polyline in a 100×100 normalized space
-- Up to 12 draggable keypoints
-- Click to add a keypoint, right-click (or button) to delete
-- Displays current frame position as a vertical line
-- Shows evaluated value as a horizontal line
-- Applied to any Effect parameter that has an `AnimCurve` selector
-- 8 global curves displayed as tabs
+- [x] 7.1 Curve editor (canvas, drag keypoints, 8 tabs)
+- [x] 7.2 Shape/path editor (M/L/C/Q/Z tools + serialization)
+- [x] 7.3 Per-layer thumbnails (frame 0/1 previews)
+- [x] 7.4 Floating/detached animated preview
 
-This mirrors `CurveEditor.java` in the original.
+**Where:** Frontend behavior in `web/main.js` (and related `web/*` assets); render support in `internal/render/*`.
 
-### [x] 7.2 — Shape Path Editor
-
-For the `PrimShape` shape string (SVG-like M/L/C/Q/Z path):
-
-- `<canvas>`-based interactive editor overlaid on the current canvas preview
-- Shows control points (Move, Line, Cubic Bezier, Quadratic Bezier) as draggable handles
-- Bezier control arms shown as dashed lines
-- Toolbar: M (move), L (line), C (cubic), Q (quadratic), Z (close), delete point
-- Serializes to the SVG path string format
-
-Mirrors `ShapeEditor.java`.
-
-### [x] 7.3 — Layer Bitmap Preview
-
-Two small preview thumbnails per layer (frame 0 and frame 1 of that layer's primitive, before effects), rendered asynchronously. Shown in the layer panel row. Mirrors `BitmapView.java`.
-
-This uses a secondary render pass with `RenderFrame` called for just that layer in isolation.
-
-### [x] 7.4 — Preview Window / Floating Preview
-
-An optional detachable preview panel (or popup window via `window.open()`) that shows the rendered knob at its actual export size, animating through frames. Mirrors `TransparentIcon.java`.
-
-**Deliverable:** Users can design custom shapes and fully animate all parameters graphically.
+**Deliverable:** Visual curve + shape authoring and improved preview tooling.
 
 ---
 
 ## Phase 8 — Export
 
 **Goal:** All four export formats from the original.
-**Status:** [ ] Partial (8.1–8.2 done; 8.3–8.4 pending)
+**Status:** [ ] Partial (8.1–8.3 done; 8.4 pending)
 
-### [x] 8.1 — PNG Strip (`internal/export/pngstrip.go`)
+### Completed (condensed)
 
-```go
-// Render all frames and stitch into a vertical or horizontal PNG strip.
-func ExportPNGStrip(doc *model.Document, textures []*render.Texture, horizontal bool) ([]byte, error)
-```
-
-Encodes using Go's `image/png`. Returns the PNG bytes for browser download.
-
-### [x] 8.2 — Individual PNG Frames (`internal/export/pngframes.go`)
-
-```go
-// Render all frames, return as a slice of PNG []byte (one per frame).
-// The JS layer zips these for download.
-func ExportPNGFrames(doc *model.Document, textures []*render.Texture) ([][]byte, error)
-```
-
-Since WASM can't write to the filesystem, the JS layer receives all PNG bytes and packages them as a zip for download (using JSZip or a Go zip implementation).
-
-### [ ] 8.3 — Animated GIF (`internal/export/animgif.go`)
-
-Port or wrap the Java `AnimGif.java` GIF encoder logic in pure Go (no external deps). Or use a pure-Go GIF encoder library.
-
-```go
-func ExportGIF(doc *model.Document, textures []*render.Texture) ([]byte, error)
-```
+- [x] 8.1 PNG strip export: `internal/export/pngstrip.go` (`ExportPNGStrip`)
+- [x] 8.2 PNG frames export: `internal/export/pngframes.go` (`ExportPNGFrames`) (zipped on the JS side)
+- [x] 8.3 Animated GIF export: `internal/export/animgif.go` (`ExportGIF`)
 
 ### [ ] 8.4 — APNG (`internal/export/apng.go`)
 
@@ -534,7 +301,8 @@ Delete              Delete Selected Layer
 ### [x] 9.3 — File Open/Save (Browser)
 
 - **Open**: `<input type="file" accept=".knob">` → `FileReader.readAsArrayBuffer()` → pass bytes to `knobman_loadFile(bytes)`
-- **Save**: `knobman_saveFile()` returns `[]byte` → trigger browser download of `.knob` file
+- **Save**: `knobman_saveFile()` returns `[]byte` → save via `showSaveFilePicker` when available, fallback to browser download
+- **Export Downloads**: unified save path for PNG strip, PNG frames ZIP, and GIF (picker + fallback)
 
 Auto-save to `localStorage` every 30 seconds (serialize current document as base64).
 
