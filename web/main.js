@@ -2394,19 +2394,64 @@ function onSave() {
     setStatus('Save failed');
     return;
   }
-  const blob = new Blob([data], { type: 'application/octet-stream' });
+  downloadBytes(data, 'project.knob', 'application/octet-stream');
+  setStatus('Saved project.knob');
+}
+
+function downloadBytes(bytes, fileName, mimeType) {
+  const blob = new Blob([bytes], { type: mimeType || 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'project.knob';
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  setStatus('Saved project.knob');
 }
 
-function onExport() { setStatus('Export (Phase 8)'); }
+function onExport() {
+  const option = parseInt(document.getElementById('prefExport').value, 10) || 0;
+  if (option === 0 || option === 1) {
+    if (!window.knobman_exportPNGStrip) {
+      setStatus('PNG strip export unavailable');
+      return;
+    }
+    const horizontal = option === 1;
+    const out = window.knobman_exportPNGStrip(horizontal);
+    if (!out || out.length === 0) {
+      setStatus('PNG strip export failed');
+      return;
+    }
+    const suffix = horizontal ? 'h' : 'v';
+    downloadBytes(out, `export-strip-${suffix}.png`, 'image/png');
+    setStatus(`Exported PNG strip (${horizontal ? 'H' : 'V'})`);
+    return;
+  }
+  if (option === 2) {
+    if (!window.knobman_exportPNGFramesZip) {
+      setStatus('PNG frames export unavailable');
+      return;
+    }
+    const out = window.knobman_exportPNGFramesZip();
+    if (!out || out.length === 0) {
+      setStatus('PNG frames export failed');
+      return;
+    }
+    downloadBytes(out, 'export-frames.zip', 'application/zip');
+    setStatus('Exported PNG frames ZIP');
+    return;
+  }
+  if (option === 3) {
+    setStatus('GIF export is Phase 8.3 (not implemented yet)');
+    return;
+  }
+  if (option === 4) {
+    setStatus('APNG export is Phase 8.4 (not implemented yet)');
+    return;
+  }
+  setStatus('Unknown export option');
+}
 function onUndo()   { setStatus('Undo (Phase 9)'); }
 function onRedo()   { setStatus('Redo (Phase 9)'); }
 

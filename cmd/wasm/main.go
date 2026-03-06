@@ -3,12 +3,15 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
 	"image/color"
 	"strconv"
 	"strings"
 	"syscall/js"
 
+	exportpkg "knobman/internal/export"
 	"knobman/internal/fileio"
 	"knobman/internal/model"
 	"knobman/internal/render"
@@ -61,6 +64,8 @@ func main() {
 	js.Global().Set("knobman_getTextureList", js.FuncOf(jsGetTextureList))
 	js.Global().Set("knobman_addTexture", js.FuncOf(jsAddTexture))
 	js.Global().Set("knobman_getTextureData", js.FuncOf(jsGetTextureData))
+	js.Global().Set("knobman_exportPNGStrip", js.FuncOf(jsExportPNGStrip))
+	js.Global().Set("knobman_exportPNGFramesZip", js.FuncOf(jsExportPNGFramesZip))
 
 	js.Global().Set("knobman_loadFile", js.FuncOf(jsLoadFile))
 	js.Global().Set("knobman_saveFile", js.FuncOf(jsSaveFile))
@@ -1254,6 +1259,59 @@ func jsSaveFile(this js.Value, args []js.Value) any {
 	}
 	arr := js.Global().Get("Uint8Array").New(len(b))
 	js.CopyBytesToJS(arr, b)
+	return arr
+}
+
+func jsExportPNGStrip(this js.Value, args []js.Value) any {
+	if doc == nil {
+		return js.Null()
+	}
+	horizontal := doc.Prefs.AlignHorz.Val != 0
+	if len(args) >= 1 {
+		horizontal = args[0].Bool()
+	}
+	out, err := exportpkg.ExportPNGStrip(doc, textures, horizontal)
+	if err != nil || len(out) == 0 {
+		return js.Null()
+	}
+	arr := js.Global().Get("Uint8Array").New(len(out))
+	js.CopyBytesToJS(arr, out)
+	return arr
+}
+
+func jsExportPNGFramesZip(this js.Value, args []js.Value) any {
+	if doc == nil {
+		return js.Null()
+	}
+	frames, err := exportpkg.ExportPNGFrames(doc, textures)
+	if err != nil || len(frames) == 0 {
+		return js.Null()
+	}
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	pad := len(strconv.Itoa(maxInt(0, len(frames)-1)))
+	if pad < 3 {
+		pad = 3
+	}
+	for i, framePNG := range frames {
+		name := fmt.Sprintf("frame_%0*d.png", pad, i)
+		fw, err := zw.Create(name)
+		if err != nil {
+			_ = zw.Close()
+			return js.Null()
+		}
+		if _, err := fw.Write(framePNG); err != nil {
+			_ = zw.Close()
+			return js.Null()
+		}
+	}
+	if err := zw.Close(); err != nil {
+		return js.Null()
+	}
+	out := buf.Bytes()
+	arr := js.Global().Get("Uint8Array").New(len(out))
+	js.CopyBytesToJS(arr, out)
 	return arr
 }
 
