@@ -1847,9 +1847,8 @@ function refreshFromDoc() {
   refreshShapeEditor();
 
   const renderFrames = parseInt(document.getElementById('prefFrames').value, 10) || 1;
-  const previewFrames = parseInt(document.getElementById('prefPreviewFrames').value, 10) || renderFrames;
-  const visibleFrames = Math.max(1, previewFrames);
-  const maxPreviewFrame = Math.max(0, Math.min(renderFrames, visibleFrames) - 1);
+  const visibleFrames = Math.max(1, renderFrames);
+  const maxPreviewFrame = Math.max(0, visibleFrames - 1);
   if (currentFrame > maxPreviewFrame) currentFrame = maxPreviewFrame;
   if (currentFrame < 0) currentFrame = 0;
   document.getElementById('frameSlider').max = Math.max(0, visibleFrames - 1);
