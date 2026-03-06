@@ -1843,25 +1843,6 @@ function syncCurveTabState() {
   });
 }
 
-function applyCurveEditorCollapsedState() {
-  const panel = document.getElementById("curveEditorPanel");
-  const toggle = document.getElementById("curveEditorToggle");
-  if (!panel || !toggle) return;
-  panel.classList.toggle("collapsed", curveEditorCollapsed);
-  const expanded = !curveEditorCollapsed;
-  toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-  toggle.setAttribute(
-    "aria-label",
-    expanded ? "Collapse curve editor" : "Expand curve editor",
-  );
-  toggle.title = expanded ? "Collapse curve editor" : "Expand curve editor";
-}
-
-function toggleCurveEditorCollapsed() {
-  curveEditorCollapsed = !curveEditorCollapsed;
-  applyCurveEditorCollapsedState();
-  if (!curveEditorCollapsed) refreshCurveEditor();
-}
 
 function drawCurveEditor() {
   if (!curveCanvas || !curveCtx) return;
@@ -2085,9 +2066,12 @@ function initCurveEditor() {
   if (!tabs || !curveCanvas) return;
   curveCtx = curveCanvas.getContext("2d");
 
-  const toggle = document.getElementById("curveEditorToggle");
-  if (toggle) toggle.addEventListener("click", toggleCurveEditorCollapsed);
-  applyCurveEditorCollapsedState();
+  const details = document.getElementById("curveEditorDetails");
+  if (details) {
+    details.addEventListener("toggle", () => {
+      if (details.open) refreshCurveEditor();
+    });
+  }
 
   tabs.innerHTML = "";
   for (let i = 1; i <= 8; i++) {
@@ -2882,6 +2866,95 @@ function sampleLabelFromFileName(fileName) {
   return stripFileExtension(fileName).replace(/[_-]+/g, " ").trim();
 }
 
+// ── Welcome screen ────────────────────────────────────────────────────────────
+
+const WELCOME_SUPPRESS_KEY = "knobman_welcome_suppress";
+
+function shouldShowWelcome() {
+  return localStorage.getItem(WELCOME_SUPPRESS_KEY) !== "1";
+}
+
+function closeWelcomeOverlay() {
+  const overlay = document.getElementById("welcomeOverlay");
+  if (!overlay) return;
+  const check = document.getElementById("welcomeSuppressCheck");
+  if (check && check.checked) {
+    localStorage.setItem(WELCOME_SUPPRESS_KEY, "1");
+  }
+  overlay.hidden = true;
+}
+
+function openWelcomeOverlay() {
+  const overlay = document.getElementById("welcomeOverlay");
+  if (!overlay) return;
+  const check = document.getElementById("welcomeSuppressCheck");
+  if (check) check.checked = false;
+  renderWelcomeSampleList();
+  const search = document.getElementById("welcomeSampleSearch");
+  if (search) { search.value = ""; search.focus(); }
+  overlay.hidden = false;
+}
+
+function renderWelcomeSampleList() {
+  const list = document.getElementById("welcomeSampleList");
+  const input = document.getElementById("welcomeSampleSearch");
+  if (!list) return;
+  const query = String(input && input.value ? input.value : "").trim().toLowerCase();
+
+  list.innerHTML = "";
+  const matches = SAMPLE_PROJECT_FILES.filter((file) => {
+    if (!query) return true;
+    const label = sampleLabelFromFileName(file).toLowerCase();
+    return file.toLowerCase().includes(query) || label.includes(query);
+  });
+
+  if (matches.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "placeholder";
+    empty.textContent = "No matching sample projects.";
+    list.appendChild(empty);
+    return;
+  }
+
+  matches.forEach((file) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "sample-item";
+    const label = document.createElement("strong");
+    label.textContent = sampleLabelFromFileName(file);
+    btn.appendChild(label);
+    const meta = document.createElement("small");
+    meta.textContent = file;
+    btn.appendChild(meta);
+    btn.addEventListener("click", () => {
+      closeWelcomeOverlay();
+      void loadSampleProject(file);
+    });
+    list.appendChild(btn);
+  });
+}
+
+function wireWelcomeOverlay() {
+  const overlay = document.getElementById("welcomeOverlay");
+  const btnCancel = document.getElementById("btnWelcomeCancel");
+  const btnOpen = document.getElementById("btnWelcomeOpenFile");
+  const search = document.getElementById("welcomeSampleSearch");
+
+  if (btnCancel) btnCancel.addEventListener("click", closeWelcomeOverlay);
+  if (btnOpen) {
+    btnOpen.addEventListener("click", () => {
+      closeWelcomeOverlay();
+      document.getElementById("fileInput").click();
+    });
+  }
+  if (search) search.addEventListener("input", renderWelcomeSampleList);
+  if (overlay) {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeWelcomeOverlay();
+    });
+  }
+}
+
 function isSamplesOverlayOpen() {
   const overlay = document.getElementById("samplesOverlay");
   return Boolean(overlay && !overlay.hidden);
@@ -2971,6 +3044,7 @@ function onWasmReady() {
   document.getElementById("app").style.display = "flex";
 
   wireControls();
+  wireWelcomeOverlay();
   renderSampleList();
 
   window.knobman_init(64, 64, zoomFactor);
@@ -2985,7 +3059,12 @@ function onWasmReady() {
   });
   scheduleRender();
 
-  setStatus(restored ? "Session restored" : "Ready");
+  if (!restored && shouldShowWelcome()) {
+    openWelcomeOverlay();
+    setStatus("Ready");
+  } else {
+    setStatus(restored ? "Session restored" : "Ready");
+  }
 }
 
 function refreshFromDoc() {
@@ -4171,6 +4250,14 @@ function onFileOpen(e) {
 }
 
 function onKeyDown(e) {
+  if (e.key === "Escape") {
+    const welcomeOverlay = document.getElementById("welcomeOverlay");
+    if (welcomeOverlay && !welcomeOverlay.hidden) {
+      e.preventDefault();
+      closeWelcomeOverlay();
+      return;
+    }
+  }
   if (e.key === "Escape" && isSamplesOverlayOpen()) {
     e.preventDefault();
     closeSamplesOverlay();

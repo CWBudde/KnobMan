@@ -240,6 +240,38 @@
       </footer>
     </div>
 
+    <div id="welcomeOverlay" class="samples-overlay" hidden>
+      <div
+        class="samples-dialog welcome-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="welcomeTitle"
+      >
+        <div class="samples-header">
+          <h2 id="welcomeTitle">Welcome to KnobMan</h2>
+        </div>
+        <label class="samples-search">
+          <span>Filter</span>
+          <input
+            id="welcomeSampleSearch"
+            type="text"
+            placeholder="Type to filter samples..."
+          />
+        </label>
+        <div id="welcomeSampleList" class="samples-list"></div>
+        <div class="welcome-footer">
+          <div class="welcome-actions">
+            <button id="btnWelcomeOpenFile" type="button">Open File…</button>
+            <button id="btnWelcomeCancel" type="button">Start Empty</button>
+          </div>
+          <label class="welcome-suppress">
+            <input type="checkbox" id="welcomeSuppressCheck" />
+            Don't show this again
+          </label>
+        </div>
+      </div>
+    </div>
+
     <div id="samplesOverlay" class="samples-overlay" hidden>
       <div
         class="samples-dialog"
