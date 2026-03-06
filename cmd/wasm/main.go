@@ -22,6 +22,7 @@ var (
 	logicalH      = 64
 	zoomFactor    = 8
 	doc           *model.Document
+	history       *model.History
 	textures      []*render.Texture
 	textureNames  []string
 	textureRaw    [][]byte
@@ -30,6 +31,13 @@ var (
 	renderBuf     *render.PixBuf
 	displayBuf    []byte
 )
+
+func pushHistory() {
+	if history == nil {
+		history = model.NewHistory()
+	}
+	history.Push(doc)
+}
 
 func main() {
 	newDocument()
@@ -71,6 +79,11 @@ func main() {
 
 	js.Global().Set("knobman_loadFile", js.FuncOf(jsLoadFile))
 	js.Global().Set("knobman_saveFile", js.FuncOf(jsSaveFile))
+
+	js.Global().Set("knobman_undo", js.FuncOf(jsUndo))
+	js.Global().Set("knobman_redo", js.FuncOf(jsRedo))
+	js.Global().Set("knobman_canUndo", js.FuncOf(jsCanUndo))
+	js.Global().Set("knobman_canRedo", js.FuncOf(jsCanRedo))
 
 	select {}
 }
@@ -201,6 +214,7 @@ func jsAddLayer(this js.Value, args []js.Value) any {
 	if doc == nil {
 		return -1
 	}
+	pushHistory()
 	idx := selectedLayer + 1
 	if idx < 0 || idx > len(doc.Layers) {
 		idx = len(doc.Layers)
@@ -218,6 +232,7 @@ func jsDeleteLayer(this js.Value, args []js.Value) any {
 	if doc == nil || len(doc.Layers) <= 1 {
 		return false
 	}
+	pushHistory()
 	idx := selectedLayer
 	if len(args) >= 1 {
 		idx = clampLayer(args[0].Int())
@@ -244,6 +259,7 @@ func jsMoveLayer(this js.Value, args []js.Value) any {
 	if target < 0 || target >= len(doc.Layers) {
 		return selectedLayer
 	}
+	pushHistory()
 	doc.Layers[selectedLayer], doc.Layers[target] = doc.Layers[target], doc.Layers[selectedLayer]
 	selectedLayer = target
 	return selectedLayer
@@ -253,6 +269,7 @@ func jsDuplicateLayer(this js.Value, args []js.Value) any {
 	if doc == nil || selectedLayer < 0 || selectedLayer >= len(doc.Layers) {
 		return -1
 	}
+	pushHistory()
 	cp := doc.Layers[selectedLayer].Clone()
 	cp.Name = cp.Name + " Copy"
 	idx := selectedLayer + 1
@@ -264,6 +281,7 @@ func jsDuplicateLayer(this js.Value, args []js.Value) any {
 }
 
 func jsSetLayerVisible(this js.Value, args []js.Value) any {
+	pushHistory()
 	if doc == nil || len(args) < 2 {
 		return false
 	}
@@ -273,6 +291,7 @@ func jsSetLayerVisible(this js.Value, args []js.Value) any {
 }
 
 func jsSetLayerSolo(this js.Value, args []js.Value) any {
+	pushHistory()
 	if doc == nil || len(args) < 2 {
 		return false
 	}
@@ -282,6 +301,7 @@ func jsSetLayerSolo(this js.Value, args []js.Value) any {
 }
 
 func jsSetPrefs(this js.Value, args []js.Value) any {
+	pushHistory()
 	if doc == nil || len(args) < 1 || args[0].Type() != js.TypeObject {
 		return false
 	}
@@ -367,6 +387,7 @@ func jsSetParam(this js.Value, args []js.Value) any {
 	if doc == nil || len(args) < 3 {
 		return false
 	}
+	pushHistory()
 	idx := clampLayer(args[0].Int())
 	key := args[1].String()
 	v := args[2]
@@ -604,6 +625,7 @@ func jsSetEffectParam(this js.Value, args []js.Value) any {
 	if doc == nil || len(args) < 3 {
 		return false
 	}
+	pushHistory()
 	idx := clampLayer(args[0].Int())
 	key := args[1].String()
 	v := args[2]
@@ -1095,6 +1117,7 @@ func jsLoadFile(this js.Value, args []js.Value) any {
 	}
 	rebuildTextureSlotsFromDoc()
 	syncDisplayBuffer()
+	history = model.NewHistory()
 	return true
 }
 
@@ -1188,6 +1211,7 @@ func jsSetCurve(this js.Value, args []js.Value) any {
 	if doc == nil || len(args) < 2 {
 		return false
 	}
+	pushHistory()
 	idx := clampInt(args[0].Int()-1, 0, 7)
 	obj := args[1]
 	if obj.Type() != js.TypeObject {
@@ -1249,6 +1273,58 @@ func jsEvalCurve(this js.Value, args []js.Value) any {
 		ratio = 1
 	}
 	return doc.Curves[idx].Eval(ratio) * 100.0
+}
+
+func jsUndo(this js.Value, args []js.Value) any {
+	if history == nil || !history.CanUndo() {
+		return false
+	}
+	prev := history.Undo(doc)
+	if prev == nil {
+		return false
+	}
+	doc = prev
+	logicalW = maxInt(1, doc.Prefs.PWidth.Val)
+	logicalH = maxInt(1, doc.Prefs.PHeight.Val)
+	if selectedLayer >= len(doc.Layers) {
+		selectedLayer = len(doc.Layers) - 1
+	}
+	if selectedLayer < 0 {
+		selectedLayer = 0
+	}
+	rebuildTextureSlotsFromDoc()
+	syncDisplayBuffer()
+	return true
+}
+
+func jsRedo(this js.Value, args []js.Value) any {
+	if history == nil || !history.CanRedo() {
+		return false
+	}
+	next := history.Redo(doc)
+	if next == nil {
+		return false
+	}
+	doc = next
+	logicalW = maxInt(1, doc.Prefs.PWidth.Val)
+	logicalH = maxInt(1, doc.Prefs.PHeight.Val)
+	if selectedLayer >= len(doc.Layers) {
+		selectedLayer = len(doc.Layers) - 1
+	}
+	if selectedLayer < 0 {
+		selectedLayer = 0
+	}
+	rebuildTextureSlotsFromDoc()
+	syncDisplayBuffer()
+	return true
+}
+
+func jsCanUndo(this js.Value, args []js.Value) any {
+	return history != nil && history.CanUndo()
+}
+
+func jsCanRedo(this js.Value, args []js.Value) any {
+	return history != nil && history.CanRedo()
 }
 
 func jsSaveFile(this js.Value, args []js.Value) any {
@@ -1374,6 +1450,7 @@ func newDocument() {
 	resetTextureSlots()
 	selectedLayer = 0
 	previewFrame = 0
+	history = model.NewHistory()
 }
 
 func resetTextureSlots() {
