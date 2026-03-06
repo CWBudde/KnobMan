@@ -5,7 +5,10 @@
 const go = new Go();
 let wasmReady = false;
 
-WebAssembly.instantiateStreaming(fetch("knobman.wasm"), go.importObject)
+WebAssembly.instantiateStreaming(
+  fetch("knobman.wasm", { cache: "no-store" }),
+  go.importObject,
+)
   .then((result) => {
     go.run(result.instance);
     wasmReady = true;
@@ -2974,6 +2977,8 @@ function onWasmReady() {
   window.knobman_init(64, 64, zoomFactor);
   initCurveEditor();
   initShapeEditor();
+
+  const restored = restoreSession();
   refreshFromDoc();
   ensureBuiltinTextures().then(() => {
     refreshParamPanel();
@@ -2981,7 +2986,7 @@ function onWasmReady() {
   });
   scheduleRender();
 
-  setStatus("Ready");
+  setStatus(restored ? "Session restored" : "Ready");
 }
 
 function refreshFromDoc() {
@@ -3051,7 +3056,9 @@ function renderFrame() {
   dirty = false;
 
   syncCanvasSize();
+  const t0 = performance.now();
   window.knobman_render(pixelBuf);
+  lastRenderMs = Math.round(performance.now() - t0);
   imageData.data.set(pixelBuf);
 
   const canvas = document.getElementById("knobCanvas");
@@ -3059,6 +3066,11 @@ function renderFrame() {
   if (!ctx) return;
   ctx.imageSmoothingEnabled = false;
   ctx.putImageData(imageData, 0, 0);
+
+  const layers = window.knobman_getLayerList ? window.knobman_getLayerList() || [] : [];
+  const active = layers.find((l) => l.selected);
+  updateStatusMetrics(active ? active.name || `Layer ${active.index + 1}` : "");
+  saveSession();
 }
 
 function markDirty() {
@@ -3086,6 +3098,16 @@ function wireControls() {
     window.knobman_setPreviewFrame(currentFrame);
     refreshCurveEditor();
     refreshDetachedPreviewNow();
+    markDirty();
+  });
+
+  // Zoom
+  const zoomSelect = document.getElementById("zoomSelect");
+  zoomSelect.addEventListener("change", () => {
+    const z = parseInt(zoomSelect.value, 10) || 8;
+    zoomFactor = z;
+    if (window.knobman_setZoom) window.knobman_setZoom(z);
+    syncCanvasSize();
     markDirty();
   });
 
@@ -3812,6 +3834,7 @@ function onNew() {
   currentFrame = 0;
   refreshFromDoc();
   ensureBuiltinTextures().then(() => refreshParamPanel());
+  localStorage.removeItem(SESSION_KEY);
   setStatus("New document");
 }
 
@@ -4208,6 +4231,52 @@ function onKeyDown(e) {
 
 // ── Status bar ────────────────────────────────────────────────────────────────
 
+let lastRenderMs = 0;
+
 function setStatus(msg) {
-  document.getElementById("statusBar").textContent = msg;
+  document.getElementById("statusMsg").textContent = msg;
 }
+
+function updateStatusMetrics(layerName) {
+  const prefs = window.knobman_getPrefs ? window.knobman_getPrefs() : null;
+  const w = prefs ? prefs.width : 0;
+  const h = prefs ? prefs.height : 0;
+  const frames = prefs ? prefs.frames : 0;
+  const parts = [];
+  if (w && h) parts.push(`${w}×${h}`);
+  if (frames) parts.push(`${frames} fr`);
+  parts.push(`F${currentFrame}`);
+  if (layerName) parts.push(`L: ${layerName}`);
+  if (lastRenderMs > 0) parts.push(`${lastRenderMs}ms`);
+  document.getElementById("statusMetrics").textContent = parts.join(" | ");
+}
+
+// ── Session persistence (localStorage) ───────────────────────────────────────
+
+const SESSION_KEY = "knobman_session";
+
+function saveSession() {
+  if (!window.knobman_saveFile) return;
+  try {
+    const bytes = window.knobman_saveFile();
+    if (!bytes || !bytes.length) return;
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    localStorage.setItem(SESSION_KEY, b64);
+  } catch (_) {}
+}
+
+function restoreSession() {
+  if (!window.knobman_loadFile) return false;
+  try {
+    const b64 = localStorage.getItem(SESSION_KEY);
+    if (!b64) return false;
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    window.knobman_loadFile(bytes);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+

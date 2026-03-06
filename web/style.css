@@ -438,6 +438,14 @@ button:active {
 #statusBar {
   font-size: 11px;
   color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#statusMetrics {
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 /* ── Parameter panel ──────────────────────────────────────────── */

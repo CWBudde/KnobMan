@@ -47,6 +47,7 @@ func main() {
 	js.Global().Set("knobman_render", js.FuncOf(jsRender))
 	js.Global().Set("knobman_renderFrameRaw", js.FuncOf(jsRenderFrameRaw))
 	js.Global().Set("knobman_getDimensions", js.FuncOf(jsGetDimensions))
+	js.Global().Set("knobman_setZoom", js.FuncOf(jsSetZoom))
 
 	js.Global().Set("knobman_newDocument", js.FuncOf(jsNewDocument))
 	js.Global().Set("knobman_getLayerList", js.FuncOf(jsGetLayerList))
@@ -142,6 +143,19 @@ func jsGetDimensions(this js.Value, args []js.Value) any {
 		"width":  logicalW * zoomFactor,
 		"height": logicalH * zoomFactor,
 	}
+}
+
+func jsSetZoom(this js.Value, args []js.Value) any {
+	if len(args) < 1 {
+		return nil
+	}
+	z := maxInt(1, args[0].Int())
+	if z == zoomFactor {
+		return nil
+	}
+	zoomFactor = z
+	syncDisplayBuffer()
+	return nil
 }
 
 func jsNewDocument(this js.Value, args []js.Value) any {

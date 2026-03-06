@@ -3,7 +3,7 @@ package render
 import "knobman/internal/model"
 
 // EvalAnim evaluates an animatable from/to pair at frameFrac in [0,1].
-// animCurveIdx: 0 => linear, 1..8 => curves[0..7].
+// Legacy selector mapping: 0 => off/use From, 1 => linear, 2..9 => curves[0..7].
 func EvalAnim(from, to float64, animCurveIdx int, curves *[8]model.AnimCurve, frameFrac float64) float64 {
 	if frameFrac < 0 {
 		frameFrac = 0
