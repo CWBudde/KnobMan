@@ -12,14 +12,13 @@
     - Phases 0–1: repo skeleton + full model + `.knob` load/save + tests
     - Phase 5–7: WASM + web UI (layers/params), editors (curve/shape), preview tooling
     - Phase 4 (partial items): AnimStep, DynamicText, multi-frame image-strip support
-    - Phase 8 (partial items): PNG strip/frames + GIF export (8.1–8.3)
+    - Phase 8: full export pipeline complete (PNG strip/frames, GIF, APNG + download flow)
 
 - [ ] **Still partial / pending**
     - Phase 2: primitive render parity against Java reference output
     - Phase 3: effect stack parity against Java reference output
     - Phase 4: complete render-side animation pipeline integration
-    - Phase 8: APNG export + download wiring (8.4–8.5)
-    - Phase 9: app-level undo/redo integration, shortcuts, samples, persistence, status metrics
+    - Phase 9: app-level undo/redo integration, shortcuts, persistence, status metrics
     - Phase 10: regression tests, perf targets, deployment automation
 
 ---
@@ -73,23 +72,21 @@
 **Goal:** Implement all 16 primitive types as pure-Go software renderers using agg_go for path/shape work and direct per-pixel math for the lighting models. All rendering operates on an RGBA pixel buffer.
 **Status:** [ ] Partial (baseline renderer + image strip/transparency semantics + shape parser improvements; Java parity pending)
 
-### [x] 2.1 — Buffer Management (`internal/render/buffer.go`)
+**Completed (condensed):**
 
-Done — pixel buffer abstraction + oversampling/downsample pipeline.
+- [x] 2.1 Pixel buffer + oversampling/downsample pipeline
+- [x] 2.2 Texture load/sample (built-ins, tiling, zoom)
+- [x] 2.3 Primitive render pipeline (all primitive types wired; baseline behavior)
+- [x] 2.4 Shared per-pixel lighting/blur utilities
 
-### [x] 2.2 — Texture System (`internal/render/texture.go`)
+**Pending:**
 
-Done — texture loading/sampling (built-ins embedded; tiling + zoom).
+- [ ] Pixel parity against Java for all primitives (including edge-case semantics)
+- [ ] Visual regression fixtures covering the sample set
 
-### [x] 2.3 — Primitive Renderer (`internal/render/primitive.go`)
+**Where:** `internal/render/buffer.go`, `internal/render/texture.go`, `internal/render/primitive.go`, `internal/render/lighting.go`
 
-Done — primitive rendering pipeline implemented (all primitive types wired; baseline behavior present, parity still tracked under Phase 2).
-
-### [x] 2.4 — Per-Pixel Math Utilities (`internal/render/lighting.go`)
-
-Done — shared per-pixel lighting + blur utilities ported.
-
-**Deliverable:** Unit-testable renderer. Each primitive type has a test that renders to a PNG and compares against a reference image.
+**Deliverable:** Unit-testable primitive renderer with reference-image comparisons.
 
 ---
 
@@ -98,31 +95,23 @@ Done — shared per-pixel lighting + blur utilities ported.
 **Goal:** Port the full `Eff.Apply()` pipeline.
 **Status:** [ ] Partial (baseline transform/color/mask/shadow/composite/frame renderer implemented; parity pending)
 
-### [x] 3.1 — Affine Transform with Bilinear Sampling (`internal/render/transform.go`)
+**Completed (condensed):**
 
-Done — affine transform + bilinear sampling.
+- [x] 3.1 Affine transform + bilinear sampling
+- [x] 3.2 Color adjustments (alpha/brightness/contrast/sat/hue)
+- [x] 3.3 Mask generation/application (incl. combine + frame mask)
+- [x] 3.4 Shadow/highlight helpers
+- [x] 3.5 Composite orchestration
+- [x] 3.6 Frame render entrypoints (single/all frames) + oversampling path
 
-### [x] 3.2 — Color Adjustments (`internal/render/coloradj.go`)
+**Pending:**
 
-Done — alpha/brightness/contrast/saturation/hue adjustments.
+- [ ] Pixel parity vs Java across the full effect stack (including ordering/edge cases)
+- [ ] Reference-image regression suite on the sample set
 
-### [x] 3.3 — Mask System (`internal/render/mask.go`)
+**Where:** `internal/render/transform.go`, `internal/render/coloradj.go`, `internal/render/mask.go`, `internal/render/shadow.go`, `internal/render/composite.go`, `internal/render/render.go`
 
-Done — mask generation/application (including combining masks + frame mask support).
-
-### [x] 3.4 — Shadow and Highlight (`internal/render/shadow.go`)
-
-Done — shadow/highlight rendering helpers.
-
-### [x] 3.5 — Compositing (`internal/render/composite.go`)
-
-Done — compositing primitives and baseline effect-application orchestration.
-
-### [x] 3.6 — Frame Renderer (`internal/render/render.go`)
-
-Done — frame rendering entrypoints (single frame + all frames), including oversampling path.
-
-**Deliverable:** Given a loaded `.knob` document, `RenderAll` produces pixel-accurate output matching the Java reference output for all sample files.
+**Deliverable:** `RenderAll` matches Java reference output for all samples.
 
 ---
 
@@ -131,43 +120,21 @@ Done — frame rendering entrypoints (single frame + all frames), including over
 **Goal:** Full animation curve evaluation and frame-based parameter interpolation.
 **Status:** [ ] Partial (curve model done; render-side animation pipeline pending)
 
-### [x] 4.1 — Parameter Evaluation (`internal/render/animeval.go`)
+**Completed (condensed):**
 
-```go
-// Evaluate an animatable from/to parameter pair at the given frame.
-// frameFrac is in [0.0, 1.0] representing position in animation.
-// The anim SelectParam selects which of the 8 AnimCurves to use (0=linear).
-func EvalAnim(from, to float64, animCurveIdx int, curves [8]*model.AnimCurve, frameFrac float64) float64
-```
+- [x] 4.1 Animatable parameter evaluation helper: `internal/render/animeval.go` (`EvalAnim`)
+- [x] 4.2 AnimStep semantics (layer-local frame count)
+- [x] 4.3 DynamicText frame counter substitution: `internal/render/dyntext.go`
+- [x] 4.4 Image-strip frame extraction: `internal/render/imagestrip.go`
 
-The Java convention: `frameFrac = frame / (totalFrames-1)`. The AnimCurve maps 0–100 time to 0–100 level, then the level is remapped to `[from, to]`.
+**Pending:**
 
-### [x] 4.2 — AnimStep
+- [ ] End-to-end animation integration through the full render/export pipeline (all animatable params)
+- [ ] Verify semantics against Java across sample animations
 
-When `Effect.AnimStep > 0`, the layer uses an independent frame count (`Effect.AnimStep` instead of `doc.Prefs.ExportFrames`) for its animation timeline. This allows a layer to complete its animation in a sub-range.
+**Where:** `internal/render/animeval.go`, `internal/render/dyntext.go`, `internal/render/imagestrip.go`
 
-### [x] 4.3 — DynamicText (`internal/render/dyntext.go`)
-
-Port `DynamicText.java` and `TextCounter.java`:
-
-```go
-// Substitute frame counter patterns in text.
-// Format: "(start:end)" → left-zero-padded frame number in [start,end]
-// Multiple patterns can appear in the same string.
-func SubstituteFrameCounters(text string, frame, totalFrames int) string
-```
-
-Example: `"Frame (1:99)"` on frame 5 of 31 → `"Frame 05"` (maps 0..30 → 01..99 proportionally).
-
-### [x] 4.4 — Multi-Frame Image Strip (`internal/render/imagestrip.go`)
-
-For `PrimImage` with `NumFrame > 1`, the external image file is a strip of frames. Load the strip and extract the correct sub-image for the current render frame:
-
-```go
-func ExtractFrame(strip *PixBuf, numFrames, frame, totalFrames int) *PixBuf
-```
-
-**Deliverable:** Animated export (GIF/APNG) correctly moves through frames with all animatable parameters interpolated.
+**Deliverable:** Animated exports advance frames correctly with interpolated parameters.
 
 ---
 
@@ -228,39 +195,15 @@ func ExtractFrame(strip *PixBuf, numFrames, frame, totalFrames int) *PixBuf
 ## Phase 8 — Export
 
 **Goal:** All four export formats from the original.
-**Status:** [ ] Partial (8.1–8.3 done; 8.4 pending)
+**Status:** [x] Completed
 
 ### Completed (condensed)
 
 - [x] 8.1 PNG strip export: `internal/export/pngstrip.go` (`ExportPNGStrip`)
 - [x] 8.2 PNG frames export: `internal/export/pngframes.go` (`ExportPNGFrames`) (zipped on the JS side)
 - [x] 8.3 Animated GIF export: `internal/export/animgif.go` (`ExportGIF`)
-
-### [ ] 8.4 — APNG (`internal/export/apng.go`)
-
-Port the Java `APng.java` APNG encoder in pure Go. APNG is a PNG extension — each frame is a PNG chunk sequence.
-
-```go
-func ExportAPNG(doc *model.Document, textures []*render.Texture) ([]byte, error)
-```
-
-Respects: `Duration`, `Loop`, `BiDir` (ping-pong: append reversed frames).
-
-### [ ] 8.5 — Download Mechanism (JS)
-
-```js
-function downloadBytes(filename, mimeType, bytes) {
-    const blob = new Blob([bytes], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-}
-```
-
-Go passes `[]byte` to JS via `js.CopyBytesToJS` into a preallocated `Uint8Array`.
-
-**Deliverable:** All four export formats work from the browser, producing files that match the Java output.
+- [x] 8.4 APNG export: `internal/export/apng.go` (`ExportAPNG`)
+- [x] 8.5 Download mechanism: unified JS save/download path + WASM byte transfer bridges
 
 ---
 
@@ -302,13 +245,13 @@ Delete              Delete Selected Layer
 
 - **Open**: `<input type="file" accept=".knob">` → `FileReader.readAsArrayBuffer()` → pass bytes to `knobman_loadFile(bytes)`
 - **Save**: `knobman_saveFile()` returns `[]byte` → save via `showSaveFilePicker` when available, fallback to browser download
-- **Export Downloads**: unified save path for PNG strip, PNG frames ZIP, and GIF (picker + fallback)
+- **Export Downloads**: unified save path for PNG strip, PNG frames ZIP, GIF, and APNG (picker + fallback)
 
 Auto-save to `localStorage` every 30 seconds (serialize current document as base64).
 
-### [ ] 9.4 — Sample Projects
+### [x] 9.4 — Sample Projects
 
-Embed sample `.knob` files from `assets/samples/`. A "Samples" menu or gallery popup lets users load any sample as a starting point. Samples are embedded via `//go:embed assets/samples/*.knob`.
+Sample `.knob` files from `assets/samples/` are available via a "Samples" browser popup in the toolbar. Users can filter and load any sample project directly in-browser.
 
 ### [ ] 9.5 — Recent Files
 
@@ -333,7 +276,7 @@ If desired, port the INI-based localization system. All UI strings defined in a 
 
 ### [ ] 10.1 — Visual Regression Tests
 
-For each of the 35 sample `.knob` files in `assets/samples/`:
+For each of the sample `.knob` files in `assets/samples/`:
 1. Render frame 0 and frame N/2 with the Go engine
 2. Compare against reference PNGs rendered by the Java original
 3. Accept images within a per-pixel tolerance of ±2 (RGBA each channel)
@@ -366,12 +309,12 @@ WASM binary size: aim for < 5MB. Use TinyGo if standard Go produces an unaccepta
 Static files only:
 ```
 web/
-  index.html
-  style.css
-  main.js
-  wasm_exec.js
-  knobman.wasm     ← built artifact
-  assets/          ← embedded in WASM via go:embed
+    index.html
+    style.css
+    main.js
+    wasm_exec.js
+    knobman.wasm     ← built artifact
+    assets/          ← embedded in WASM via go:embed
 ```
 
 Deploy to GitHub Pages (`gh-pages` branch) via GitHub Actions:
@@ -424,7 +367,7 @@ Deploy to GitHub Pages (`gh-pages` branch) via GitHub Actions:
 | **5** | [x] Completed | Web UI shell: canvas, layer list, basic param panel | Phase 4 |
 | **6** | [x] Completed | All parameter controls in the web UI | Phase 5 |
 | **7** | [x] Completed | Curve editor, shape editor, layer previews, floating preview | Phase 6 |
-| **8** | [ ] Partial | All 4 export formats (PNG strip, frames, GIF, APNG) | Phase 4 |
+| **8** | [x] Completed | All 4 export formats (PNG strip, frames, GIF, APNG) | Phase 4 |
 | **9** | [ ] Partial | Undo/redo, shortcuts, file open/save, samples, session | Phase 6, 8 |
 | **10** | [ ] Not started | Visual regression tests, performance, GitHub Pages deploy | All |
 
