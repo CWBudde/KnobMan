@@ -74,64 +74,57 @@ func renderImage(dst *PixBuf, p *model.Primitive, frame, totalFrames int) {
 	if err != nil {
 		return
 	}
-	b := img.Bounds()
-	iw, ih := b.Dx(), b.Dy()
-	if iw <= 0 || ih <= 0 {
+	src := pixBufFromImage(img)
+	if src == nil || src.Width <= 0 || src.Height <= 0 {
 		return
 	}
-
 	nf := p.NumFrame.Val
 	if nf < 1 {
 		nf = 1
 	}
-	align := p.FrameAlign.Val // 0=vertical, 1=horizontal, 2=individual files
-
-	srcX, srcY := b.Min.X, b.Min.Y
-	srcW, srcH := iw, ih
-	if nf > 1 && align != 2 {
-		if totalFrames < 2 {
-			totalFrames = 2
-		}
-		if frame < 0 {
-			frame = 0
-		}
-		if frame >= totalFrames {
-			frame = totalFrames - 1
-		}
-		idx := min(nf-1, nf*frame/(totalFrames-1))
-		if align == 1 {
-			srcW = iw / nf
-			srcX = b.Min.X + idx*srcW
-		} else {
-			srcH = ih / nf
-			srcY = b.Min.Y + idx*srcH
-		}
-	}
-	if srcW <= 0 || srcH <= 0 {
+	frameBuf := ExtractFrameAligned(src, nf, frame, totalFrames, p.FrameAlign.Val)
+	if frameBuf == nil || frameBuf.Width <= 0 || frameBuf.Height <= 0 {
 		return
 	}
-
-	def := rgbaFromImage(img, srcX, srcY)
+	def := frameBuf.At(0, 0)
 	if p.AutoFit.Val != 0 {
-		drawImageToRect(dst, img, srcX, srcY, srcW, srcH, 0, 0, dst.Width, dst.Height, p, def)
+		drawPixBufToRect(dst, frameBuf, 0, 0, dst.Width, dst.Height, p, def)
 		return
 	}
 	// Java behavior: when AutoFit is off, the source frame is copied at native size
 	// into the top-left corner (clipped by canvas bounds).
-	drawImageToRect(dst, img, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH, p, def)
+	drawPixBufToRect(dst, frameBuf, 0, 0, frameBuf.Width, frameBuf.Height, p, def)
 }
 
-func drawImageToRect(dst *PixBuf, img image.Image, sx0, sy0, sw, sh, dx0, dy0, dw, dh int, p *model.Primitive, def color.RGBA) {
-	if sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0 {
+func pixBufFromImage(img image.Image) *PixBuf {
+	if img == nil {
+		return nil
+	}
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	pb := NewPixBuf(w, h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			pb.Set(x, y, rgbaFromImage(img, b.Min.X+x, b.Min.Y+y))
+		}
+	}
+	return pb
+}
+
+func drawPixBufToRect(dst, src *PixBuf, dx0, dy0, dw, dh int, p *model.Primitive, def color.RGBA) {
+	if src == nil || src.Width <= 0 || src.Height <= 0 || dw <= 0 || dh <= 0 {
 		return
 	}
 	maxX := min(dst.Width, dx0+dw)
 	maxY := min(dst.Height, dy0+dh)
 	for y := max(0, dy0); y < maxY; y++ {
-		sy := sy0 + (y-dy0)*sh/dh
+		sy := (y - dy0) * src.Height / dh
 		for x := max(0, dx0); x < maxX; x++ {
-			sx := sx0 + (x-dx0)*sw/dw
-			px := rgbaFromImage(img, sx, sy)
+			sx := (x - dx0) * src.Width / dw
+			px := src.At(sx, sy)
 			px = applyImageTransparency(px, def, p.Transparent.Val, p.IntelliAlpha.Val)
 			if px.A == 0 {
 				continue
@@ -394,7 +387,7 @@ func renderParallelLines(dst *PixBuf, p *model.Primitive, horizontal bool) {
 
 func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	c := primitiveColor(p)
-	txt := strings.TrimSpace(substituteFrameCounters(p.Text.Val, frame, total))
+	txt := strings.TrimSpace(SubstituteFrameCounters(p.Text.Val, frame, total))
 	if txt == "" {
 		txt = "TEXT"
 	}
@@ -499,63 +492,6 @@ func parseSimpleShapePoints(s string, w, h int) []point {
 		pts = append(pts, point{px, py})
 	}
 	return pts
-}
-
-func substituteFrameCounters(s string, frame, total int) string {
-	if total < 1 {
-		total = 1
-	}
-	var out strings.Builder
-	for i := 0; i < len(s); {
-		if s[i] != '(' {
-			out.WriteByte(s[i])
-			i++
-			continue
-		}
-		end := strings.IndexByte(s[i:], ')')
-		if end <= 0 {
-			out.WriteByte(s[i])
-			i++
-			continue
-		}
-		expr := s[i+1 : i+end]
-		colon := strings.IndexByte(expr, ':')
-		if colon < 0 {
-			out.WriteByte(s[i])
-			i++
-			continue
-		}
-		a, errA := strconv.Atoi(strings.TrimSpace(expr[:colon]))
-		b, errB := strconv.Atoi(strings.TrimSpace(expr[colon+1:]))
-		if errA != nil || errB != nil {
-			out.WriteByte(s[i])
-			i++
-			continue
-		}
-		val := a
-		if total > 1 {
-			t := float64(frame) / float64(total-1)
-			val = a + int(math.Round(float64(b-a)*t))
-		}
-		w := max(countDigits(expr[:colon]), countDigits(expr[colon+1:]))
-		if w == 0 {
-			w = max(len(strings.TrimPrefix(strconv.Itoa(absInt(a)), "-")), len(strings.TrimPrefix(strconv.Itoa(absInt(b)), "-")))
-		}
-		neg := val < 0
-		if neg {
-			val = -val
-		}
-		num := strconv.Itoa(val)
-		for len(num) < w {
-			num = "0" + num
-		}
-		if neg {
-			num = "-" + num
-		}
-		out.WriteString(num)
-		i += end + 1
-	}
-	return out.String()
 }
 
 type fpoint struct{ x, y float64 }
@@ -678,30 +614,6 @@ func parseFloat(s string) (float64, bool) {
 
 // strconvParseFloat is split for testability and to keep parse helpers close.
 var strconvParseFloat = func(s string) (float64, error) { return strconv.ParseFloat(s, 64) }
-
-func absInt(v int) int {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
-
-func countDigits(s string) int {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0
-	}
-	if s[0] == '+' || s[0] == '-' {
-		s = s[1:]
-	}
-	n := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] >= '0' && s[i] <= '9' {
-			n++
-		}
-	}
-	return n
-}
 
 func clampInt(v, lo, hi int) int {
 	if v < lo {
