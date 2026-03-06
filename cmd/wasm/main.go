@@ -220,30 +220,48 @@ func jsSetPrefs(this js.Value, args []js.Value) any {
 		return false
 	}
 	obj := args[0]
-	if v := obj.Get("width"); v.Truthy() {
+	if v := obj.Get("width"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
 		logicalW = maxInt(1, v.Int())
 		doc.Prefs.PWidth.Val = logicalW
-		doc.Prefs.Width = logicalW
 	}
-	if v := obj.Get("height"); v.Truthy() {
+	if v := obj.Get("height"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
 		logicalH = maxInt(1, v.Int())
 		doc.Prefs.PHeight.Val = logicalH
-		doc.Prefs.Height = logicalH
 	}
-	if v := obj.Get("frames"); v.Truthy() {
+	if v := obj.Get("frames"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
 		doc.Prefs.RenderFrames.Val = maxInt(1, v.Int())
 	}
-	if v := obj.Get("oversampling"); v.Truthy() {
+	if v := obj.Get("renderFrames"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
+		doc.Prefs.RenderFrames.Val = maxInt(1, v.Int())
+	}
+	if v := obj.Get("previewFrames"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
+		doc.Prefs.PreviewFrames.Val = maxInt(1, v.Int())
+	}
+	if v := obj.Get("oversampling"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
 		doc.Prefs.Oversampling.Val = clampInt(v.Int(), 0, 3)
 	}
-	if v := obj.Get("exportOption"); v.Truthy() {
+	if v := obj.Get("alignHorizontal"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
+		doc.Prefs.AlignHorz.Val = clampInt(v.Int(), 0, 1)
+	}
+	if v := obj.Get("exportOption"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
 		doc.Prefs.ExportOption.Val = v.Int()
 	}
-	if v := obj.Get("bgColor"); v.Truthy() && v.Type() == js.TypeString {
+	if v := obj.Get("duration"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
+		doc.Prefs.Duration.Val = maxInt(1, v.Int())
+	}
+	if v := obj.Get("loop"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
+		doc.Prefs.Loop.Val = maxInt(0, v.Int())
+	}
+	if v := obj.Get("biDir"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
+		doc.Prefs.BiDir.Val = boolOrInt(v)
+	}
+	if v := obj.Get("bgColor"); v.Type() == js.TypeString {
 		if c, ok := parseHexColor(v.String()); ok {
 			doc.Prefs.BkColor.Val = c
 		}
 	}
+	doc.Prefs.Width = doc.Prefs.EffectiveWidth()
+	doc.Prefs.Height = doc.Prefs.EffectiveHeight()
 	if previewFrame >= doc.Prefs.RenderFrames.Val {
 		previewFrame = doc.Prefs.RenderFrames.Val - 1
 	}
@@ -257,12 +275,18 @@ func jsGetPrefs(this js.Value, args []js.Value) any {
 	}
 	c := doc.Prefs.BkColor.Val
 	return map[string]any{
-		"width":        logicalW,
-		"height":       logicalH,
-		"frames":       doc.Prefs.RenderFrames.Val,
-		"oversampling": doc.Prefs.Oversampling.Val,
-		"exportOption": doc.Prefs.ExportOption.Val,
-		"bgColor":      colorToHex(c),
+		"width":           logicalW,
+		"height":          logicalH,
+		"frames":          doc.Prefs.RenderFrames.Val,
+		"renderFrames":    doc.Prefs.RenderFrames.Val,
+		"previewFrames":   doc.Prefs.PreviewFrames.Val,
+		"oversampling":    doc.Prefs.Oversampling.Val,
+		"alignHorizontal": doc.Prefs.AlignHorz.Val,
+		"exportOption":    doc.Prefs.ExportOption.Val,
+		"duration":        doc.Prefs.Duration.Val,
+		"loop":            doc.Prefs.Loop.Val,
+		"biDir":           doc.Prefs.BiDir.Val != 0,
+		"bgColor":         colorToHex(c),
 	}
 }
 
