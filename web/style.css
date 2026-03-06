@@ -198,6 +198,7 @@ button:active { background: var(--accent); }
 .param-row input[type=text],
 .param-row input[type=number],
 .param-row input[type=color],
+.param-row input[type=file],
 .param-row select,
 .param-row textarea {
   width: 100%;
@@ -218,6 +219,21 @@ button:active { background: var(--accent); }
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
+}
+
+.param-file {
+  display: flex;
+  gap: 6px;
+}
+
+.param-file button {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+}
+
+.param-row small {
+  color: var(--text-dim);
+  font-size: 10px;
 }
 
 /* ── Prefs bar ────────────────────────────────────────────────── */

@@ -51,21 +51,35 @@ const PARAM_DEFS = {
   name:        { label: 'Layer Name', type: 'text' },
   primType:    { label: 'Primitive', type: 'select', numeric: 'int', options: PRIM_TYPES },
   color:       { label: 'Color', type: 'color' },
+  file:        { label: 'Image Name', type: 'text' },
+  embeddedImage: { label: 'Image File', type: 'file', accept: 'image/*' },
   text:        { label: 'Text', type: 'text' },
   shape:       { label: 'Shape', type: 'textarea' },
   fill:        { label: 'Fill', type: 'checkbox' },
+  bold:        { label: 'Bold', type: 'checkbox' },
+  italic:      { label: 'Italic', type: 'checkbox' },
+  font:        { label: 'Font', type: 'number', numeric: 'int', min: 0, max: 64, step: 1 },
+  textureFile: { label: 'Texture Slot', type: 'number', numeric: 'int', min: 0, max: 64, step: 1 },
+  textureName: { label: 'Texture Name', type: 'text' },
   width:       { label: 'Width', type: 'number', numeric: 'float', min: 0, max: 200, step: 0.1 },
   length:      { label: 'Length', type: 'number', numeric: 'float', min: 0, max: 200, step: 0.1 },
   aspect:      { label: 'Aspect', type: 'number', numeric: 'float', min: -200, max: 200, step: 0.1 },
   round:       { label: 'Round', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
   step:        { label: 'Step', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
   angleStep:   { label: 'Angle Step', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  emboss:      { label: 'Emboss', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
+  embossDiffuse: { label: 'Emboss Diffuse', type: 'number', numeric: 'float', min: -100, max: 200, step: 0.1 },
+  ambient:     { label: 'Ambient', type: 'number', numeric: 'float', min: 0, max: 100, step: 0.1 },
   lightDir:    { label: 'Light Dir', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  specular:    { label: 'Specular', type: 'number', numeric: 'float', min: 0, max: 200, step: 0.1 },
+  specularWidth: { label: 'Spec Width', type: 'number', numeric: 'float', min: 0, max: 200, step: 0.1 },
+  textureDepth:{ label: 'Texture Depth', type: 'number', numeric: 'float', min: -100, max: 200, step: 0.1 },
+  textureZoom: { label: 'Texture Zoom', type: 'number', numeric: 'float', min: 1, max: 400, step: 0.1 },
   diffuse:     { label: 'Diffuse', type: 'number', numeric: 'float', min: -100, max: 200, step: 0.1 },
   fontSize:    { label: 'Font Size', type: 'number', numeric: 'float', min: 1, max: 300, step: 0.1 },
   textAlign:   { label: 'Text Align', type: 'select', numeric: 'int', options: [
-    { value: 0, label: 'Left' },
-    { value: 1, label: 'Center' },
+    { value: 0, label: 'Center' },
+    { value: 1, label: 'Left' },
     { value: 2, label: 'Right' }
   ] },
   frameAlign:  { label: 'Frame Align', type: 'select', numeric: 'int', options: [
@@ -76,33 +90,30 @@ const PARAM_DEFS = {
   numFrame:    { label: 'Frames', type: 'number', numeric: 'int', min: 1, max: 256, step: 1 },
   autoFit:     { label: 'Auto Fit', type: 'checkbox' },
   transparent: { label: 'Transparent', type: 'select', numeric: 'int', options: [
-    { value: 0, label: 'Off' },
-    { value: 1, label: 'On' }
+    { value: 0, label: 'File Alpha' },
+    { value: 1, label: 'Force Opaque' },
+    { value: 2, label: 'Color Key' }
   ] },
-  intelliAlpha:{ label: 'IntelliAlpha', type: 'select', numeric: 'int', options: [
-    { value: 0, label: 'Off' },
-    { value: 1, label: 'On' }
-  ] }
+  intelliAlpha:{ label: 'IntelliAlpha', type: 'number', numeric: 'int', min: 0, max: 100, step: 1 }
 };
 
-// Phase 5.4 scope: primitive-type-aware panel using the currently exposed WASM params.
 const PARAMS_BY_PRIM_TYPE = {
   0: [],
-  1: ['autoFit', 'intelliAlpha', 'numFrame', 'frameAlign', 'transparent'],
-  2: ['color', 'width', 'round', 'diffuse', 'lightDir'],
-  3: ['color', 'aspect', 'diffuse', 'lightDir'],
-  4: ['color', 'aspect', 'diffuse', 'lightDir'],
-  5: ['color', 'width', 'step', 'length', 'diffuse'],
+  1: ['embeddedImage', 'file', 'autoFit', 'intelliAlpha', 'numFrame', 'frameAlign', 'transparent'],
+  2: ['color', 'width', 'round', 'diffuse', 'emboss', 'embossDiffuse', 'ambient', 'lightDir', 'specular', 'specularWidth', 'textureDepth', 'textureZoom', 'textureFile'],
+  3: ['color', 'aspect', 'diffuse', 'ambient', 'lightDir', 'specular', 'specularWidth', 'textureDepth', 'textureZoom', 'textureFile'],
+  4: ['color', 'aspect', 'diffuse', 'ambient', 'lightDir', 'specular', 'specularWidth', 'textureDepth', 'textureZoom', 'textureFile'],
+  5: ['color', 'width', 'step', 'length', 'diffuse', 'emboss', 'embossDiffuse', 'ambient', 'lightDir', 'specular', 'specularWidth'],
   6: ['color', 'aspect', 'diffuse', 'step', 'angleStep'],
-  7: ['color', 'width', 'round', 'length', 'aspect', 'diffuse'],
-  8: ['color', 'round', 'aspect', 'diffuse'],
+  7: ['color', 'width', 'round', 'length', 'aspect', 'diffuse', 'emboss', 'embossDiffuse', 'ambient', 'lightDir', 'specular', 'specularWidth'],
+  8: ['color', 'round', 'aspect', 'diffuse', 'emboss', 'embossDiffuse', 'ambient', 'lightDir', 'specular', 'specularWidth', 'textureDepth', 'textureZoom', 'textureFile'],
   9: ['color', 'width', 'round', 'length', 'fill', 'diffuse'],
   10: ['color', 'width', 'length', 'lightDir'],
   11: ['color', 'width', 'length', 'angleStep', 'step'],
   12: ['color', 'width', 'step'],
   13: ['color', 'width', 'step'],
-  14: ['color', 'text', 'fontSize', 'textAlign', 'frameAlign'],
-  15: ['color', 'shape', 'fill', 'round', 'diffuse']
+  14: ['color', 'text', 'font', 'fontSize', 'textAlign', 'frameAlign', 'bold', 'italic'],
+  15: ['color', 'shape', 'fill', 'round', 'diffuse', 'width']
 };
 
 // ── Initialise after WASM load ────────────────────────────────────────────────
@@ -311,7 +322,7 @@ function coerceParamValue(def, input) {
   if (def.type === 'checkbox') {
     return input.checked;
   }
-  if (def.type === 'color' || def.type === 'text' || def.type === 'textarea') {
+  if (def.type === 'color' || def.type === 'text' || def.type === 'textarea' || def.type === 'file') {
     return input.value;
   }
   if (def.numeric === 'int') {
@@ -325,16 +336,78 @@ function coerceParamValue(def, input) {
   return input.value;
 }
 
+function applyParamChange(key, value) {
+  const ok = window.knobman_setParam(selectedLayer, key, value);
+  if (!ok) return false;
+  if (key === 'name') {
+    refreshLayerList();
+  }
+  if (key === 'primType') {
+    refreshLayerList();
+    refreshParamPanel();
+  }
+  markDirty();
+  return true;
+}
+
 function buildParamRow(key, value) {
   const def = PARAM_DEFS[key];
   if (!def) return null;
 
-  const row = document.createElement('label');
+  const row = document.createElement('div');
   row.className = 'param-row';
   if (def.type === 'checkbox') row.classList.add('checkbox');
 
   const caption = document.createElement('span');
   caption.textContent = def.label;
+
+  if (def.type === 'file') {
+    row.appendChild(caption);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'param-file';
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    if (def.accept) input.accept = def.accept;
+
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.textContent = 'Clear';
+    clear.addEventListener('click', () => {
+      if (!applyParamChange('clearEmbeddedImage', 1)) return;
+      applyParamChange('file', '');
+      refreshParamPanel();
+    });
+
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const data = new Uint8Array(reader.result);
+        const okImg = applyParamChange('embeddedImage', data);
+        const okName = applyParamChange('file', file.name);
+        if (okImg && okName) {
+          refreshParamPanel();
+          setStatus('Loaded image ' + file.name);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      input.value = '';
+    });
+
+    const hint = document.createElement('small');
+    const has = Boolean(window.knobman_getParam(selectedLayer, 'hasEmbeddedImage'));
+    const name = String(window.knobman_getParam(selectedLayer, 'file') || '');
+    hint.textContent = has ? ('Embedded: ' + (name || '(unnamed)')) : 'No embedded image';
+
+    wrap.appendChild(input);
+    wrap.appendChild(clear);
+    row.appendChild(wrap);
+    row.appendChild(hint);
+    return row;
+  }
 
   let input;
   if (def.type === 'select') {
@@ -370,17 +443,7 @@ function buildParamRow(key, value) {
   const eventName = (def.type === 'select' || def.type === 'checkbox') ? 'change' : 'input';
   input.addEventListener(eventName, () => {
     const v = coerceParamValue(def, input);
-    const ok = window.knobman_setParam(selectedLayer, key, v);
-    if (!ok) return;
-
-    if (key === 'name') {
-      refreshLayerList();
-    }
-    if (key === 'primType') {
-      refreshLayerList();
-      refreshParamPanel();
-    }
-    markDirty();
+    applyParamChange(key, v);
   });
 
   if (def.type === 'checkbox') {

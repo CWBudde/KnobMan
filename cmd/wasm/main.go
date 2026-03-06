@@ -15,15 +15,15 @@ import (
 )
 
 var (
-	logicalW     = 64
-	logicalH     = 64
-	zoomFactor   = 8
-	doc          *model.Document
-	textures     []*render.Texture
-	previewFrame int
+	logicalW      = 64
+	logicalH      = 64
+	zoomFactor    = 8
+	doc           *model.Document
+	textures      []*render.Texture
+	previewFrame  int
 	selectedLayer int
-	renderBuf    *render.PixBuf
-	displayBuf   []byte
+	renderBuf     *render.PixBuf
+	displayBuf    []byte
 )
 
 func main() {
@@ -255,12 +255,12 @@ func jsGetPrefs(this js.Value, args []js.Value) any {
 	}
 	c := doc.Prefs.BkColor.Val
 	return map[string]any{
-		"width":       logicalW,
-		"height":      logicalH,
-		"frames":      doc.Prefs.RenderFrames.Val,
+		"width":        logicalW,
+		"height":       logicalH,
+		"frames":       doc.Prefs.RenderFrames.Val,
 		"oversampling": doc.Prefs.Oversampling.Val,
 		"exportOption": doc.Prefs.ExportOption.Val,
-		"bgColor":     colorToHex(c),
+		"bgColor":      colorToHex(c),
 	}
 }
 
@@ -282,12 +282,24 @@ func jsSetParam(this js.Value, args []js.Value) any {
 		if c, ok := parseHexColor(v.String()); ok {
 			ly.Prim.Color.Val = c
 		}
+	case "file":
+		ly.Prim.File.Val = v.String()
 	case "text":
 		ly.Prim.Text.Val = v.String()
 	case "shape":
 		ly.Prim.Shape.Val = v.String()
 	case "fill":
 		ly.Prim.Fill.Val = boolOrInt(v)
+	case "bold":
+		ly.Prim.Bold.Val = boolOrInt(v)
+	case "italic":
+		ly.Prim.Italic.Val = boolOrInt(v)
+	case "font":
+		ly.Prim.Font.Val = maxInt(0, v.Int())
+	case "textureFile":
+		ly.Prim.TextureFile.Val = maxInt(0, v.Int())
+	case "textureName":
+		ly.Prim.TextureName = v.String()
 	case "width":
 		ly.Prim.Width.Val = v.Float()
 	case "length":
@@ -300,8 +312,22 @@ func jsSetParam(this js.Value, args []js.Value) any {
 		ly.Prim.Step.Val = v.Float()
 	case "angleStep":
 		ly.Prim.AngleStep.Val = v.Float()
+	case "emboss":
+		ly.Prim.Emboss.Val = v.Float()
+	case "embossDiffuse":
+		ly.Prim.EmbossDiffuse.Val = v.Float()
+	case "ambient":
+		ly.Prim.Ambient.Val = v.Float()
 	case "lightDir":
 		ly.Prim.LightDir.Val = v.Float()
+	case "specular":
+		ly.Prim.Specular.Val = v.Float()
+	case "specularWidth":
+		ly.Prim.SpecularWidth.Val = v.Float()
+	case "textureDepth":
+		ly.Prim.TextureDepth.Val = v.Float()
+	case "textureZoom":
+		ly.Prim.TextureZoom.Val = v.Float()
 	case "diffuse":
 		ly.Prim.Diffuse.Val = v.Float()
 	case "fontSize":
@@ -318,6 +344,46 @@ func jsSetParam(this js.Value, args []js.Value) any {
 		ly.Prim.Transparent.Val = v.Int()
 	case "intelliAlpha":
 		ly.Prim.IntelliAlpha.Val = v.Int()
+	case "embeddedImage":
+		if v.Type() != js.TypeObject {
+			ly.Prim.EmbeddedImage = nil
+			return true
+		}
+		nv := v.Get("length")
+		if nv.Type() == js.TypeUndefined || nv.Type() == js.TypeNull {
+			ly.Prim.EmbeddedImage = nil
+			return true
+		}
+		n := nv.Int()
+		if n <= 0 {
+			ly.Prim.EmbeddedImage = nil
+			return true
+		}
+		buf := make([]byte, n)
+		js.CopyBytesToGo(buf, v)
+		ly.Prim.EmbeddedImage = buf
+	case "embeddedTexture":
+		if v.Type() != js.TypeObject {
+			ly.Prim.EmbeddedTexture = nil
+			return true
+		}
+		nv := v.Get("length")
+		if nv.Type() == js.TypeUndefined || nv.Type() == js.TypeNull {
+			ly.Prim.EmbeddedTexture = nil
+			return true
+		}
+		n := nv.Int()
+		if n <= 0 {
+			ly.Prim.EmbeddedTexture = nil
+			return true
+		}
+		buf := make([]byte, n)
+		js.CopyBytesToGo(buf, v)
+		ly.Prim.EmbeddedTexture = buf
+	case "clearEmbeddedImage":
+		ly.Prim.EmbeddedImage = nil
+	case "clearEmbeddedTexture":
+		ly.Prim.EmbeddedTexture = nil
 	default:
 		return false
 	}
@@ -338,12 +404,24 @@ func jsGetParam(this js.Value, args []js.Value) any {
 		return ly.Prim.Type.Val
 	case "color":
 		return colorToHex(ly.Prim.Color.Val)
+	case "file":
+		return ly.Prim.File.Val
 	case "text":
 		return ly.Prim.Text.Val
 	case "shape":
 		return ly.Prim.Shape.Val
 	case "fill":
 		return ly.Prim.Fill.Val != 0
+	case "bold":
+		return ly.Prim.Bold.Val != 0
+	case "italic":
+		return ly.Prim.Italic.Val != 0
+	case "font":
+		return ly.Prim.Font.Val
+	case "textureFile":
+		return ly.Prim.TextureFile.Val
+	case "textureName":
+		return ly.Prim.TextureName
 	case "width":
 		return ly.Prim.Width.Val
 	case "length":
@@ -356,8 +434,22 @@ func jsGetParam(this js.Value, args []js.Value) any {
 		return ly.Prim.Step.Val
 	case "angleStep":
 		return ly.Prim.AngleStep.Val
+	case "emboss":
+		return ly.Prim.Emboss.Val
+	case "embossDiffuse":
+		return ly.Prim.EmbossDiffuse.Val
+	case "ambient":
+		return ly.Prim.Ambient.Val
 	case "lightDir":
 		return ly.Prim.LightDir.Val
+	case "specular":
+		return ly.Prim.Specular.Val
+	case "specularWidth":
+		return ly.Prim.SpecularWidth.Val
+	case "textureDepth":
+		return ly.Prim.TextureDepth.Val
+	case "textureZoom":
+		return ly.Prim.TextureZoom.Val
 	case "diffuse":
 		return ly.Prim.Diffuse.Val
 	case "fontSize":
@@ -374,6 +466,10 @@ func jsGetParam(this js.Value, args []js.Value) any {
 		return ly.Prim.Transparent.Val
 	case "intelliAlpha":
 		return ly.Prim.IntelliAlpha.Val
+	case "hasEmbeddedImage":
+		return len(ly.Prim.EmbeddedImage) > 0
+	case "hasEmbeddedTexture":
+		return len(ly.Prim.EmbeddedTexture) > 0
 	default:
 		return nil
 	}

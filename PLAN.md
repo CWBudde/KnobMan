@@ -25,7 +25,8 @@
 - [x] **Phase 5.4** — Parameter panel behavior (basic primitive panel wired)
 - [x] **Phase 5.5** — End-to-end live preview with document state wiring (currently partial)
 
-- [ ] **Phase 6** — Complete primitive/effect parameter panels
+- [ ] **Phase 6** — Complete primitive/effect parameter panels (partial: 6.1 done)
+- [x] **Phase 6.1** — Primitive panel per type (JS + WASM primitive param bridge)
 - [ ] **Phase 7** — Advanced editors (curve, shape, preview tools)
 - [ ] **Phase 8** — Export pipeline (PNG strip/frames, GIF, APNG)
 
@@ -323,9 +324,9 @@ Responsive: on narrow viewports, panels stack vertically.
 ## Phase 6 — Complete Parameter Panels
 
 **Goal:** Full fidelity of all parameter controls for all 16 primitive types and the full effect stack.
-**Status:** [ ] Not started
+**Status:** [ ] Partial (6.1 done; 6.2+ pending)
 
-### [ ] 6.1 — Primitive Panel per Type
+### [x] 6.1 — Primitive Panel per Type
 
 Each PrimitiveType maps to a set of visible parameters. The JS panel shows/hides parameter groups based on selected type:
 
@@ -643,7 +644,7 @@ Deploy to GitHub Pages (`gh-pages` branch) via GitHub Actions:
 | **3** | [ ] Partial | Full effect stack (transform, color, masks, shadows) | Phase 2 |
 | **4** | [ ] Partial | Animation interpolation, dynamic text, image strips | Phase 3 |
 | **5** | [x] Completed | Web UI shell: canvas, layer list, basic param panel | Phase 4 |
-| **6** | [ ] Not started | All parameter controls in the web UI | Phase 5 |
+| **6** | [ ] Partial | All parameter controls in the web UI | Phase 5 |
 | **7** | [ ] Not started | Curve editor, shape editor, layer previews | Phase 6 |
 | **8** | [ ] Not started | All 4 export formats (PNG strip, frames, GIF, APNG) | Phase 4 |
 | **9** | [ ] Partial | Undo/redo, shortcuts, file open/save, samples, session | Phase 6, 8 |
