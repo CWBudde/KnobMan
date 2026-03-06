@@ -478,7 +478,82 @@ func renderShape(dst *PixBuf, p *model.Primitive) {
 	}
 }
 
+type svgPathCmd struct {
+	op   byte
+	vals []float64
+}
+
 func parseSimpleShapePoints(s string, w, h int) []point {
+	cmds := parseSVGPathCommands(s)
+	if len(cmds) == 0 {
+		return parseLooseShapePairs(s, w, h)
+	}
+
+	toPix := func(x, y float64) point {
+		px := int(clamp01(x/100.0)*float64(w-1) + 0.5)
+		py := int(clamp01(y/100.0)*float64(h-1) + 0.5)
+		return point{px, py}
+	}
+
+	pts := make([]point, 0, 64)
+	var curX, curY float64
+	var startX, startY float64
+	hasCur := false
+
+	for _, c := range cmds {
+		switch c.op {
+		case 'M':
+			curX, curY = c.vals[0], c.vals[1]
+			startX, startY = curX, curY
+			hasCur = true
+			pts = append(pts, toPix(curX, curY))
+		case 'L':
+			if !hasCur {
+				continue
+			}
+			curX, curY = c.vals[0], c.vals[1]
+			pts = append(pts, toPix(curX, curY))
+		case 'Q':
+			if !hasCur {
+				continue
+			}
+			poly := flattenQuadratic(
+				fpoint{x: curX, y: curY},
+				fpoint{x: c.vals[0], y: c.vals[1]},
+				fpoint{x: c.vals[2], y: c.vals[3]},
+				12,
+			)
+			for i := 1; i < len(poly); i++ {
+				pts = append(pts, toPix(poly[i].x, poly[i].y))
+			}
+			curX, curY = c.vals[2], c.vals[3]
+		case 'C':
+			if !hasCur {
+				continue
+			}
+			poly := flattenCubic(
+				fpoint{x: curX, y: curY},
+				fpoint{x: c.vals[0], y: c.vals[1]},
+				fpoint{x: c.vals[2], y: c.vals[3]},
+				fpoint{x: c.vals[4], y: c.vals[5]},
+				12,
+			)
+			for i := 1; i < len(poly); i++ {
+				pts = append(pts, toPix(poly[i].x, poly[i].y))
+			}
+			curX, curY = c.vals[4], c.vals[5]
+		case 'Z':
+			if !hasCur {
+				continue
+			}
+			curX, curY = startX, startY
+			pts = append(pts, toPix(curX, curY))
+		}
+	}
+	return pts
+}
+
+func parseLooseShapePairs(s string, w, h int) []point {
 	fields := strings.Fields(strings.NewReplacer(",", " ", "M", " ", "L", " ", "m", " ", "l", " ", "Z", " ", "z", " ").Replace(s))
 	pts := make([]point, 0, len(fields)/2)
 	for i := 0; i+1 < len(fields); i += 2 {
@@ -492,6 +567,115 @@ func parseSimpleShapePoints(s string, w, h int) []point {
 		pts = append(pts, point{px, py})
 	}
 	return pts
+}
+
+func parseSVGPathCommands(s string) []svgPathCmd {
+	tokens := tokenizeSVGPath(s)
+	out := make([]svgPathCmd, 0, 32)
+	var cur byte
+
+	for i := 0; i < len(tokens); {
+		tk := tokens[i]
+		if len(tk) == 1 && isAlphaASCII(tk[0]) {
+			cur = byte(strings.ToUpper(tk)[0])
+			i++
+			if cur == 'Z' {
+				out = append(out, svgPathCmd{op: 'Z'})
+			}
+			continue
+		}
+		if cur == 0 {
+			i++
+			continue
+		}
+		need := svgPathCmdArity(cur)
+		if need <= 0 {
+			i++
+			continue
+		}
+		vals := make([]float64, 0, need)
+		for i < len(tokens) && len(vals) < need {
+			if len(tokens[i]) == 1 && isAlphaASCII(tokens[i][0]) {
+				break
+			}
+			v, err := strconv.ParseFloat(tokens[i], 64)
+			if err != nil {
+				break
+			}
+			vals = append(vals, v)
+			i++
+		}
+		if len(vals) != need {
+			break
+		}
+		out = append(out, svgPathCmd{op: cur, vals: vals})
+		if cur == 'M' {
+			cur = 'L'
+		}
+	}
+	return out
+}
+
+func tokenizeSVGPath(s string) []string {
+	tokens := make([]string, 0, len(s)/2)
+	for i := 0; i < len(s); {
+		c := s[i]
+		if isAlphaASCII(c) {
+			tokens = append(tokens, s[i:i+1])
+			i++
+			continue
+		}
+		if c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r' {
+			i++
+			continue
+		}
+		j := i
+		if s[j] == '+' || s[j] == '-' {
+			j++
+		}
+		sawDigit := false
+		sawDot := false
+		for j < len(s) {
+			ch := s[j]
+			if ch >= '0' && ch <= '9' {
+				sawDigit = true
+				j++
+				continue
+			}
+			if ch == '.' && !sawDot {
+				sawDot = true
+				j++
+				continue
+			}
+			break
+		}
+		if !sawDigit {
+			i++
+			continue
+		}
+		tokens = append(tokens, s[i:j])
+		i = j
+	}
+	return tokens
+}
+
+func svgPathCmdArity(op byte) int {
+	switch op {
+	case 'M', 'L':
+		return 2
+	case 'Q':
+		return 4
+	case 'C':
+		return 6
+	case 'Z':
+		return 0
+	default:
+		return -1
+	}
+}
+
+func isAlphaASCII(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
 }
 
 type fpoint struct{ x, y float64 }
@@ -568,6 +752,21 @@ func parseKnobShapePolylines(s string, w, h int) [][]fpoint {
 
 func shapeScaleX(v float64, w int) float64 { return (v - 128.0) / 256.0 * float64(w) }
 func shapeScaleY(v float64, h int) float64 { return (v - 128.0) / 256.0 * float64(h) }
+
+func flattenQuadratic(p0, c, p1 fpoint, steps int) []fpoint {
+	if steps < 2 {
+		steps = 2
+	}
+	out := make([]fpoint, 0, steps+1)
+	for i := 0; i <= steps; i++ {
+		t := float64(i) / float64(steps)
+		u := 1.0 - t
+		x := u*u*p0.x + 2*u*t*c.x + t*t*p1.x
+		y := u*u*p0.y + 2*u*t*c.y + t*t*p1.y
+		out = append(out, fpoint{x: x, y: y})
+	}
+	return out
+}
 
 func flattenCubic(p0, c1, c2, p1 fpoint, steps int) []fpoint {
 	if steps < 2 {

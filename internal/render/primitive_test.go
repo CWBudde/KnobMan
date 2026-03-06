@@ -179,6 +179,14 @@ func TestParseKnobShapePolylines(t *testing.T) {
 	}
 }
 
+func TestParseSimpleShapePointsSVGCurves(t *testing.T) {
+	s := "M 10 10 C 20 80 80 20 90 90 Q 60 60 20 90 Z"
+	pts := parseSimpleShapePoints(s, 64, 64)
+	if len(pts) < 10 {
+		t.Fatalf("expected flattened curve points, got %d", len(pts))
+	}
+}
+
 func basePrim(t model.PrimitiveType) model.Primitive {
 	p := model.NewPrimitive()
 	p.Type.Val = int(t)
