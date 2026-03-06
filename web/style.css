@@ -238,9 +238,23 @@ button:active { background: var(--accent); }
   min-width: 22px;
   height: 22px;
   padding: 0;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#curveEditorToggle::before {
+  content: '›';
+  display: block;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1;
+  transform: rotate(90deg);
+  transition: transform 160ms ease;
+}
+
+#curveEditorToggle[aria-expanded="false"]::before {
+  transform: rotate(0deg);
 }
 
 .curve-editor-tools {
