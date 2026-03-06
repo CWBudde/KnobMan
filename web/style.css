@@ -760,6 +760,41 @@ button:active {
   font-size: 10px;
 }
 
+/* ── Welcome dialog ───────────────────────────────────────────── */
+
+.welcome-dialog {
+  width: min(700px, 100%);
+}
+
+.welcome-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.welcome-suppress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.welcome-suppress input[type="checkbox"] {
+  cursor: pointer;
+}
+
 /* ── Scrollbars ───────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 8px;
