@@ -37,6 +37,9 @@ jobs:
       - name: Copy static web assets
         run: cp web/index.html web/main.js web/style.css web/dist/
 
+      - name: Copy assets (textures + sample knobs)
+        run: cp -r assets web/dist/assets
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
