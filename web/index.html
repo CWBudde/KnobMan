@@ -73,38 +73,32 @@
             </select>
           </div>
           <section id="curveEditorPanel" aria-label="Animation curves">
-            <div id="curveEditorHeader">
-              <div class="curve-editor-title">
-                <button
-                  id="curveEditorToggle"
-                  type="button"
-                  aria-label="Collapse curve editor"
-                  aria-expanded="true"
-                ></button>
-                <strong>Curve Editor</strong>
+            <details id="curveEditorDetails">
+              <summary>Curve Editor</summary>
+              <div class="curve-editor-body">
+                <div class="curve-editor-tools">
+                  <label
+                    >Step:
+                    <input
+                      type="number"
+                      id="curveStepReso"
+                      min="0"
+                      max="64"
+                      step="1"
+                      value="0"
+                    />
+                  </label>
+                  <button id="curveDeletePoint" type="button">
+                    Delete Point
+                  </button>
+                </div>
+                <div id="curveTabs"></div>
+                <canvas id="curveCanvas" width="340" height="210"></canvas>
+                <div id="curveHelp">
+                  Left click to add/drag points. Right click to delete a point.
+                </div>
               </div>
-              <div class="curve-editor-tools">
-                <label
-                  >Step:
-                  <input
-                    type="number"
-                    id="curveStepReso"
-                    min="0"
-                    max="64"
-                    step="1"
-                    value="0"
-                  />
-                </label>
-                <button id="curveDeletePoint" type="button">
-                  Delete Point
-                </button>
-              </div>
-            </div>
-            <div id="curveTabs"></div>
-            <canvas id="curveCanvas" width="340" height="210"></canvas>
-            <div id="curveHelp">
-              Left click to add/drag points. Right click to delete a point.
-            </div>
+            </details>
           </section>
           <section id="shapeEditorPanel" aria-label="Shape editor">
             <div id="shapeEditorHeader">
