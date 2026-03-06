@@ -28,6 +28,83 @@ let pixelBuf = null;
 let imageData = null;
 let selectedLayer = 0;
 
+const PRIM_TYPES = [
+  { value: 0, label: 'None' },
+  { value: 1, label: 'Image' },
+  { value: 2, label: 'Circle' },
+  { value: 3, label: 'CircleFill' },
+  { value: 4, label: 'MetalCircle' },
+  { value: 5, label: 'WaveCircle' },
+  { value: 6, label: 'Sphere' },
+  { value: 7, label: 'Rect' },
+  { value: 8, label: 'RectFill' },
+  { value: 9, label: 'Triangle' },
+  { value: 10, label: 'Line' },
+  { value: 11, label: 'RadiateLine' },
+  { value: 12, label: 'H-Lines' },
+  { value: 13, label: 'V-Lines' },
+  { value: 14, label: 'Text' },
+  { value: 15, label: 'Shape' }
+];
+
+const PARAM_DEFS = {
+  name:        { label: 'Layer Name', type: 'text' },
+  primType:    { label: 'Primitive', type: 'select', numeric: 'int', options: PRIM_TYPES },
+  color:       { label: 'Color', type: 'color' },
+  text:        { label: 'Text', type: 'text' },
+  shape:       { label: 'Shape', type: 'textarea' },
+  fill:        { label: 'Fill', type: 'checkbox' },
+  width:       { label: 'Width', type: 'number', numeric: 'float', min: 0, max: 200, step: 0.1 },
+  length:      { label: 'Length', type: 'number', numeric: 'float', min: 0, max: 200, step: 0.1 },
+  aspect:      { label: 'Aspect', type: 'number', numeric: 'float', min: -200, max: 200, step: 0.1 },
+  round:       { label: 'Round', type: 'number', numeric: 'float', min: -100, max: 100, step: 0.1 },
+  step:        { label: 'Step', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  angleStep:   { label: 'Angle Step', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  lightDir:    { label: 'Light Dir', type: 'number', numeric: 'float', min: -360, max: 360, step: 0.1 },
+  diffuse:     { label: 'Diffuse', type: 'number', numeric: 'float', min: -100, max: 200, step: 0.1 },
+  fontSize:    { label: 'Font Size', type: 'number', numeric: 'float', min: 1, max: 300, step: 0.1 },
+  textAlign:   { label: 'Text Align', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'Left' },
+    { value: 1, label: 'Center' },
+    { value: 2, label: 'Right' }
+  ] },
+  frameAlign:  { label: 'Frame Align', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'Vertical Strip' },
+    { value: 1, label: 'Horizontal Strip' },
+    { value: 2, label: 'Files' }
+  ] },
+  numFrame:    { label: 'Frames', type: 'number', numeric: 'int', min: 1, max: 256, step: 1 },
+  autoFit:     { label: 'Auto Fit', type: 'checkbox' },
+  transparent: { label: 'Transparent', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'Off' },
+    { value: 1, label: 'On' }
+  ] },
+  intelliAlpha:{ label: 'IntelliAlpha', type: 'select', numeric: 'int', options: [
+    { value: 0, label: 'Off' },
+    { value: 1, label: 'On' }
+  ] }
+};
+
+// Phase 5.4 scope: primitive-type-aware panel using the currently exposed WASM params.
+const PARAMS_BY_PRIM_TYPE = {
+  0: [],
+  1: ['autoFit', 'intelliAlpha', 'numFrame', 'frameAlign', 'transparent'],
+  2: ['color', 'width', 'round', 'diffuse', 'lightDir'],
+  3: ['color', 'aspect', 'diffuse', 'lightDir'],
+  4: ['color', 'aspect', 'diffuse', 'lightDir'],
+  5: ['color', 'width', 'step', 'length', 'diffuse'],
+  6: ['color', 'aspect', 'diffuse', 'step', 'angleStep'],
+  7: ['color', 'width', 'round', 'length', 'aspect', 'diffuse'],
+  8: ['color', 'round', 'aspect', 'diffuse'],
+  9: ['color', 'width', 'round', 'length', 'fill', 'diffuse'],
+  10: ['color', 'width', 'length', 'lightDir'],
+  11: ['color', 'width', 'length', 'angleStep', 'step'],
+  12: ['color', 'width', 'step'],
+  13: ['color', 'width', 'step'],
+  14: ['color', 'text', 'fontSize', 'textAlign', 'frameAlign'],
+  15: ['color', 'shape', 'fill', 'round', 'diffuse']
+};
+
 // ── Initialise after WASM load ────────────────────────────────────────────────
 
 function onWasmReady() {
@@ -47,6 +124,7 @@ function refreshFromDoc() {
   syncPrefsFromGo();
   syncCanvasSize();
   refreshLayerList();
+  refreshParamPanel();
 
   const frames = parseInt(document.getElementById('prefFrames').value, 10) || 1;
   if (currentFrame >= frames) currentFrame = frames - 1;
@@ -173,6 +251,8 @@ function refreshLayerList() {
   layerList.innerHTML = '';
 
   const layers = window.knobman_getLayerList() || [];
+  if (selectedLayer >= layers.length) selectedLayer = Math.max(0, layers.length - 1);
+
   layers.forEach(layer => {
     const li = document.createElement('li');
     if (layer.selected) {
@@ -213,10 +293,127 @@ function refreshLayerList() {
     li.addEventListener('click', () => {
       selectedLayer = window.knobman_selectLayer(layer.index);
       refreshLayerList();
+      refreshParamPanel();
       markDirty();
     });
 
     layerList.appendChild(li);
+  });
+}
+
+// ── Primitive parameter panel ─────────────────────────────────────────────────
+
+function fieldsForPrimType(primType) {
+  return PARAMS_BY_PRIM_TYPE[primType] || [];
+}
+
+function coerceParamValue(def, input) {
+  if (def.type === 'checkbox') {
+    return input.checked;
+  }
+  if (def.type === 'color' || def.type === 'text' || def.type === 'textarea') {
+    return input.value;
+  }
+  if (def.numeric === 'int') {
+    const v = parseInt(input.value, 10);
+    return Number.isFinite(v) ? v : 0;
+  }
+  if (def.numeric === 'float') {
+    const v = parseFloat(input.value);
+    return Number.isFinite(v) ? v : 0;
+  }
+  return input.value;
+}
+
+function buildParamRow(key, value) {
+  const def = PARAM_DEFS[key];
+  if (!def) return null;
+
+  const row = document.createElement('label');
+  row.className = 'param-row';
+  if (def.type === 'checkbox') row.classList.add('checkbox');
+
+  const caption = document.createElement('span');
+  caption.textContent = def.label;
+
+  let input;
+  if (def.type === 'select') {
+    input = document.createElement('select');
+    (def.options || []).forEach(opt => {
+      const el = document.createElement('option');
+      el.value = String(opt.value);
+      el.textContent = opt.label;
+      input.appendChild(el);
+    });
+    input.value = String(value ?? 0);
+  } else if (def.type === 'textarea') {
+    input = document.createElement('textarea');
+    input.rows = 4;
+    input.value = String(value ?? '');
+  } else {
+    input = document.createElement('input');
+    input.type = def.type;
+    if (def.min != null) input.min = String(def.min);
+    if (def.max != null) input.max = String(def.max);
+    if (def.step != null) input.step = String(def.step);
+    if (def.type === 'checkbox') {
+      input.checked = Boolean(value);
+    } else if (def.type === 'number') {
+      input.value = String(value ?? 0);
+    } else if (def.type === 'color') {
+      input.value = String(value || '#000000');
+    } else {
+      input.value = String(value ?? '');
+    }
+  }
+
+  const eventName = (def.type === 'select' || def.type === 'checkbox') ? 'change' : 'input';
+  input.addEventListener(eventName, () => {
+    const v = coerceParamValue(def, input);
+    const ok = window.knobman_setParam(selectedLayer, key, v);
+    if (!ok) return;
+
+    if (key === 'name') {
+      refreshLayerList();
+    }
+    if (key === 'primType') {
+      refreshLayerList();
+      refreshParamPanel();
+    }
+    markDirty();
+  });
+
+  if (def.type === 'checkbox') {
+    row.appendChild(caption);
+    row.appendChild(input);
+  } else {
+    row.appendChild(caption);
+    row.appendChild(input);
+  }
+  return row;
+}
+
+function refreshParamPanel() {
+  const content = document.getElementById('paramContent');
+  content.innerHTML = '';
+
+  const layers = window.knobman_getLayerList() || [];
+  if (layers.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'placeholder';
+    p.textContent = 'No layer selected.';
+    content.appendChild(p);
+    return;
+  }
+  selectedLayer = Math.max(0, Math.min(selectedLayer, layers.length - 1));
+
+  const primType = window.knobman_getParam(selectedLayer, 'primType') ?? 0;
+  const fields = ['name', 'primType', ...fieldsForPrimType(primType)];
+
+  fields.forEach(key => {
+    const value = window.knobman_getParam(selectedLayer, key);
+    const row = buildParamRow(key, value);
+    if (row) content.appendChild(row);
   });
 }
 
@@ -254,30 +451,35 @@ function onRedo()   { setStatus('Redo (Phase 9)'); }
 function onAddLayer() {
   selectedLayer = window.knobman_addLayer();
   refreshLayerList();
+  refreshParamPanel();
   markDirty();
 }
 
 function onDeleteLayer() {
   window.knobman_deleteLayer(selectedLayer);
   refreshLayerList();
+  refreshParamPanel();
   markDirty();
 }
 
 function onMoveUp() {
   selectedLayer = window.knobman_moveLayer(-1);
   refreshLayerList();
+  refreshParamPanel();
   markDirty();
 }
 
 function onMoveDown() {
   selectedLayer = window.knobman_moveLayer(1);
   refreshLayerList();
+  refreshParamPanel();
   markDirty();
 }
 
 function onDuplicate() {
   selectedLayer = window.knobman_duplicateLayer();
   refreshLayerList();
+  refreshParamPanel();
   markDirty();
 }
 
