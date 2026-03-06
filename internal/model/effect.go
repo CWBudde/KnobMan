@@ -2,7 +2,7 @@ package model
 
 // Effect holds the full effect stack for one layer.
 // All animatable parameters exist as From/To float pairs plus an anim curve
-// selector (0 = linear/no curve; 1–8 = global curve index).
+// selector (0 = off/use From, 1 = linear, 2..9 = global curve 1..8).
 // Field names and defaults match the Java Eff class exactly.
 type Effect struct {
 	// ── Transform ───────────────────────────────────────────────────────────
