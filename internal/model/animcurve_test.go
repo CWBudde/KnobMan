@@ -7,6 +7,7 @@ import (
 
 func TestAnimCurveLinear(t *testing.T) {
 	c := NewAnimCurve() // default: 0→100 linear ramp
+
 	cases := [][2]float64{
 		{0.0, 0.0},
 		{0.25, 0.25},
@@ -25,6 +26,7 @@ func TestAnimCurveLinear(t *testing.T) {
 func TestAnimCurveStep(t *testing.T) {
 	c := NewAnimCurve()
 	c.StepReso.Val = 4 // quantize to 4 steps: 0, 1/3, 2/3, 1
+
 	cases := [][2]float64{
 		{0.0, 0.0},
 		{0.1, 0.0},
@@ -42,6 +44,7 @@ func TestAnimCurveStep(t *testing.T) {
 
 func TestAnimCurveFreeze(t *testing.T) {
 	c := NewAnimCurve()
+
 	c.StepReso.Val = 1 // freeze: always returns 0
 	for _, r := range []float64{0, 0.5, 1.0} {
 		if got := c.Eval(r); got != 0 {

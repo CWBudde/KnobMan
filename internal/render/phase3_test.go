@@ -10,9 +10,11 @@ import (
 func TestTransformBilinearTranslate(t *testing.T) {
 	src := NewPixBuf(6, 6)
 	src.Set(2, 2, color.RGBA{255, 0, 0, 255})
+
 	dst := NewPixBuf(6, 6)
 	m := BuildMatrix(100, 100, 0, 1, 0, 0, 0)
 	TransformBilinear(dst, src, m)
+
 	if got := dst.At(3, 2); got.A == 0 {
 		t.Fatalf("expected translated non-zero pixel at (3,2), got %+v", got)
 	}
@@ -21,8 +23,10 @@ func TestTransformBilinearTranslate(t *testing.T) {
 func TestApplyColorAdjustAlpha(t *testing.T) {
 	src := NewPixBuf(1, 1)
 	src.Set(0, 0, color.RGBA{100, 120, 140, 200})
+
 	dst := NewPixBuf(1, 1)
 	ApplyColorAdjust(dst, src, 50, 0, 0, 0, 0)
+
 	got := dst.At(0, 0)
 	if got.A < 95 || got.A > 105 {
 		t.Fatalf("expected alpha around 100, got %d", got.A)
@@ -32,9 +36,11 @@ func TestApplyColorAdjustAlpha(t *testing.T) {
 func TestBuildMaskAndApply(t *testing.T) {
 	buf := NewPixBuf(8, 8)
 	buf.Clear(color.RGBA{255, 255, 255, 255})
+
 	mask := BuildMask(8, 8, 2, -20, 20, 0, 0)
 	ApplyMask(buf, mask)
 	left := buf.At(0, 4).A
+
 	center := buf.At(4, 4).A
 	if center <= left {
 		t.Fatalf("expected center alpha > edge alpha, got center=%d left=%d", center, left)
@@ -44,6 +50,7 @@ func TestBuildMaskAndApply(t *testing.T) {
 func TestMakeShadowOffset(t *testing.T) {
 	src := NewPixBuf(8, 8)
 	src.Set(2, 2, color.RGBA{255, 255, 255, 255})
+
 	shadow := MakeShadow(src, 2, 100, 0, 0, color.RGBA{0, 0, 0, 255})
 	if got := shadow.At(4, 2); got.A == 0 {
 		t.Fatalf("expected shifted shadow pixel, got %+v", got)
@@ -53,6 +60,7 @@ func TestMakeShadowOffset(t *testing.T) {
 func TestApplyEffectFrameMaskBits(t *testing.T) {
 	prim := NewPixBuf(4, 4)
 	prim.Clear(color.RGBA{255, 0, 0, 255})
+
 	eff := model.NewEffect()
 	eff.FMaskEna.Val = 2
 	eff.FMaskBits.Val = "10"
@@ -60,12 +68,14 @@ func TestApplyEffectFrameMaskBits(t *testing.T) {
 
 	dst0 := NewPixBuf(4, 4)
 	ApplyEffect(dst0, prim, &eff, &curves, 0, 2, nil)
+
 	if dst0.At(1, 1).A == 0 {
 		t.Fatal("frame 0 should be visible for bitmask 10")
 	}
 
 	dst1 := NewPixBuf(4, 4)
 	ApplyEffect(dst1, prim, &eff, &curves, 1, 2, nil)
+
 	if dst1.At(1, 1).A != 0 {
 		t.Fatal("frame 1 should be hidden for bitmask 10")
 	}
@@ -96,6 +106,7 @@ func TestRenderFrameSoloSelection(t *testing.T) {
 
 	buf := NewPixBuf(16, 16)
 	RenderFrame(buf, doc, 0, nil)
+
 	if got := buf.At(8, 8); got != (color.RGBA{255, 255, 255, 255}) {
 		t.Fatalf("solo layer should suppress non-solo layers; got %+v", got)
 	}
@@ -105,6 +116,7 @@ func TestRenderFrameSoloSelection(t *testing.T) {
 	doc.Layers[1].Prim.Length.Val = 100
 	doc.Layers[1].Prim.Aspect.Val = 100
 	RenderFrame(buf, doc, 0, nil)
+
 	if got := buf.At(8, 8); got.G < 150 {
 		t.Fatalf("solo layer draw expected green-ish center, got %+v", got)
 	}

@@ -9,7 +9,7 @@
   <body>
     <div id="loading">Loading KnobMan...</div>
 
-    <div id="app" style="display:none">
+    <div id="app" style="display: none">
       <header id="toolbar">
         <span class="app-title">KnobMan</span>
         <button id="btnNew" title="New">New</button>
@@ -18,11 +18,18 @@
         <button id="btnSave" title="Save .knob file">Save</button>
         <span class="sep"></span>
         <button id="btnExport" title="Export image strip">Export</button>
-        <button id="btnPreviewWin" title="Open detached animated preview">Preview</button>
+        <button id="btnPreviewWin" title="Open detached animated preview">
+          Preview
+        </button>
         <span class="sep"></span>
         <button id="btnUndo" title="Undo (Ctrl+Z)">Undo</button>
         <button id="btnRedo" title="Redo (Ctrl+Y)">Redo</button>
-        <input type="file" id="fileInput" accept=".knob" style="display:none" />
+        <input
+          type="file"
+          id="fileInput"
+          accept=".knob"
+          style="display: none"
+        />
       </header>
 
       <main id="workspace">
@@ -47,25 +54,49 @@
           </div>
           <div id="frameScrubber">
             <label for="frameSlider">Frame:</label>
-            <input type="range" id="frameSlider" min="0" max="30" value="0" step="1" />
+            <input
+              type="range"
+              id="frameSlider"
+              min="0"
+              max="30"
+              value="0"
+              step="1"
+            />
             <span id="frameValue">0</span>
           </div>
           <section id="curveEditorPanel" aria-label="Animation curves">
             <div id="curveEditorHeader">
               <div class="curve-editor-title">
-                <button id="curveEditorToggle" type="button" aria-label="Collapse curve editor" aria-expanded="true"></button>
+                <button
+                  id="curveEditorToggle"
+                  type="button"
+                  aria-label="Collapse curve editor"
+                  aria-expanded="true"
+                ></button>
                 <strong>Curve Editor</strong>
               </div>
               <div class="curve-editor-tools">
-                <label>Step:
-                  <input type="number" id="curveStepReso" min="0" max="64" step="1" value="0" />
+                <label
+                  >Step:
+                  <input
+                    type="number"
+                    id="curveStepReso"
+                    min="0"
+                    max="64"
+                    step="1"
+                    value="0"
+                  />
                 </label>
-                <button id="curveDeletePoint" type="button">Delete Point</button>
+                <button id="curveDeletePoint" type="button">
+                  Delete Point
+                </button>
               </div>
             </div>
             <div id="curveTabs"></div>
             <canvas id="curveCanvas" width="340" height="210"></canvas>
-            <div id="curveHelp">Left click to add/drag points. Right click to delete a point.</div>
+            <div id="curveHelp">
+              Left click to add/drag points. Right click to delete a point.
+            </div>
           </section>
           <section id="shapeEditorPanel" aria-label="Shape editor">
             <div id="shapeEditorHeader">
@@ -79,7 +110,9 @@
                 <button type="button" id="shapeDeleteSeg">Delete</button>
               </div>
             </div>
-            <div id="shapeHelp">Select a layer with Primitive = Shape to edit its path.</div>
+            <div id="shapeHelp">
+              Select a layer with Primitive = Shape to edit its path.
+            </div>
           </section>
           <div id="statusBar">Ready</div>
         </section>
@@ -95,22 +128,63 @@
 
       <!-- Bottom: Document preferences -->
       <footer id="prefsBar">
-        <label>Size:
-          <input type="number" id="prefWidth"  value="64" min="8" max="512" step="1" /> ×
-          <input type="number" id="prefHeight" value="64" min="8" max="512" step="1" />
+        <label
+          >Size:
+          <input
+            type="number"
+            id="prefWidth"
+            value="64"
+            min="8"
+            max="512"
+            step="1"
+          />
+          ×
+          <input
+            type="number"
+            id="prefHeight"
+            value="64"
+            min="8"
+            max="512"
+            step="1"
+          />
         </label>
         <label><input type="checkbox" id="prefLockAspect" /> Lock Ratio</label>
-        <label>Render:
-          <input type="number" id="prefFrames" value="31" min="1" max="256" step="1" />
+        <label
+          >Render:
+          <input
+            type="number"
+            id="prefFrames"
+            value="31"
+            min="1"
+            max="256"
+            step="1"
+          />
         </label>
-        <label>Preview:
-          <input type="number" id="prefPreviewFrames" value="31" min="1" max="256" step="1" />
+        <label
+          >Preview:
+          <input
+            type="number"
+            id="prefPreviewFrames"
+            value="31"
+            min="1"
+            max="256"
+            step="1"
+          />
         </label>
-        <label>BG:
+        <label
+          >BG:
           <input type="color" id="prefBgColor" value="#000000" />
-          <input type="range" id="prefBgAlpha" value="255" min="0" max="255" step="1" />
+          <input
+            type="range"
+            id="prefBgAlpha"
+            value="255"
+            min="0"
+            max="255"
+            step="1"
+          />
         </label>
-        <label>Oversample:
+        <label
+          >Oversample:
           <select id="prefOversample">
             <option value="0">1×</option>
             <option value="1">2×</option>
@@ -118,7 +192,8 @@
             <option value="3">8×</option>
           </select>
         </label>
-        <label>Export:
+        <label
+          >Export:
           <select id="prefExport">
             <option value="0">PNG Strip (V)</option>
             <option value="1">PNG Strip (H)</option>
@@ -127,31 +202,57 @@
             <option value="4">APNG</option>
           </select>
         </label>
-        <label>Align:
+        <label
+          >Align:
           <select id="prefAlign">
             <option value="0">Vertical</option>
             <option value="1">Horizontal</option>
           </select>
         </label>
-        <label>Duration:
-          <input type="number" id="prefDuration" value="100" min="1" max="10000" step="1" />
+        <label
+          >Duration:
+          <input
+            type="number"
+            id="prefDuration"
+            value="100"
+            min="1"
+            max="10000"
+            step="1"
+          />
         </label>
-        <label>Loop:
-          <input type="number" id="prefLoop" value="0" min="0" max="9999" step="1" />
+        <label
+          >Loop:
+          <input
+            type="number"
+            id="prefLoop"
+            value="0"
+            min="0"
+            max="9999"
+            step="1"
+          />
         </label>
         <label><input type="checkbox" id="prefBiDir" /> BiDir</label>
       </footer>
     </div>
 
     <div id="samplesOverlay" class="samples-overlay" hidden>
-      <div class="samples-dialog" role="dialog" aria-modal="true" aria-labelledby="samplesTitle">
+      <div
+        class="samples-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="samplesTitle"
+      >
         <div class="samples-header">
           <h2 id="samplesTitle">Sample Projects</h2>
           <button id="btnCloseSamples" type="button">Close</button>
         </div>
         <label class="samples-search">
           <span>Filter</span>
-          <input id="sampleSearch" type="text" placeholder="Type to filter samples..." />
+          <input
+            id="sampleSearch"
+            type="text"
+            placeholder="Type to filter samples..."
+          />
         </label>
         <div id="sampleList" class="samples-list"></div>
       </div>

@@ -1,0 +1,70 @@
+# treefmt configuration for KnobMan
+# Multi-language code formatting
+
+[global]
+excludes = [
+    # Git and version control
+    "**/.gitignore",
+    "**/.git/**",
+
+    # Go module files (managed by go tooling)
+    "go.sum",
+    "go.mod",
+
+    # Documentation and text files
+    "**/*.txt",
+    "CHANGELOG.md",
+    "LICENSE",
+
+    # Binary and data files
+    "**/*.png",
+    "**/*.jpg",
+    "**/*.jpeg",
+    "**/*.knob",
+    "**/*.wasm",
+
+    # Build artifacts
+    "bin/**",
+    "dist/**",
+    "coverage.out",
+    "coverage.html",
+
+    # Legacy Java source (do not touch)
+    "legacy/**",
+
+    # Third-party WASM runtime (do not touch)
+    "web/wasm_exec.js",
+]
+
+# Go formatter - simple and strict
+[formatter.gofumpt]
+command = "gofumpt"
+options = ["-w"]
+includes = ["*.go"]
+
+# Go import organizer - runs after gofumpt
+[formatter.gci]
+command = "gci"
+options = ["write"]
+includes = ["*.go"]
+priority = 1
+
+# Shell script formatter
+[formatter.shfmt]
+command = "shfmt"
+options = ["-s", "-w"]
+includes = ["*.sh"]
+
+# Markdown, YAML, JSON, HTML, CSS, JS formatter
+[formatter.prettier]
+command = "prettier"
+options = ["-w"]
+includes = [
+    "*.md",
+    "*.yaml",
+    "*.yml",
+    "*.json",
+    "*.html",
+    "*.css",
+    "*.js",
+]

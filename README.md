@@ -13,10 +13,10 @@ Try online: https://cwbudde.github.io/KnobMan/
 - **Animation ready**: curves, stepped animation, dynamic text counters, multi-frame image strips.
 - **Advanced editors**: curve editor and shape path editor.
 - **Export formats**:
-	- PNG strip (vertical / horizontal)
-	- PNG frames (download as a zip)
-	- Animated GIF
-	- APNG
+  - PNG strip (vertical / horizontal)
+  - PNG frames (download as a zip)
+  - Animated GIF
+  - APNG
 - **Productivity**: undo/redo, keyboard shortcuts, samples browser, recent files, session persistence.
 - **Quality**: visual regression tests against reference renders.
 
@@ -62,9 +62,9 @@ just test
 1. **New / Open** a `.knob` project.
 2. Manage layers in the **Layers** panel (add, delete, reorder, duplicate, rename; visibility/solo toggles).
 3. Edit the selected layer in the **Parameters** panel:
-	 - Primitive type + primitive parameters
-	 - Effect stack parameters (transform, color, masks, shadows, emboss, etc.)
-	 - Animation controls for animatable values (From/To + curve selection)
+   - Primitive type + primitive parameters
+   - Effect stack parameters (transform, color, masks, shadows, emboss, etc.)
+   - Animation controls for animatable values (From/To + curve selection)
 4. Use the **curve editor** for precise motion shaping and the **shape editor** for drawing custom paths.
 5. Adjust document preferences in the bottom bar (size, frames, background, oversampling, export format).
 6. **Export** a PNG strip / PNG frames / GIF / APNG.

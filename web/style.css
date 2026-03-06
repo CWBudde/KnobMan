@@ -1,21 +1,35 @@
 /* ── Reset & base ─────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:       #1e1e1e;
-  --bg2:      #252526;
-  --bg3:      #2d2d30;
-  --border:   #3c3c3c;
-  --text:     #cccccc;
-  --text-dim: #888888;
-  --accent:   #0e639c;
-  --accent-h: #1177bb;
-  --panel-w:  220px;
-  --toolbar-h: 36px;
-  --prefs-h:   36px;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-html, body { height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, sans-serif; }
+:root {
+  --bg: #1e1e1e;
+  --bg2: #252526;
+  --bg3: #2d2d30;
+  --border: #3c3c3c;
+  --text: #cccccc;
+  --text-dim: #888888;
+  --accent: #0e639c;
+  --accent-h: #1177bb;
+  --panel-w: 220px;
+  --toolbar-h: 36px;
+  --prefs-h: 36px;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    13px/1.4 system-ui,
+    sans-serif;
+}
 
 /* ── Toolbar ──────────────────────────────────────────────────── */
 #toolbar {
@@ -29,8 +43,17 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font: 13px
   flex-shrink: 0;
 }
 
-.app-title { font-weight: 600; margin-right: 8px; color: #fff; }
-.sep { flex: 0 0 1px; height: 18px; background: var(--border); margin: 0 4px; }
+.app-title {
+  font-weight: 600;
+  margin-right: 8px;
+  color: #fff;
+}
+.sep {
+  flex: 0 0 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
+}
 
 button {
   background: var(--bg3);
@@ -41,8 +64,14 @@ button {
   cursor: pointer;
   font-size: 12px;
 }
-button:hover { background: var(--accent-h); border-color: var(--accent-h); color: #fff; }
-button:active { background: var(--accent); }
+button:hover {
+  background: var(--accent-h);
+  border-color: var(--accent-h);
+  color: #fff;
+}
+button:active {
+  background: var(--accent);
+}
 
 /* ── Main layout ──────────────────────────────────────────────── */
 #app {
@@ -68,12 +97,13 @@ button:active { background: var(--accent); }
   overflow: hidden;
 }
 
-#layerPanelHeader, #paramPanelHeader {
+#layerPanelHeader,
+#paramPanelHeader {
   padding: 6px 10px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: 0.05em;
   color: var(--text-dim);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -94,22 +124,36 @@ button:active { background: var(--accent); }
   border-bottom: 1px solid var(--border);
   user-select: none;
 }
-#layerList li:hover  { background: var(--bg3); }
-#layerList li.active { background: var(--accent); color: #fff; }
+#layerList li:hover {
+  background: var(--bg3);
+}
+#layerList li.active {
+  background: var(--accent);
+  color: #fff;
+}
 
 #layerList .layer-vis,
 #layerList .layer-solo {
-  width: 18px; height: 18px;
+  width: 18px;
+  height: 18px;
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: 3px;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
   flex-shrink: 0;
   cursor: pointer;
 }
-#layerList .layer-vis.on  { background: #2a6; border-color: #2a6; }
-#layerList .layer-solo.on { background: #a62; border-color: #a62; }
+#layerList .layer-vis.on {
+  background: #2a6;
+  border-color: #2a6;
+}
+#layerList .layer-solo.on {
+  background: #a62;
+  border-color: #a62;
+}
 
 #layerList .layer-name {
   flex: 1;
@@ -138,9 +182,23 @@ button:active { background: var(--accent); }
   border: 1px solid var(--border);
   border-radius: 2px;
   background:
-    linear-gradient(45deg, #2b2b2b 25%, transparent 25%, transparent 75%, #2b2b2b 75%),
-    linear-gradient(45deg, #2b2b2b 25%, transparent 25%, transparent 75%, #2b2b2b 75%);
-  background-position: 0 0, 4px 4px;
+    linear-gradient(
+      45deg,
+      #2b2b2b 25%,
+      transparent 25%,
+      transparent 75%,
+      #2b2b2b 75%
+    ),
+    linear-gradient(
+      45deg,
+      #2b2b2b 25%,
+      transparent 25%,
+      transparent 75%,
+      #2b2b2b 75%
+    );
+  background-position:
+    0 0,
+    4px 4px;
   background-size: 8px 8px;
   image-rendering: pixelated;
   opacity: 0.4;
@@ -163,7 +221,11 @@ button:active { background: var(--accent); }
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
-#layerControls button { flex: 1; padding: 4px 0; font-size: 14px; }
+#layerControls button {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 14px;
+}
 
 /* ── Preview section ──────────────────────────────────────────── */
 #previewSection {
@@ -202,7 +264,9 @@ button:active { background: var(--accent); }
   gap: 8px;
   font-size: 12px;
 }
-#frameScrubber input[type=range] { width: 200px; }
+#frameScrubber input[type="range"] {
+  width: 200px;
+}
 
 #curveEditorPanel {
   width: min(560px, 100%);
@@ -231,7 +295,7 @@ button:active { background: var(--accent); }
 
 #curveEditorHeader strong {
   font-size: 12px;
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
 }
 
 #curveEditorToggle {
@@ -244,7 +308,7 @@ button:active { background: var(--accent); }
 }
 
 #curveEditorToggle::before {
-  content: '›';
+  content: "›";
   display: block;
   font-size: 16px;
   font-weight: 700;
@@ -342,7 +406,7 @@ button:active { background: var(--accent); }
 
 #shapeEditorHeader strong {
   font-size: 12px;
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
 }
 
 #shapeToolbar {
@@ -393,7 +457,11 @@ button:active { background: var(--accent); }
   padding: 8px;
 }
 
-.placeholder { color: var(--text-dim); font-size: 12px; padding: 8px 0; }
+.placeholder {
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 8px 0;
+}
 
 .param-row {
   display: flex;
@@ -407,10 +475,10 @@ button:active { background: var(--accent); }
   font-size: 11px;
 }
 
-.param-row input[type=text],
-.param-row input[type=number],
-.param-row input[type=color],
-.param-row input[type=file],
+.param-row input[type="text"],
+.param-row input[type="number"],
+.param-row input[type="color"],
+.param-row input[type="file"],
 .param-row select,
 .param-row textarea {
   width: 100%;
@@ -456,7 +524,7 @@ button:active { background: var(--accent); }
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
 }
 
 .effect-section {
@@ -538,7 +606,7 @@ button:active { background: var(--accent); }
   gap: 6px;
 }
 
-.param-color input[type=color] {
+.param-color input[type="color"] {
   width: 42px;
   height: 28px;
   padding: 0;
@@ -564,9 +632,13 @@ button:active { background: var(--accent); }
   flex-wrap: wrap;
 }
 
-#prefsBar label { display: flex; align-items: center; gap: 4px; }
+#prefsBar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
-#prefsBar input[type=number] {
+#prefsBar input[type="number"] {
   width: 52px;
   background: var(--bg3);
   color: var(--text);
@@ -582,9 +654,13 @@ button:active { background: var(--accent); }
   width: 68px;
 }
 
-#prefsBar input[type=color] {
-  width: 32px; height: 22px;
-  padding: 0; border: 1px solid var(--border); border-radius: 3px; cursor: pointer;
+#prefsBar input[type="color"] {
+  width: 32px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
 }
 
 #prefBgAlpha {
@@ -710,7 +786,17 @@ button:active { background: var(--accent); }
 }
 
 /* ── Scrollbars ───────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: var(--bg2); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #555; }
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}

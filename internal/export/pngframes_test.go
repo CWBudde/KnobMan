@@ -20,17 +20,21 @@ func TestExportPNGFramesCountAndDimensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("png frames export failed: %v", err)
 	}
+
 	if got, want := len(frames), 4; got != want {
 		t.Fatalf("frame count: got %d want %d", got, want)
 	}
+
 	for i, b := range frames {
 		img, err := png.Decode(bytes.NewReader(b))
 		if err != nil {
 			t.Fatalf("decode frame %d failed: %v", i, err)
 		}
+
 		if got, want := img.Bounds().Dx(), 12; got != want {
 			t.Fatalf("frame %d width: got %d want %d", i, got, want)
 		}
+
 		if got, want := img.Bounds().Dy(), 7; got != want {
 			t.Fatalf("frame %d height: got %d want %d", i, got, want)
 		}

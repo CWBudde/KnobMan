@@ -6,6 +6,7 @@ func TestSubstituteFrameCountersBasic(t *testing.T) {
 	if got := SubstituteFrameCounters("A(1:9)", 0, 9); got != "A1" {
 		t.Fatalf("unexpected start substitution: %q", got)
 	}
+
 	if got := SubstituteFrameCounters("A(1:9)", 8, 9); got != "A9" {
 		t.Fatalf("unexpected end substitution: %q", got)
 	}

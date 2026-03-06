@@ -31,7 +31,9 @@ func (s *TextureSet) Add(t *Texture) int {
 	if s == nil || t == nil {
 		return 0
 	}
+
 	s.Items = append(s.Items, t)
+
 	return len(s.Items)
 }
 
@@ -40,6 +42,7 @@ func (s *TextureSet) Get(idx int) *Texture {
 	if s == nil || idx <= 0 || idx > len(s.Items) {
 		return nil
 	}
+
 	return s.Items[idx-1]
 }
 
@@ -49,6 +52,7 @@ func DecodeTexture(data []byte) (*Texture, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return NewTextureFromImage(img), nil
 }
 
@@ -57,14 +61,18 @@ func NewTextureFromImage(img image.Image) *Texture {
 	if img == nil {
 		return nil
 	}
+
 	b := img.Bounds()
 	w := b.Dx()
+
 	h := b.Dy()
 	if w <= 0 || h <= 0 {
 		return nil
 	}
+
 	data := make([]uint8, w*h*4)
 	i := 0
+
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			r, g, bl, a := img.At(x, y).RGBA()
@@ -75,6 +83,7 @@ func NewTextureFromImage(img image.Image) *Texture {
 			i += 4
 		}
 	}
+
 	return &Texture{Data: data, W: w, H: h}
 }
 
@@ -84,9 +93,11 @@ func (t *Texture) Sample(u, v, zoom float64) color.RGBA {
 	if t == nil || t.W <= 0 || t.H <= 0 || len(t.Data) < t.W*t.H*4 {
 		return color.RGBA{}
 	}
+
 	if zoom == 0 {
 		zoom = 1
 	}
+
 	u /= zoom
 	v /= zoom
 
@@ -122,10 +133,12 @@ func wrapFloat(v, n float64) float64 {
 	if n <= 0 {
 		return 0
 	}
+
 	v = math.Mod(v, n)
 	if v < 0 {
 		v += n
 	}
+
 	return v
 }
 
@@ -133,9 +146,12 @@ func lerpByte(a, b uint8, t float64) uint8 {
 	if t <= 0 {
 		return a
 	}
+
 	if t >= 1 {
 		return b
 	}
+
 	av := float64(a)
+
 	return uint8(av + (float64(b)-av)*t + 0.5)
 }

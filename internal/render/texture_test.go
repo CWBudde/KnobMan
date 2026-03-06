@@ -27,6 +27,7 @@ func TestTextureSampleWrap(t *testing.T) {
 	if c2.A != 255 {
 		t.Fatalf("unexpected alpha: %+v", c2)
 	}
+
 	if c2.R == 0 && c2.G == 0 && c2.B == 0 {
 		t.Fatalf("unexpected black bilinear sample: %+v", c2)
 	}

@@ -8,6 +8,7 @@ func BuildMask(w, h int, maskType int, start, stop, grad float64, gradDir int) [
 	if w <= 0 || h <= 0 {
 		return nil
 	}
+
 	mask := make([]float64, w*h)
 	cx := float64(w-1) * 0.5
 	cy := float64(h-1) * 0.5
@@ -19,14 +20,17 @@ func BuildMask(w, h int, maskType int, start, stop, grad float64, gradDir int) [
 	if lo > hi {
 		lo, hi = hi, lo
 	}
+
 	span := math.Max(1e-6, hi-lo)
 	edge := span * clamp01(grad/100.0) * 0.5
 
-	for y := 0; y < h; y++ {
+	for y := range h {
 		fy := float64(y) - cy
-		for x := 0; x < w; x++ {
+
+		for x := range w {
 			fx := float64(x) - cx
 			var v float64
+
 			switch maskType {
 			case 0: // rotation angle mapped to [-180, 180]
 				v = math.Atan2(-fy, fx) * 180.0 / math.Pi
@@ -44,21 +48,26 @@ func BuildMask(w, h int, maskType int, start, stop, grad float64, gradDir int) [
 			if v >= lo && v <= hi {
 				m = 1.0
 			}
+
 			if edge > 0 {
 				if v > lo-edge && v < lo {
 					m = math.Max(m, (v-(lo-edge))/edge)
 				}
+
 				if v > hi && v < hi+edge {
 					m = math.Max(m, 1.0-(v-hi)/edge)
 				}
 			}
+
 			m = clamp01(m)
 			if gradDir != 0 {
 				m = 1.0 - m
 			}
+
 			mask[y*w+x] = m
 		}
 	}
+
 	return mask
 }
 
@@ -67,21 +76,25 @@ func CombineMasks(m1, m2 []float64, op int) []float64 {
 	if len(m1) == 0 {
 		return append([]float64(nil), m2...)
 	}
+
 	if len(m2) == 0 {
 		return append([]float64(nil), m1...)
 	}
+
 	n := len(m1)
 	if len(m2) < n {
 		n = len(m2)
 	}
+
 	out := make([]float64, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if op == 0 {
 			out[i] = math.Min(m1[i], m2[i])
 		} else {
 			out[i] = math.Max(m1[i], m2[i])
 		}
 	}
+
 	return out
 }
 
@@ -90,11 +103,13 @@ func ApplyMask(src *PixBuf, mask []float64) {
 	if src == nil || len(mask) == 0 {
 		return
 	}
+
 	n := src.Width * src.Height
 	if len(mask) < n {
 		n = len(mask)
 	}
-	for i := 0; i < n; i++ {
+
+	for i := range n {
 		ai := i*4 + 3
 		a := float64(src.Data[ai]) / 255.0
 		a *= clamp01(mask[i])

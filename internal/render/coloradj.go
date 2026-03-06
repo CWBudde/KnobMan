@@ -12,6 +12,7 @@ func ApplyColorAdjust(dst, src *PixBuf, alpha, brightness, contrast, saturation,
 	if dst == nil || src == nil || dst.Width == 0 || dst.Height == 0 || src.Width == 0 || src.Height == 0 {
 		return
 	}
+
 	w := min(dst.Width, src.Width)
 	h := min(dst.Height, src.Height)
 
@@ -20,8 +21,8 @@ func ApplyColorAdjust(dst, src *PixBuf, alpha, brightness, contrast, saturation,
 	contrastFactor := 1.0 + contrast/100.0
 	satFactor := 1.0 + saturation/100.0
 
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			c := src.At(x, y)
 			if c.A == 0 {
 				dst.Set(x, y, c)
@@ -45,13 +46,16 @@ func ApplyColorAdjust(dst, src *PixBuf, alpha, brightness, contrast, saturation,
 
 			if hue != 0 {
 				hh, ss, vv := rgbToHSV(clamp01(r), clamp01(g), clamp01(b))
+
 				hh += hue
 				for hh < 0 {
 					hh += 360
 				}
+
 				for hh >= 360 {
 					hh -= 360
 				}
+
 				r, g, b = hsvToRGB(hh, ss, vv)
 			}
 
@@ -65,16 +69,19 @@ func rgbToHSV(r, g, b float64) (h, s, v float64) {
 	mx := math.Max(r, math.Max(g, b))
 	mn := math.Min(r, math.Min(g, b))
 	d := mx - mn
+
 	v = mx
 	if mx == 0 {
 		s = 0
 	} else {
 		s = d / mx
 	}
+
 	if d == 0 {
 		h = 0
-		return
+		return h, s, v
 	}
+
 	switch mx {
 	case r:
 		h = 60 * math.Mod((g-b)/d, 6)
@@ -83,16 +90,19 @@ func rgbToHSV(r, g, b float64) (h, s, v float64) {
 	default:
 		h = 60 * ((r-g)/d + 4)
 	}
+
 	if h < 0 {
 		h += 360
 	}
-	return
+
+	return h, s, v
 }
 
 func hsvToRGB(h, s, v float64) (r, g, b float64) {
 	c := v * s
 	x := c * (1 - math.Abs(math.Mod(h/60.0, 2)-1))
 	m := v - c
+
 	switch {
 	case h < 60:
 		r, g, b = c, x, 0
@@ -107,6 +117,7 @@ func hsvToRGB(h, s, v float64) (r, g, b float64) {
 	default:
 		r, g, b = c, 0, x
 	}
+
 	return r + m, g + m, b + m
 }
 

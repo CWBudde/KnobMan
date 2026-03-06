@@ -21,6 +21,7 @@ func (h *History) Push(doc *Document) {
 	if len(h.past) > h.maxLen {
 		h.past = h.past[len(h.past)-h.maxLen:]
 	}
+
 	h.future = h.future[:0] // new action clears redo stack
 }
 
@@ -30,9 +31,11 @@ func (h *History) Undo(current *Document) *Document {
 	if len(h.past) == 0 {
 		return nil
 	}
+
 	h.future = append(h.future, current.Clone())
 	prev := h.past[len(h.past)-1]
 	h.past = h.past[:len(h.past)-1]
+
 	return prev
 }
 
@@ -41,9 +44,11 @@ func (h *History) Redo(current *Document) *Document {
 	if len(h.future) == 0 {
 		return nil
 	}
+
 	h.past = append(h.past, current.Clone())
 	next := h.future[len(h.future)-1]
 	h.future = h.future[:len(h.future)-1]
+
 	return next
 }
 
