@@ -119,6 +119,43 @@ button:active { background: var(--accent); }
   font-size: 12px;
 }
 
+.layer-previews {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.layer-preview-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.layer-preview {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background:
+    linear-gradient(45deg, #2b2b2b 25%, transparent 25%, transparent 75%, #2b2b2b 75%),
+    linear-gradient(45deg, #2b2b2b 25%, transparent 25%, transparent 75%, #2b2b2b 75%);
+  background-position: 0 0, 4px 4px;
+  background-size: 8px 8px;
+  image-rendering: pixelated;
+  opacity: 0.4;
+}
+
+.layer-preview.ready {
+  opacity: 1;
+}
+
+.layer-preview-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
 #layerControls {
   display: flex;
   gap: 4px;
@@ -142,6 +179,7 @@ button:active { background: var(--accent); }
 }
 
 #canvasWrap {
+  position: relative;
   box-shadow: 0 4px 24px #0006;
   line-height: 0;
 }
@@ -151,6 +189,13 @@ button:active { background: var(--accent); }
   image-rendering: pixelated;
 }
 
+#shapeOverlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+}
+
 #frameScrubber {
   display: flex;
   align-items: center;
@@ -158,6 +203,137 @@ button:active { background: var(--accent); }
   font-size: 12px;
 }
 #frameScrubber input[type=range] { width: 200px; }
+
+#curveEditorPanel {
+  width: min(560px, 100%);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#curveEditorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+#curveEditorHeader strong {
+  font-size: 12px;
+  letter-spacing: .02em;
+}
+
+.curve-editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.curve-editor-tools label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+#curveStepReso {
+  width: 56px;
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
+#curveTabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+#curveTabs button {
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+#curveTabs button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+#curveCanvas {
+  width: 100%;
+  max-width: 544px;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #121212;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#curveHelp {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+#shapeEditorPanel {
+  width: min(560px, 100%);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#shapeEditorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+#shapeEditorHeader strong {
+  font-size: 12px;
+  letter-spacing: .02em;
+}
+
+#shapeToolbar {
+  display: flex;
+  gap: 4px;
+}
+
+#shapeToolbar button {
+  min-width: 28px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+#shapeToolbar button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+#shapeHelp {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+#shapeEditorPanel.disabled {
+  opacity: 0.75;
+}
 
 #statusBar {
   font-size: 11px;
@@ -268,6 +444,76 @@ button:active { background: var(--accent); }
   border-top: 1px solid var(--border);
 }
 
+.texture-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.texture-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  text-align: left;
+}
+
+.texture-card.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.texture-thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.texture-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.texture-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.param-color {
+  display: grid;
+  grid-template-columns: 42px 1fr 46px;
+  align-items: center;
+  gap: 6px;
+}
+
+.param-color input[type=color] {
+  width: 42px;
+  height: 28px;
+  padding: 0;
+}
+
+.param-color output {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
 /* ── Prefs bar ────────────────────────────────────────────────── */
 #prefsBar {
   display: flex;
@@ -305,6 +551,10 @@ button:active { background: var(--accent); }
   padding: 0; border: 1px solid var(--border); border-radius: 3px; cursor: pointer;
 }
 
+#prefBgAlpha {
+  width: 70px;
+}
+
 #prefsBar select {
   background: var(--bg3);
   color: var(--text);
@@ -312,6 +562,12 @@ button:active { background: var(--accent); }
   border-radius: 3px;
   padding: 2px 4px;
   font-size: 12px;
+}
+
+@media (max-width: 920px) {
+  #curveTabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ── Loading overlay ──────────────────────────────────────────── */

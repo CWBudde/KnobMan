@@ -25,11 +25,17 @@
 - [x] **Phase 5.4** — Parameter panel behavior (basic primitive panel wired)
 - [x] **Phase 5.5** — End-to-end live preview with document state wiring (currently partial)
 
-- [ ] **Phase 6** — Complete primitive/effect parameter panels (partial: 6.1 done)
+- [x] **Phase 6** — Complete primitive/effect parameter panels
 - [x] **Phase 6.1** — Primitive panel per type (JS + WASM primitive param bridge)
 - [x] **Phase 6.2** — Effect stack panel (JS + WASM effect param bridge)
 - [x] **Phase 6.3** — Prefs panel expansion (preview/export frames, duration/loop/bidir, align, lock-aspect)
-- [ ] **Phase 7** — Advanced editors (curve, shape, preview tools)
+- [x] **Phase 6.4** — Texture panel (built-ins + upload + slot assignment + previews)
+- [x] **Phase 6.5** — Color picker (native color + alpha controls)
+- [x] **Phase 7.1** — Animation curve editor (tabs + canvas keypoint editing)
+- [x] **Phase 7.2** — Shape path editor (overlay + M/L/C/Q/Z tools)
+- [x] **Phase 7.3** — Layer bitmap previews (frame 0/1 primitive thumbnails)
+- [x] **Phase 7.4** — Floating preview window (detached animated popup)
+- [x] **Phase 7** — Advanced editors (curve, shape, preview tools)
 - [ ] **Phase 8** — Export pipeline (PNG strip/frames, GIF, APNG)
 
 - [ ] **Phase 9.1** — Undo/redo integrated into app mutations (history model exists)
@@ -326,7 +332,7 @@ Responsive: on narrow viewports, panels stack vertically.
 ## Phase 6 — Complete Parameter Panels
 
 **Goal:** Full fidelity of all parameter controls for all 16 primitive types and the full effect stack.
-**Status:** [ ] Partial (6.1/6.2/6.3 done; 6.4+ pending)
+**Status:** [x] Completed
 
 ### [x] 6.1 — Primitive Panel per Type
 
@@ -373,11 +379,11 @@ Bottom bar with: Width × Height (with lock-aspect option), Oversampling selecto
 
 Canvas resize: triggers full document re-render.
 
-### [ ] 6.4 — Texture Panel
+### [x] 6.4 — Texture Panel
 
 A dropdown or palette showing the 18 built-in textures with thumbnail previews. Plus an "Add Texture" button that opens a file picker (PNG/JPG/BMP). Loaded textures are stored in the document and embedded in saved `.knob` files or referenced by path (to be decided).
 
-### [ ] 6.5 — Color Picker
+### [x] 6.5 — Color Picker
 
 Custom `<canvas>`-based HSV color picker (or use the browser's native `<input type="color">` with an additional alpha slider). Used for all `ColorParam` inputs.
 
@@ -388,9 +394,9 @@ Custom `<canvas>`-based HSV color picker (or use the browser's native `<input ty
 ## Phase 7 — Advanced Editors
 
 **Goal:** Visual editors for animation curves and shape paths, completing the feature set of `CurveEditor` and `ShapeEditor`.
-**Status:** [ ] Not started
+**Status:** [x] Completed
 
-### [ ] 7.1 — Animation Curve Editor
+### [x] 7.1 — Animation Curve Editor
 
 A `<canvas>`-based interactive editor:
 - Displays the piecewise-linear curve as a polyline in a 100×100 normalized space
@@ -403,7 +409,7 @@ A `<canvas>`-based interactive editor:
 
 This mirrors `CurveEditor.java` in the original.
 
-### [ ] 7.2 — Shape Path Editor
+### [x] 7.2 — Shape Path Editor
 
 For the `PrimShape` shape string (SVG-like M/L/C/Q/Z path):
 
@@ -415,13 +421,13 @@ For the `PrimShape` shape string (SVG-like M/L/C/Q/Z path):
 
 Mirrors `ShapeEditor.java`.
 
-### [ ] 7.3 — Layer Bitmap Preview
+### [x] 7.3 — Layer Bitmap Preview
 
 Two small preview thumbnails per layer (frame 0 and frame 1 of that layer's primitive, before effects), rendered asynchronously. Shown in the layer panel row. Mirrors `BitmapView.java`.
 
 This uses a secondary render pass with `RenderFrame` called for just that layer in isolation.
 
-### [ ] 7.4 — Preview Window / Floating Preview
+### [x] 7.4 — Preview Window / Floating Preview
 
 An optional detachable preview panel (or popup window via `window.open()`) that shows the rendered knob at its actual export size, animating through frames. Mirrors `TransparentIcon.java`.
 
@@ -646,8 +652,8 @@ Deploy to GitHub Pages (`gh-pages` branch) via GitHub Actions:
 | **3** | [ ] Partial | Full effect stack (transform, color, masks, shadows) | Phase 2 |
 | **4** | [ ] Partial | Animation interpolation, dynamic text, image strips | Phase 3 |
 | **5** | [x] Completed | Web UI shell: canvas, layer list, basic param panel | Phase 4 |
-| **6** | [ ] Partial | All parameter controls in the web UI | Phase 5 |
-| **7** | [ ] Not started | Curve editor, shape editor, layer previews | Phase 6 |
+| **6** | [x] Completed | All parameter controls in the web UI | Phase 5 |
+| **7** | [x] Completed | Curve editor, shape editor, layer previews, floating preview | Phase 6 |
 | **8** | [ ] Not started | All 4 export formats (PNG strip, frames, GIF, APNG) | Phase 4 |
 | **9** | [ ] Partial | Undo/redo, shortcuts, file open/save, samples, session | Phase 6, 8 |
 | **10** | [ ] Not started | Visual regression tests, performance, GitHub Pages deploy | All |

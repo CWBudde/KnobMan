@@ -20,6 +20,8 @@ var (
 	zoomFactor    = 8
 	doc           *model.Document
 	textures      []*render.Texture
+	textureNames  []string
+	textureRaw    [][]byte
 	previewFrame  int
 	selectedLayer int
 	renderBuf     *render.PixBuf
@@ -32,10 +34,12 @@ func main() {
 
 	js.Global().Set("knobman_init", js.FuncOf(jsInit))
 	js.Global().Set("knobman_render", js.FuncOf(jsRender))
+	js.Global().Set("knobman_renderFrameRaw", js.FuncOf(jsRenderFrameRaw))
 	js.Global().Set("knobman_getDimensions", js.FuncOf(jsGetDimensions))
 
 	js.Global().Set("knobman_newDocument", js.FuncOf(jsNewDocument))
 	js.Global().Set("knobman_getLayerList", js.FuncOf(jsGetLayerList))
+	js.Global().Set("knobman_getLayerPreview", js.FuncOf(jsGetLayerPreview))
 	js.Global().Set("knobman_selectLayer", js.FuncOf(jsSelectLayer))
 	js.Global().Set("knobman_addLayer", js.FuncOf(jsAddLayer))
 	js.Global().Set("knobman_deleteLayer", js.FuncOf(jsDeleteLayer))
@@ -51,6 +55,12 @@ func main() {
 	js.Global().Set("knobman_getParam", js.FuncOf(jsGetParam))
 	js.Global().Set("knobman_setEffectParam", js.FuncOf(jsSetEffectParam))
 	js.Global().Set("knobman_getEffectParam", js.FuncOf(jsGetEffectParam))
+	js.Global().Set("knobman_getCurve", js.FuncOf(jsGetCurve))
+	js.Global().Set("knobman_setCurve", js.FuncOf(jsSetCurve))
+	js.Global().Set("knobman_evalCurve", js.FuncOf(jsEvalCurve))
+	js.Global().Set("knobman_getTextureList", js.FuncOf(jsGetTextureList))
+	js.Global().Set("knobman_addTexture", js.FuncOf(jsAddTexture))
+	js.Global().Set("knobman_getTextureData", js.FuncOf(jsGetTextureData))
 
 	js.Global().Set("knobman_loadFile", js.FuncOf(jsLoadFile))
 	js.Global().Set("knobman_saveFile", js.FuncOf(jsSaveFile))
@@ -83,6 +93,28 @@ func jsRender(this js.Value, args []js.Value) any {
 		js.CopyBytesToJS(args[0], displayBuf)
 	}
 	return nil
+}
+
+func jsRenderFrameRaw(this js.Value, args []js.Value) any {
+	if doc == nil {
+		return js.Null()
+	}
+	frame := 0
+	if len(args) >= 1 {
+		frame = args[0].Int()
+	}
+	total := maxInt(1, doc.Prefs.RenderFrames.Val)
+	frame = clampInt(frame, 0, total-1)
+	buf := render.NewPixBuf(logicalW, logicalH)
+	render.RenderFrame(buf, doc, frame, textures)
+	arr := js.Global().Get("Uint8Array").New(len(buf.Data))
+	js.CopyBytesToJS(arr, buf.Data)
+	return map[string]any{
+		"width":  logicalW,
+		"height": logicalH,
+		"frame":  frame,
+		"data":   arr,
+	}
 }
 
 func jsGetDimensions(this js.Value, args []js.Value) any {
@@ -122,6 +154,33 @@ func jsGetLayerList(this js.Value, args []js.Value) any {
 		})
 	}
 	return out
+}
+
+func jsGetLayerPreview(this js.Value, args []js.Value) any {
+	if doc == nil || len(doc.Layers) == 0 || len(args) < 2 {
+		return js.Null()
+	}
+	idx := args[0].Int()
+	if idx < 0 || idx >= len(doc.Layers) {
+		return js.Null()
+	}
+	frame := args[1].Int()
+	size := 40
+	if len(args) >= 3 {
+		size = clampInt(args[2].Int(), 16, 128)
+	}
+	total := maxInt(1, doc.Prefs.RenderFrames.Val)
+	frame = clampInt(frame, 0, total-1)
+
+	buf := render.NewPixBuf(size, size)
+	render.RenderPrimitive(buf, &doc.Layers[idx].Prim, textures, frame, total)
+	arr := js.Global().Get("Uint8Array").New(len(buf.Data))
+	js.CopyBytesToJS(arr, buf.Data)
+	return map[string]any{
+		"width":  size,
+		"height": size,
+		"data":   arr,
+	}
 }
 
 func jsSelectLayer(this js.Value, args []js.Value) any {
@@ -260,6 +319,12 @@ func jsSetPrefs(this js.Value, args []js.Value) any {
 			doc.Prefs.BkColor.Val = c
 		}
 	}
+	if v := obj.Get("bgAlpha"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
+		a := clampInt(v.Int(), 0, 255)
+		c := doc.Prefs.BkColor.Val
+		c.A = uint8(a)
+		doc.Prefs.BkColor.Val = c
+	}
 	doc.Prefs.Width = doc.Prefs.EffectiveWidth()
 	doc.Prefs.Height = doc.Prefs.EffectiveHeight()
 	if previewFrame >= doc.Prefs.RenderFrames.Val {
@@ -287,6 +352,7 @@ func jsGetPrefs(this js.Value, args []js.Value) any {
 		"loop":            doc.Prefs.Loop.Val,
 		"biDir":           doc.Prefs.BiDir.Val != 0,
 		"bgColor":         colorToHex(c),
+		"bgAlpha":         int(c.A),
 	}
 }
 
@@ -306,8 +372,16 @@ func jsSetParam(this js.Value, args []js.Value) any {
 		ly.Prim.Type.Val = v.Int()
 	case "color":
 		if c, ok := parseHexColor(v.String()); ok {
+			c.A = ly.Prim.Color.Val.A
+			if c.A == 0 {
+				c.A = 255
+			}
 			ly.Prim.Color.Val = c
 		}
+	case "colorAlpha":
+		c := ly.Prim.Color.Val
+		c.A = uint8(clampInt(v.Int(), 0, 255))
+		ly.Prim.Color.Val = c
 	case "file":
 		ly.Prim.File.Val = v.String()
 	case "text":
@@ -323,7 +397,20 @@ func jsSetParam(this js.Value, args []js.Value) any {
 	case "font":
 		ly.Prim.Font.Val = maxInt(0, v.Int())
 	case "textureFile":
-		ly.Prim.TextureFile.Val = maxInt(0, v.Int())
+		idx := v.Int()
+		if idx < 0 {
+			idx = 0
+		}
+		if idx > len(textures) {
+			idx = len(textures)
+		}
+		ly.Prim.TextureFile.Val = idx
+		if idx > 0 {
+			applyTextureSlotToLayer(ly, idx)
+		} else {
+			ly.Prim.TextureName = ""
+			ly.Prim.EmbeddedTexture = nil
+		}
 	case "textureName":
 		ly.Prim.TextureName = v.String()
 	case "width":
@@ -430,6 +517,11 @@ func jsGetParam(this js.Value, args []js.Value) any {
 		return ly.Prim.Type.Val
 	case "color":
 		return colorToHex(ly.Prim.Color.Val)
+	case "colorAlpha":
+		if ly.Prim.Color.Val.A == 0 {
+			return 255
+		}
+		return int(ly.Prim.Color.Val.A)
 	case "file":
 		return ly.Prim.File.Val
 	case "text":
@@ -994,8 +1086,162 @@ func jsLoadFile(this js.Value, args []js.Value) any {
 	if selectedLayer < 0 {
 		selectedLayer = 0
 	}
+	rebuildTextureSlotsFromDoc()
 	syncDisplayBuffer()
 	return true
+}
+
+func jsGetTextureList(this js.Value, args []js.Value) any {
+	out := make([]any, 0, len(textures))
+	for i, t := range textures {
+		name := fmt.Sprintf("Texture %d", i+1)
+		if i < len(textureNames) && strings.TrimSpace(textureNames[i]) != "" {
+			name = textureNames[i]
+		}
+		w, h := 0, 0
+		if t != nil {
+			w, h = t.W, t.H
+		}
+		out = append(out, map[string]any{
+			"index":  i + 1,
+			"name":   name,
+			"width":  w,
+			"height": h,
+		})
+	}
+	return out
+}
+
+func jsAddTexture(this js.Value, args []js.Value) any {
+	if len(args) < 2 {
+		return 0
+	}
+	name := strings.TrimSpace(args[0].String())
+	in := args[1]
+	if in.Type() != js.TypeObject {
+		return 0
+	}
+	nv := in.Get("length")
+	if nv.Type() == js.TypeUndefined || nv.Type() == js.TypeNull {
+		return 0
+	}
+	n := nv.Int()
+	if n <= 0 {
+		return 0
+	}
+	buf := make([]byte, n)
+	js.CopyBytesToGo(buf, in)
+	idx, ok := addTextureSlot(name, buf)
+	if !ok {
+		return 0
+	}
+	return idx
+}
+
+func jsGetTextureData(this js.Value, args []js.Value) any {
+	if len(args) < 1 {
+		return js.Null()
+	}
+	idx := args[0].Int()
+	if idx <= 0 || idx > len(textureRaw) {
+		return js.Null()
+	}
+	data := textureRaw[idx-1]
+	if len(data) == 0 {
+		return js.Null()
+	}
+	arr := js.Global().Get("Uint8Array").New(len(data))
+	js.CopyBytesToJS(arr, data)
+	return arr
+}
+
+func jsGetCurve(this js.Value, args []js.Value) any {
+	if doc == nil {
+		return nil
+	}
+	idx := 0
+	if len(args) >= 1 {
+		idx = clampInt(args[0].Int()-1, 0, 7)
+	}
+	c := &doc.Curves[idx]
+	tm := make([]any, len(c.Tm))
+	lv := make([]any, len(c.Lv))
+	for i := range c.Tm {
+		tm[i] = c.Tm[i]
+		lv[i] = c.Lv[i]
+	}
+	return map[string]any{
+		"tm":       tm,
+		"lv":       lv,
+		"stepReso": c.StepReso.Val,
+	}
+}
+
+func jsSetCurve(this js.Value, args []js.Value) any {
+	if doc == nil || len(args) < 2 {
+		return false
+	}
+	idx := clampInt(args[0].Int()-1, 0, 7)
+	obj := args[1]
+	if obj.Type() != js.TypeObject {
+		return false
+	}
+	tmArr := obj.Get("tm")
+	lvArr := obj.Get("lv")
+	if tmArr.Type() != js.TypeObject || lvArr.Type() != js.TypeObject {
+		return false
+	}
+	c := doc.Curves[idx]
+	for i := 0; i < len(c.Tm); i++ {
+		t := tmArr.Index(i)
+		l := lvArr.Index(i)
+		if (t.Type() == js.TypeUndefined || t.Type() == js.TypeNull) ||
+			(l.Type() == js.TypeUndefined || l.Type() == js.TypeNull) {
+			continue
+		}
+		tv := t.Int()
+		lv := l.Int()
+		if i == 0 {
+			tv = 0
+			lv = clampInt(lv, 0, 100)
+		} else if i == len(c.Tm)-1 {
+			tv = 100
+			lv = clampInt(lv, 0, 100)
+		} else if tv < 0 || lv < 0 {
+			tv, lv = -1, -1
+		} else {
+			tv = clampInt(tv, 0, 100)
+			lv = clampInt(lv, 0, 100)
+		}
+		c.Tm[i] = tv
+		c.Lv[i] = lv
+	}
+	if step := obj.Get("stepReso"); step.Type() != js.TypeUndefined && step.Type() != js.TypeNull {
+		c.StepReso.Val = clampInt(step.Int(), 0, 64)
+	}
+	doc.Curves[idx] = c
+	return true
+}
+
+func jsEvalCurve(this js.Value, args []js.Value) any {
+	if doc == nil {
+		return 0
+	}
+	idx := 0
+	if len(args) >= 1 {
+		idx = clampInt(args[0].Int()-1, 0, 7)
+	}
+	ratio := 0.0
+	if len(args) >= 2 {
+		ratio = args[1].Float()
+	}
+	if ratio < 0 {
+		ratio = 0
+	}
+	if ratio > 1 {
+		ratio = 1
+	}
+	return doc.Curves[idx].Eval(ratio) * 100.0
 }
 
 func jsSaveFile(this js.Value, args []js.Value) any {
@@ -1039,8 +1285,64 @@ func newDocument() {
 	doc.Prefs.PHeight.Val = logicalH
 	doc.Prefs.Width = logicalW
 	doc.Prefs.Height = logicalH
+	resetTextureSlots()
 	selectedLayer = 0
 	previewFrame = 0
+}
+
+func resetTextureSlots() {
+	textures = nil
+	textureNames = nil
+	textureRaw = nil
+}
+
+func addTextureSlot(name string, data []byte) (int, bool) {
+	if len(data) == 0 {
+		return 0, false
+	}
+	tex, err := render.DecodeTexture(data)
+	if err != nil || tex == nil {
+		return 0, false
+	}
+	textures = append(textures, tex)
+	textureRaw = append(textureRaw, append([]byte(nil), data...))
+	if strings.TrimSpace(name) == "" {
+		name = fmt.Sprintf("Texture %d", len(textures))
+	}
+	textureNames = append(textureNames, name)
+	return len(textures), true
+}
+
+func applyTextureSlotToLayer(ly *model.Layer, idx int) {
+	if ly == nil || idx <= 0 || idx > len(textureRaw) {
+		return
+	}
+	ly.Prim.TextureFile.Val = idx
+	if idx-1 < len(textureNames) {
+		ly.Prim.TextureName = textureNames[idx-1]
+	}
+	ly.Prim.EmbeddedTexture = append([]byte(nil), textureRaw[idx-1]...)
+}
+
+func rebuildTextureSlotsFromDoc() {
+	resetTextureSlots()
+	if doc == nil {
+		return
+	}
+	for i := range doc.Layers {
+		ly := &doc.Layers[i]
+		if len(ly.Prim.EmbeddedTexture) == 0 {
+			continue
+		}
+		idx, ok := addTextureSlot(ly.Prim.TextureName, ly.Prim.EmbeddedTexture)
+		if !ok {
+			continue
+		}
+		ly.Prim.TextureFile.Val = idx
+		if strings.TrimSpace(ly.Prim.TextureName) == "" && idx-1 < len(textureNames) {
+			ly.Prim.TextureName = textureNames[idx-1]
+		}
+	}
 }
 
 func upscaleNearest(dst []byte, srcW, srcH, zoom int, src []byte) {
