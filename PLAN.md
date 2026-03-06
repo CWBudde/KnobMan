@@ -22,7 +22,7 @@
 
 - [x] **Phase 5.1** — Full JS API surface from WASM (currently partial)
 - [x] **Phase 5.3** — Layer panel behavior (list/selection/reorder) (currently stubbed)
-- [ ] **Phase 5.4** — Parameter panel behavior (currently placeholder/stubbed)
+- [x] **Phase 5.4** — Parameter panel behavior (basic primitive panel wired)
 - [x] **Phase 5.5** — End-to-end live preview with document state wiring (currently partial)
 
 - [ ] **Phase 6** — Complete primitive/effect parameter panels
@@ -225,7 +225,7 @@ func ExtractFrame(strip *PixBuf, numFrames, frame, totalFrames int) *PixBuf
 ## Phase 5 — WASM Shell & Basic Web UI
 
 **Goal:** A functioning web UI with canvas preview, layer list, and primitive parameter panel. Establishes the JS↔Go communication pattern.
-**Status:** [~] Partial (UI shell + basic render loop done; state wiring pending)
+**Status:** [x] Completed (basic WASM shell UI wired end-to-end)
 
 ### [x] 5.1 — WASM Entry Point (`cmd/wasm/main.go`)
 
@@ -301,7 +301,7 @@ Responsive: on narrow viewports, panels stack vertically.
 - Buttons: Add, Delete, Move Up, Move Down, Duplicate
 - Click to select — triggers parameter panel refresh
 
-### [ ] 5.4 — Basic Parameter Panel (JS)
+### [x] 5.4 — Basic Parameter Panel (JS)
 
 - Primitive type selector (dropdown with 16 options)
 - On type change: show/hide relevant parameter fields
@@ -642,7 +642,7 @@ Deploy to GitHub Pages (`gh-pages` branch) via GitHub Actions:
 | **2** | [ ] Partial | All 16 primitives render correctly (native tests) | Phase 1 |
 | **3** | [ ] Partial | Full effect stack (transform, color, masks, shadows) | Phase 2 |
 | **4** | [ ] Partial | Animation interpolation, dynamic text, image strips | Phase 3 |
-| **5** | [ ] Partial | Web UI shell: canvas, layer list, basic param panel | Phase 4 |
+| **5** | [x] Completed | Web UI shell: canvas, layer list, basic param panel | Phase 4 |
 | **6** | [ ] Not started | All parameter controls in the web UI | Phase 5 |
 | **7** | [ ] Not started | Curve editor, shape editor, layer previews | Phase 6 |
 | **8** | [ ] Not started | All 4 export formats (PNG strip, frames, GIF, APNG) | Phase 4 |
