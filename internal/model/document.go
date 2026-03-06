@@ -15,7 +15,9 @@ func NewDocument() *Document {
 	for i := range doc.Curves {
 		doc.Curves[i] = NewAnimCurve()
 	}
+
 	doc.Layers = []Layer{NewLayer(), NewLayer(), NewLayer()}
+
 	return doc
 }
 
@@ -25,9 +27,11 @@ func (d *Document) Clone() *Document {
 		Prefs:  d.Prefs,
 		Curves: d.Curves,
 	}
+
 	c.Layers = make([]Layer, len(d.Layers))
 	for i, l := range d.Layers {
 		c.Layers[i] = l.Clone()
 	}
+
 	return c
 }

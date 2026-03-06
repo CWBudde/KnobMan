@@ -12,12 +12,15 @@ import (
 func BuildMatrix(zoomX, zoomY, angle, offX, offY, centerX, centerY float64) [6]float64 {
 	sx := zoomX / 100.0
 	sy := zoomY / 100.0
+
 	if sx == 0 {
 		sx = 1
 	}
+
 	if sy == 0 {
 		sy = 1
 	}
+
 	rad := angle * math.Pi / 180.0
 	cosA := math.Cos(rad)
 	sinA := math.Sin(rad)
@@ -28,6 +31,7 @@ func BuildMatrix(zoomX, zoomY, angle, offX, offY, centerX, centerY float64) [6]f
 	d := sy * cosA
 	e := offX + centerX - a*centerX - c*centerY
 	f := offY + centerY - b*centerX - d*centerY
+
 	return [6]float64{a, b, c, d, e, f}
 }
 
@@ -36,14 +40,17 @@ func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 	if dst == nil || src == nil || dst.Width == 0 || dst.Height == 0 || src.Width == 0 || src.Height == 0 {
 		return
 	}
+
 	inv, ok := invertMatrix(m)
 	if !ok {
 		dst.Clear(color.RGBA{})
 		return
 	}
-	for y := 0; y < dst.Height; y++ {
+
+	for y := range dst.Height {
 		fy := float64(y) + 0.5
-		for x := 0; x < dst.Width; x++ {
+
+		for x := range dst.Width {
 			fx := float64(x) + 0.5
 			sx := inv[0]*fx + inv[2]*fy + inv[4] - 0.5
 			sy := inv[1]*fx + inv[3]*fy + inv[5] - 0.5
@@ -54,10 +61,12 @@ func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 
 func invertMatrix(m [6]float64) ([6]float64, bool) {
 	a, b, c, d, e, f := m[0], m[1], m[2], m[3], m[4], m[5]
+
 	det := a*d - b*c
 	if math.Abs(det) < 1e-12 {
 		return [6]float64{}, false
 	}
+
 	invDet := 1.0 / det
 	ia := d * invDet
 	ib := -b * invDet
@@ -65,6 +74,7 @@ func invertMatrix(m [6]float64) ([6]float64, bool) {
 	id := a * invDet
 	ie := -(ia*e + ic*f)
 	ifv := -(ib*e + id*f)
+
 	return [6]float64{ia, ib, ic, id, ie, ifv}, true
 }
 

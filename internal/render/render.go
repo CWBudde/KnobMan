@@ -11,6 +11,7 @@ func RenderFrame(dst *PixBuf, doc *model.Document, frame int, textures []*Textur
 	if dst == nil || doc == nil {
 		return
 	}
+
 	w, h := docSize(doc)
 	if w <= 0 || h <= 0 {
 		return
@@ -22,12 +23,14 @@ func RenderFrame(dst *PixBuf, doc *model.Document, frame int, textures []*Textur
 	}
 
 	scale := 1
+
 	if doc.Prefs.Oversampling.Val > 0 {
 		s := 1 << doc.Prefs.Oversampling.Val
 		if s > 0 {
 			scale = s
 		}
 	}
+
 	if scale <= 1 {
 		renderLayers(out, doc, frame, textures)
 	} else {
@@ -46,20 +49,24 @@ func RenderAll(doc *model.Document, textures []*Texture) []*PixBuf {
 	if doc == nil {
 		return nil
 	}
+
 	w, h := docSize(doc)
 	if w <= 0 || h <= 0 {
 		return nil
 	}
+
 	n := doc.Prefs.RenderFrames.Val
 	if n < 1 {
 		n = 1
 	}
+
 	frames := make([]*PixBuf, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		b := NewPixBuf(w, h)
 		RenderFrame(b, doc, i, textures)
 		frames[i] = b
 	}
+
 	return frames
 }
 
@@ -68,13 +75,16 @@ func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Textu
 	if bg.A == 0 {
 		bg.A = 255
 	}
+
 	dst.Clear(bg)
+
 	totalFrames := doc.Prefs.RenderFrames.Val
 	if totalFrames < 1 {
 		totalFrames = 1
 	}
 
 	hasSolo := false
+
 	for i := range doc.Layers {
 		if doc.Layers[i].Visible.Val != 0 && doc.Layers[i].Solo.Val != 0 {
 			hasSolo = true
@@ -87,9 +97,11 @@ func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Textu
 		if ly.Visible.Val == 0 {
 			continue
 		}
+
 		if hasSolo && ly.Solo.Val == 0 {
 			continue
 		}
+
 		prim := NewPixBuf(dst.Width, dst.Height)
 		RenderPrimitive(prim, &ly.Prim, textures, frame, totalFrames)
 		ApplyEffect(dst, prim, &ly.Eff, &doc.Curves, frame, totalFrames, textures)
@@ -98,13 +110,16 @@ func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Textu
 
 func docSize(doc *model.Document) (int, int) {
 	w := doc.Prefs.PWidth.Val
+
 	h := doc.Prefs.PHeight.Val
 	if w <= 0 {
 		w = doc.Prefs.Width
 	}
+
 	if h <= 0 {
 		h = doc.Prefs.Height
 	}
+
 	return w, h
 }
 
@@ -113,13 +128,16 @@ func downsampleBox(dst, src *PixBuf, scale int) {
 		if dst != nil && src != nil {
 			dst.CopyFrom(src)
 		}
+
 		return
 	}
-	for y := 0; y < dst.Height; y++ {
-		for x := 0; x < dst.Width; x++ {
+
+	for y := range dst.Height {
+		for x := range dst.Width {
 			var sr, sg, sb, sa int
-			for oy := 0; oy < scale; oy++ {
-				for ox := 0; ox < scale; ox++ {
+
+			for oy := range scale {
+				for ox := range scale {
 					c := src.At(x*scale+ox, y*scale+oy)
 					sr += int(c.R)
 					sg += int(c.G)
@@ -127,6 +145,7 @@ func downsampleBox(dst, src *PixBuf, scale int) {
 					sa += int(c.A)
 				}
 			}
+
 			n := scale * scale
 			dst.Set(x, y, colorRGBA(sr/n, sg/n, sb/n, sa/n))
 		}

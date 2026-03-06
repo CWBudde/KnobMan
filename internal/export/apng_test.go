@@ -23,36 +23,46 @@ func TestExportAPNGBasic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apng export failed: %v", err)
 	}
+
 	if !bytes.Equal(data[:8], pngSignature) {
 		t.Fatalf("missing png signature")
 	}
+
 	chunks, err := parsePNGChunks(data)
 	if err != nil {
 		t.Fatalf("parse apng failed: %v", err)
 	}
+
 	actl := firstChunkData(chunks, "acTL")
 	if len(actl) != 8 {
 		t.Fatalf("missing acTL")
 	}
+
 	if got, want := binary.BigEndian.Uint32(actl[0:4]), uint32(3); got != want {
 		t.Fatalf("num_frames: got %d want %d", got, want)
 	}
+
 	if got, want := binary.BigEndian.Uint32(actl[4:8]), uint32(2); got != want {
 		t.Fatalf("num_plays: got %d want %d", got, want)
 	}
+
 	fctlCount := 0
 	fdatCount := 0
+
 	for _, ch := range chunks {
 		if ch.Type == "fcTL" {
 			fctlCount++
 		}
+
 		if ch.Type == "fdAT" {
 			fdatCount++
 		}
 	}
+
 	if got, want := fctlCount, 3; got != want {
 		t.Fatalf("fcTL count: got %d want %d", got, want)
 	}
+
 	if fdatCount == 0 {
 		t.Fatalf("expected fdAT chunks for animated frames")
 	}
@@ -73,10 +83,12 @@ func TestExportAPNGBiDirFrameCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apng export failed: %v", err)
 	}
+
 	chunks, err := parsePNGChunks(data)
 	if err != nil {
 		t.Fatalf("parse apng failed: %v", err)
 	}
+
 	actl := firstChunkData(chunks, "acTL")
 	if len(actl) != 8 {
 		t.Fatalf("missing acTL")

@@ -25,8 +25,10 @@ func (l Layer) Clone() Layer {
 	if l.Prim.EmbeddedImage != nil {
 		c.Prim.EmbeddedImage = append([]byte(nil), l.Prim.EmbeddedImage...)
 	}
+
 	if l.Prim.EmbeddedTexture != nil {
 		c.Prim.EmbeddedTexture = append([]byte(nil), l.Prim.EmbeddedTexture...)
 	}
+
 	return c
 }

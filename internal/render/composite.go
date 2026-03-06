@@ -18,20 +18,24 @@ func CompositeOverAt(dst, src *PixBuf, ox, oy int) {
 	if dst == nil || src == nil {
 		return
 	}
-	for y := 0; y < src.Height; y++ {
+
+	for y := range src.Height {
 		dy := y + oy
 		if dy < 0 || dy >= dst.Height {
 			continue
 		}
-		for x := 0; x < src.Width; x++ {
+
+		for x := range src.Width {
 			dx := x + ox
 			if dx < 0 || dx >= dst.Width {
 				continue
 			}
+
 			c := src.At(x, y)
 			if c.A == 0 {
 				continue
 			}
+
 			dst.BlendOver(dx, dy, c)
 		}
 	}
@@ -40,6 +44,7 @@ func CompositeOverAt(dst, src *PixBuf, ox, oy int) {
 // ApplyEffect applies the effect stack to primBuf and composites it onto dst.
 func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]model.AnimCurve, frame, totalFrames int, textures []*Texture) {
 	_ = textures // kept for API continuity; used by later effect extensions.
+
 	if dst == nil || primBuf == nil || eff == nil {
 		return
 	}
@@ -52,10 +57,12 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 	work := primBuf.Clone()
 
 	zoomX := EvalAnim(eff.ZoomXF.Val, eff.ZoomXT.Val, eff.ZoomXAnim.Val, curves, ratio)
+
 	zoomY := EvalAnim(eff.ZoomYF.Val, eff.ZoomYT.Val, eff.ZoomYAnim.Val, curves, ratio)
 	if eff.ZoomXYSepa.Val == 0 {
 		zoomY = zoomX
 	}
+
 	offX := EvalAnim(eff.OffXF.Val, eff.OffXT.Val, eff.OffXAnim.Val, curves, ratio)
 	offY := EvalAnim(eff.OffYF.Val, eff.OffYT.Val, eff.OffYAnim.Val, curves, ratio)
 	angle := EvalAnim(eff.AngleF.Val, eff.AngleT.Val, eff.AngleAnim.Val, curves, ratio)
@@ -76,6 +83,7 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 	bright := EvalAnim(eff.BrightF.Val, eff.BrightT.Val, eff.BrightAnim.Val, curves, ratio)
 	contrast := EvalAnim(eff.ContrastF.Val, eff.ContrastT.Val, eff.ContrastAnim.Val, curves, ratio)
 	sat := EvalAnim(eff.SaturationF.Val, eff.SaturationT.Val, eff.SaturationAnim.Val, curves, ratio)
+
 	hue := EvalAnim(eff.HueF.Val, eff.HueT.Val, eff.HueAnim.Val, curves, ratio)
 	if math.Abs(alpha-100.0) > 1e-6 || math.Abs(bright) > 1e-6 || math.Abs(contrast) > 1e-6 || math.Abs(sat) > 1e-6 || math.Abs(hue) > 1e-6 {
 		tmp := NewPixBuf(work.Width, work.Height)
@@ -84,6 +92,7 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 	}
 
 	var mask []float64
+
 	if eff.Mask1Ena.Val != 0 {
 		m1 := BuildMask(
 			work.Width,
@@ -96,6 +105,7 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 		)
 		mask = m1
 	}
+
 	if eff.Mask2Ena.Val != 0 {
 		m2 := BuildMask(
 			work.Width,
@@ -112,25 +122,83 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 			mask = CombineMasks(mask, m2, eff.Mask2Op.Val)
 		}
 	}
+
 	if mask != nil {
 		ApplyMask(work, mask)
 	}
 
+	slightDir := EvalAnim(eff.SLightDirF.Val, eff.SLightDirT.Val, eff.SLightDirAnim.Val, curves, ratio)
+	sden := EvalAnim(eff.SDensityF.Val, eff.SDensityT.Val, eff.SDensityAnim.Val, curves, ratio)
+	edens := EvalAnim(eff.EDensityF.Val, eff.EDensityT.Val, eff.EDensityAnim.Val, curves, ratio)
+	eoff := EvalAnim(eff.EOffsetF.Val, eff.EOffsetT.Val, eff.EOffsetAnim.Val, curves, ratio)
+
+	edir := slightDir
+	if eff.ELightDirEna.Val != 0 {
+		edir = EvalAnim(eff.ELightDirF.Val, eff.ELightDirT.Val, eff.ELightDirAnim.Val, curves, ratio)
+	}
+
+	few := float64(min(work.Width, work.Height)) * (eoff + 1.0) / 400.0
+	if math.Abs(few) > 1e-12 {
+		HilightLegacy(work, slightDir, sden, edir, few, edens/(40000.0*few))
+	}
+
 	ddens := EvalAnim(eff.DDensityF.Val, eff.DDensityT.Val, eff.DDensityAnim.Val, curves, ratio)
-	if ddens > 0 {
+	if ddens != 0 {
 		off := EvalAnim(eff.DOffsetF.Val, eff.DOffsetT.Val, eff.DOffsetAnim.Val, curves, ratio)
 		diff := EvalAnim(eff.DDiffuseF.Val, eff.DDiffuseT.Val, eff.DDiffuseAnim.Val, curves, ratio)
-		dir := EvalAnim(eff.DLightDirF.Val, eff.DLightDirT.Val, eff.DLightDirAnim.Val, curves, ratio)
-		shadow := MakeShadow(work, off*0.01*float64(min(work.Width, work.Height)), ddens, diff*0.05, dir, color.RGBA{0, 0, 0, 255})
+
+		dir := slightDir
+		if eff.DLightDirEna.Val != 0 {
+			dir = EvalAnim(eff.DLightDirF.Val, eff.DLightDirT.Val, eff.DLightDirAnim.Val, curves, ratio)
+		}
+
+		shadowColor := color.RGBA{0, 0, 0, 255}
+		if ddens < 0 {
+			shadowColor = color.RGBA{255, 255, 255, 255}
+		}
+
+		shadow := MakeShadowLegacy(
+			work,
+			false,
+			eff.DSType.Val,
+			eff.DSGrad.Val,
+			off*0.01*float64(min(work.Width, work.Height)),
+			dir,
+			math.Abs(ddens),
+			diff,
+			shadowColor,
+		)
 		CompositeOver(dst, shadow)
 	}
 
-	edens := EvalAnim(eff.EDensityF.Val, eff.EDensityT.Val, eff.EDensityAnim.Val, curves, ratio)
-	if edens > 0 {
-		eoff := EvalAnim(eff.EOffsetF.Val, eff.EOffsetT.Val, eff.EOffsetAnim.Val, curves, ratio)
-		dir := EvalAnim(eff.ELightDirF.Val, eff.ELightDirT.Val, eff.ELightDirAnim.Val, curves, ratio)
-		hl := MakeHighlight(work, eoff*0.01*float64(min(work.Width, work.Height)), edens, 1, dir)
-		CompositeOver(work, hl)
+	idens := EvalAnim(eff.IDensityF.Val, eff.IDensityT.Val, eff.IDensityAnim.Val, curves, ratio)
+	if idens != 0 {
+		ioff := EvalAnim(eff.IOffsetF.Val, eff.IOffsetT.Val, eff.IOffsetAnim.Val, curves, ratio)
+		idiff := EvalAnim(eff.IDiffuseF.Val, eff.IDiffuseT.Val, eff.IDiffuseAnim.Val, curves, ratio)
+
+		dir := slightDir
+		if eff.ILightDirEna.Val != 0 {
+			dir = EvalAnim(eff.ILightDirF.Val, eff.ILightDirT.Val, eff.ILightDirAnim.Val, curves, ratio)
+		}
+
+		innerColor := color.RGBA{0, 0, 0, 255}
+		if idens < 0 {
+			innerColor = color.RGBA{255, 255, 255, 255}
+		}
+
+		inner := MakeShadowLegacy(
+			work,
+			true,
+			0,
+			0,
+			ioff*0.01*float64(min(work.Width, work.Height)),
+			dir,
+			math.Abs(idens),
+			idiff,
+			innerColor,
+		)
+		MultiplyAlphaByMask(inner, work)
+		CompositeOver(work, inner)
 	}
 
 	CompositeOver(dst, work)
@@ -142,21 +210,26 @@ func frameMaskVisible(eff *model.Effect, frame int, ratio float64) bool {
 		return true
 	case 1:
 		v := ratio * 100.0
+
 		lo, hi := eff.FMaskStart.Val, eff.FMaskStop.Val
 		if lo > hi {
 			lo, hi = hi, lo
 		}
+
 		return v >= lo && v <= hi
 	case 2:
 		bits := strings.TrimSpace(eff.FMaskBits.Val)
 		if bits == "" {
 			return true
 		}
+
 		idx := frame % len(bits)
 		if idx < 0 {
 			idx += len(bits)
 		}
+
 		c := bits[idx]
+
 		return c == '1' || c == 'y' || c == 'Y' || c == '*'
 	default:
 		return true

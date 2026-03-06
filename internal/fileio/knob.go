@@ -15,11 +15,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"image/color"
-	"knobman/internal/model"
 	"strconv"
 	"strings"
+
+	"knobman/internal/model"
 )
 
 // ── Low-level INI parser ─────────────────────────────────────────────────────
@@ -35,8 +37,10 @@ func parseINI(text []byte) *iniFile {
 	} else if len(text) >= 2 && text[0] == 0xFF && text[1] == 0xFE {
 		text = text[2:]
 	}
+
 	raw := strings.ReplaceAll(string(text), "\r\n", "\n")
 	raw = strings.ReplaceAll(raw, "\r", "\n")
+
 	return &iniFile{lines: strings.Split(raw, "\n")}
 }
 
@@ -49,25 +53,30 @@ func (f *iniFile) sectionStart(name string) int {
 			return i + 1
 		}
 	}
+
 	return -1
 }
 
 // readInt reads the first occurrence of key= in the given section.
 func (f *iniFile) readInt(sec int, key string, def int) int {
 	prefix := key + "="
+
 	for i := sec; i < len(f.lines); i++ {
 		l := f.lines[i]
 		if strings.HasPrefix(l, "[") && i != sec {
 			break
 		}
+
 		if strings.HasPrefix(l, prefix) {
 			v, err := strconv.Atoi(strings.TrimSpace(l[len(prefix):]))
 			if err != nil {
 				return def
 			}
+
 			return v
 		}
 	}
+
 	return def
 }
 
@@ -75,75 +84,92 @@ func (f *iniFile) readInt(sec int, key string, def int) int {
 // Handles comma-as-decimal-separator (some locales write "3,14").
 func (f *iniFile) readFloat(sec int, key string, def float64) float64 {
 	prefix := key + "="
+
 	for i := sec; i < len(f.lines); i++ {
 		l := f.lines[i]
 		if strings.HasPrefix(l, "[") && i != sec {
 			break
 		}
+
 		if strings.HasPrefix(l, prefix) {
 			s := strings.ReplaceAll(l[len(prefix):], ",", ".")
+
 			v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
 			if err != nil {
 				return def
 			}
+
 			return v
 		}
 	}
+
 	return def
 }
 
 // readString reads the first occurrence of key= as a string value.
 func (f *iniFile) readString(sec int, key, def string) string {
 	prefix := key + "="
+
 	for i := sec; i < len(f.lines); i++ {
 		l := f.lines[i]
 		if strings.HasPrefix(l, "[") && i != sec {
 			break
 		}
+
 		if strings.HasPrefix(l, prefix) {
 			return l[len(prefix):]
 		}
 	}
+
 	return def
 }
 
-// extractBinary reassembles hex-encoded binary data stored as key0=hex, key1=hex…
+// extractBinary reassembles hex-encoded binary data stored as key0=hex, key1=hex….
 func (f *iniFile) extractBinary(sec int, keyBase string) []byte {
 	prefix0 := keyBase + "0="
 	start := -1
+
 	for i := sec; i < len(f.lines); i++ {
 		if strings.HasPrefix(f.lines[i], "[") && i != sec {
 			break
 		}
+
 		if strings.HasPrefix(f.lines[i], prefix0) {
 			start = i
 			break
 		}
 	}
+
 	if start < 0 {
 		return nil
 	}
 	var buf []byte
+
 	for i := start; i < len(f.lines); i++ {
 		l := f.lines[i]
-		eq := strings.IndexByte(l, '=')
-		if eq < 0 {
+
+		_, after, ok := strings.Cut(l, "=")
+		if !ok {
 			break
 		}
-		hexData := l[eq+1:]
+
+		hexData := after
 		if strings.HasPrefix(hexData, "[") || hexData == "" {
 			break
 		}
+
 		b, err := hex.DecodeString(hexData)
 		if err != nil {
 			break
 		}
+
 		buf = append(buf, b...)
 		// Java writes 256 hex bytes per line; fewer means it was the last line.
 		if len(hexData) < 512 {
 			break
 		}
 	}
+
 	return buf
 }
 
@@ -153,6 +179,7 @@ func (f *iniFile) readAnim(sec int, animKey, curveKey string) int {
 	if f.readInt(sec, animKey, 0) == 0 {
 		return 0
 	}
+
 	return f.readInt(sec, curveKey, 1) + 1
 }
 
@@ -164,7 +191,9 @@ func Load(data []byte) (*model.Document, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	ini := parseINI(body)
+
 	return loadDocument(ini)
 }
 
@@ -180,6 +209,7 @@ func Save(doc *model.Document) ([]byte, error) {
 	out[1] = 'M'
 	binary.LittleEndian.PutUint32(out[2:6], 6) // text body starts at offset 6
 	copy(out[6:], body)
+
 	return out, nil
 }
 
@@ -197,7 +227,7 @@ func Save(doc *model.Document) ([]byte, error) {
 //  3. Plain INI: raw UTF-8 text, possibly with BOM.
 func stripHeader(data []byte) ([]byte, error) {
 	if len(data) < 2 {
-		return nil, fmt.Errorf("knob: file too short")
+		return nil, errors.New("knob: file too short")
 	}
 
 	switch {
@@ -208,16 +238,19 @@ func stripHeader(data []byte) ([]byte, error) {
 		//   second byte == 0 → UTF-16LE  (old Java saves)
 		//   second byte != 0 → UTF-8     (our Go saves, and some Java saves)
 		if len(data) < 6 {
-			return nil, fmt.Errorf("knob: KM header too short")
+			return nil, errors.New("knob: KM header too short")
 		}
+
 		offset := binary.LittleEndian.Uint32(data[2:6])
 		if int(offset) > len(data) {
 			return nil, fmt.Errorf("knob: header offset %d exceeds file length %d", offset, len(data))
 		}
+
 		body := data[offset:]
 		if len(body) >= 2 && body[1] == 0x00 {
 			return decodeUTF16LE(body)
 		}
+
 		return body, nil
 
 	case data[0] == 0x89 && data[1] == 0x50:
@@ -244,14 +277,17 @@ func decodeUTF16LE(b []byte) ([]byte, error) {
 	if len(b) >= 2 && b[0] == 0xFF && b[1] == 0xFE {
 		b = b[2:]
 	}
+
 	if len(b)%2 != 0 {
 		b = b[:len(b)-1] // trim odd trailing byte
 	}
+
 	runes := make([]rune, 0, len(b)/2)
 	for i := 0; i+1 < len(b); i += 2 {
 		r := rune(b[i]) | rune(b[i+1])<<8
 		runes = append(runes, r)
 	}
+
 	return []byte(string(runes)), nil
 }
 
@@ -259,7 +295,7 @@ func decodeUTF16LE(b []byte) ([]byte, error) {
 // and returns its text value as UTF-8 bytes.
 func extractPNGProfile(data []byte) ([]byte, error) {
 	if len(data) < 8 {
-		return nil, fmt.Errorf("knob: PNG too short")
+		return nil, errors.New("knob: PNG too short")
 	}
 	// PNG signature is 8 bytes; first chunk starts at offset 8.
 	pos := 8
@@ -270,19 +306,22 @@ func extractPNGProfile(data []byte) ([]byte, error) {
 
 		if string(chunkType) == "tEXt" {
 			// tEXt: keyword\0text
-			null := bytes.IndexByte(chunkData, 0)
-			if null < 0 {
-				return nil, fmt.Errorf("knob: malformed tEXt chunk")
+			_, after, ok := bytes.Cut(chunkData, []byte{0})
+			if !ok {
+				return nil, errors.New("knob: malformed tEXt chunk")
 			}
 			// We don't check the keyword name — accept whatever is there
-			return chunkData[null+1:], nil
+			return after, nil
 		}
+
 		if string(chunkType) == "IEND" {
 			break
 		}
+
 		pos += 12 + chunkLen
 	}
-	return nil, fmt.Errorf("knob: no tEXt profile chunk found in PNG")
+
+	return nil, errors.New("knob: no tEXt profile chunk found in PNG")
 }
 
 // ── Document load ────────────────────────────────────────────────────────────
@@ -292,7 +331,7 @@ func loadDocument(ini *iniFile) (*model.Document, error) {
 
 	sec := ini.sectionStart("Prefs")
 	if sec < 0 {
-		return nil, fmt.Errorf("knob: missing [Prefs] section")
+		return nil, errors.New("knob: missing [Prefs] section")
 	}
 
 	// Canvas size
@@ -327,14 +366,17 @@ func loadDocument(ini *iniFile) (*model.Document, error) {
 	// AnimCurves — the Java index mapping for points 1..10 uses hex chars
 	// for points 5–10: a,b,c,d,e,f (see Control.java SaveExec)
 	pointKeys := []string{"1", "2", "3", "4", "a", "b", "c", "d", "e", "f"}
-	for ci := 0; ci < 8; ci++ {
+
+	for ci := range 8 {
 		n := ci + 1
 		prefix := fmt.Sprintf("Curve%d", n)
+
 		doc.Curves[ci].Lv[0] = ini.readInt(sec, prefix+"L0", 0)
 		for j, pk := range pointKeys {
 			doc.Curves[ci].Tm[j+1] = ini.readInt(sec, prefix+"T"+pk, -1)
 			doc.Curves[ci].Lv[j+1] = ini.readInt(sec, prefix+"L"+pk, -1)
 		}
+
 		doc.Curves[ci].Lv[11] = ini.readInt(sec, prefix+"L5", 100)
 		doc.Curves[ci].Tm[0] = 0
 		doc.Curves[ci].Tm[11] = 100
@@ -344,10 +386,12 @@ func loadDocument(ini *iniFile) (*model.Document, error) {
 	// Layer count and per-layer visibility pre-read
 	nLayers := ini.readInt(sec, "Layers", 1)
 	doc.Layers = make([]model.Layer, nLayers)
+
 	visFlags := make([]int, nLayers)
 	for i := range visFlags {
 		visFlags[i] = ini.readInt(sec, fmt.Sprintf("Visible1_%d", i), -1)
 	}
+
 	for i := range doc.Layers {
 		doc.Layers[i] = model.NewLayer()
 		if visFlags[i] >= 0 {
@@ -357,10 +401,12 @@ func loadDocument(ini *iniFile) (*model.Document, error) {
 
 	// Load each layer
 	for i := range doc.Layers {
-		if err := loadLayer(ini, &doc.Layers[i], i); err != nil {
+		err := loadLayer(ini, &doc.Layers[i], i)
+		if err != nil {
 			return nil, fmt.Errorf("knob: layer %d: %w", i+1, err)
 		}
 	}
+
 	linkSharedEmbeddedAssets(doc)
 
 	return doc, nil
@@ -373,8 +419,10 @@ func linkSharedEmbeddedAssets(doc *model.Document) {
 	if doc == nil {
 		return
 	}
+
 	texByName := make(map[string][]byte)
 	imgByFile := make(map[string][]byte)
+
 	for i := range doc.Layers {
 		ly := &doc.Layers[i]
 
@@ -408,6 +456,7 @@ func loadLayer(ini *iniFile, ly *model.Layer, idx int) error {
 	if ly.Visible.Val < 0 {
 		ly.Visible.Val = ini.readInt(sec, "Visible", 1)
 	}
+
 	ly.Solo.Val = ini.readInt(sec, "VisibleSolo", 0)
 
 	// Primitive type
@@ -578,6 +627,7 @@ func section(sb *strings.Builder, name string) { sb.WriteString("[" + name + "]\
 func writeAnim(sb *strings.Builder, k1, k2, kAnimate, kCurve string, from, to float64, anim int) {
 	writeFloat(sb, k1, from)
 	writeFloat(sb, k2, to)
+
 	if anim != 0 {
 		writeInt(sb, kAnimate, 1)
 		writeInt(sb, kCurve, anim-1)
@@ -611,15 +661,18 @@ func saveDocument(sb *strings.Builder, doc *model.Document) {
 	}
 
 	pointKeys := []string{"1", "2", "3", "4", "a", "b", "c", "d", "e", "f"}
-	for ci := 0; ci < 8; ci++ {
+
+	for ci := range 8 {
 		n := ci + 1
 		c := &doc.Curves[ci]
 		prefix := fmt.Sprintf("Curve%d", n)
 		writeInt(sb, prefix+"L0", c.Lv[0])
+
 		for j, pk := range pointKeys {
 			writeInt(sb, prefix+"T"+pk, c.Tm[j+1])
 			writeInt(sb, prefix+"L"+pk, c.Lv[j+1])
 		}
+
 		writeInt(sb, prefix+"L5", c.Lv[11])
 		writeInt(sb, prefix+"StepReso", c.StepReso.Val)
 	}
@@ -734,13 +787,13 @@ func writeBinary(sb *strings.Builder, keyBase string, data []byte) {
 	if len(data) == 0 {
 		return
 	}
+
 	lineNum := 0
+
 	for i := 0; i < len(data); i += 256 {
-		end := i + 256
-		if end > len(data) {
-			end = len(data)
-		}
-		sb.WriteString(fmt.Sprintf("%s%d=%s\r\n", keyBase, lineNum, hex.EncodeToString(data[i:end])))
+		end := min(i+256, len(data))
+
+		fmt.Fprintf(sb, "%s%d=%s\r\n", keyBase, lineNum, hex.EncodeToString(data[i:end]))
 		lineNum++
 	}
 }
@@ -754,14 +807,18 @@ func RoundTrip(data []byte) (*model.Document, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+
 	out, err := Save(doc)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	doc2, err := Load(out)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	_ = bytes.Equal // ensure bytes import used
+
 	return doc2, out, nil
 }

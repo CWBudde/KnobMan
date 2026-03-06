@@ -4,19 +4,19 @@ import "image/color"
 
 // Prefs holds the document-wide settings.
 type Prefs struct {
-	Width        int        // canvas width  (pwidth  << oversampling)
-	Height       int        // canvas height (pheight << oversampling)
-	PWidth       IntParam   // logical canvas width  (default 64)
-	PHeight      IntParam   // logical canvas height (default 64)
-	Oversampling SelectParam // 0=1× 1=2× 2=4× 3=8×
-	PreviewFrames IntParam   // number of preview frames (default 5)
-	RenderFrames  IntParam   // number of export frames  (default 31)
-	BkColor      ColorParam  // background colour (default white)
-	AlignHorz    SelectParam // strip orientation: 0=vertical 1=horizontal
-	ExportOption SelectParam // 0=strip-V 1=strip-H 2=frames 3=GIF 4=APNG
-	Duration     IntParam    // ms per frame for animated exports (default 100)
-	Loop         IntParam    // loop count (0=infinite)
-	BiDir        BoolParam   // ping-pong animation
+	Width         int         // canvas width  (pwidth  << oversampling)
+	Height        int         // canvas height (pheight << oversampling)
+	PWidth        IntParam    // logical canvas width  (default 64)
+	PHeight       IntParam    // logical canvas height (default 64)
+	Oversampling  SelectParam // 0=1× 1=2× 2=4× 3=8×
+	PreviewFrames IntParam    // number of preview frames (default 5)
+	RenderFrames  IntParam    // number of export frames  (default 31)
+	BkColor       ColorParam  // background colour (default white)
+	AlignHorz     SelectParam // strip orientation: 0=vertical 1=horizontal
+	ExportOption  SelectParam // 0=strip-V 1=strip-H 2=frames 3=GIF 4=APNG
+	Duration      IntParam    // ms per frame for animated exports (default 100)
+	Loop          IntParam    // loop count (0=infinite)
+	BiDir         BoolParam   // ping-pong animation
 }
 
 // NewPrefs returns a Prefs with default values matching the Java original.

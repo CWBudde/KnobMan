@@ -2,6 +2,7 @@ package export
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -14,34 +15,41 @@ import (
 // horizontal=false -> vertical strip, horizontal=true -> horizontal strip.
 func ExportPNGStrip(doc *model.Document, textures []*render.Texture, horizontal bool) ([]byte, error) {
 	if doc == nil {
-		return nil, fmt.Errorf("export: nil document")
+		return nil, errors.New("export: nil document")
 	}
+
 	frames := render.RenderAll(doc, textures)
 	if len(frames) == 0 {
-		return nil, fmt.Errorf("export: no frames rendered")
+		return nil, errors.New("export: no frames rendered")
 	}
+
 	fw := frames[0].Width
+
 	fh := frames[0].Height
 	if fw <= 0 || fh <= 0 {
 		return nil, fmt.Errorf("export: invalid frame size %dx%d", fw, fh)
 	}
 
 	count := len(frames)
+
 	outW, outH := fw, fh*count
 	if horizontal {
 		outW, outH = fw*count, fh
 	}
+
 	out := image.NewNRGBA(image.Rect(0, 0, outW, outH))
 
 	for i, fr := range frames {
 		if fr == nil || fr.Width != fw || fr.Height != fh {
 			return nil, fmt.Errorf("export: inconsistent frame at %d", i)
 		}
+
 		dx, dy := 0, i*fh
 		if horizontal {
 			dx, dy = i*fw, 0
 		}
-		for y := 0; y < fh; y++ {
+
+		for y := range fh {
 			srcOff := y * fr.Stride
 			dstOff := (dy+y)*out.Stride + dx*4
 			copy(out.Pix[dstOff:dstOff+fw*4], fr.Data[srcOff:srcOff+fr.Stride])
@@ -49,8 +57,11 @@ func ExportPNGStrip(doc *model.Document, textures []*render.Texture, horizontal 
 	}
 
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, out); err != nil {
+
+	err := png.Encode(&buf, out)
+	if err != nil {
 		return nil, fmt.Errorf("export: encode png: %w", err)
 	}
+
 	return buf.Bytes(), nil
 }

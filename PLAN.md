@@ -9,17 +9,17 @@
 ## TODO Checklist (Current Progress)
 
 - [x] **Completed (condensed)**
-    - Phases 0–1: repo skeleton + full model + `.knob` load/save + tests
-    - Phase 5–7: WASM + web UI (layers/params), editors (curve/shape), preview tooling
-    - Phase 4 (partial items): AnimStep, DynamicText, multi-frame image-strip support
-    - Phase 8: full export pipeline complete (PNG strip/frames, GIF, APNG + download flow)
+  - Phases 0–1: repo skeleton + full model + `.knob` load/save + tests
+  - Phase 5–7: WASM + web UI (layers/params), editors (curve/shape), preview tooling
+  - Phase 4 (partial items): AnimStep, DynamicText, multi-frame image-strip support
+  - Phase 8: full export pipeline complete (PNG strip/frames, GIF, APNG + download flow)
 
 - [ ] **Still partial / pending**
-    - Phase 2: primitive render parity against Java reference output
-    - Phase 3: effect stack parity against Java reference output
-    - Phase 4: complete render-side animation pipeline integration
-    - Phase 9: app-level undo/redo integration, shortcuts, persistence, status metrics
-    - Phase 10: regression tests, perf targets, deployment automation
+  - Phase 2: primitive render parity against Java reference output
+  - Phase 3: effect stack parity against Java reference output
+  - Phase 4: complete render-side animation pipeline integration
+  - Phase 9: app-level undo/redo integration, shortcuts, persistence, status metrics
+  - Phase 10: regression tests, perf targets, deployment automation
 
 ---
 
@@ -277,6 +277,7 @@ If desired, port the INI-based localization system. All UI strings defined in a 
 ### [ ] 10.1 — Visual Regression Tests
 
 For each of the sample `.knob` files in `assets/samples/`:
+
 1. Render frame 0 and frame N/2 with the Go engine
 2. Compare against reference PNGs rendered by the Java original
 3. Accept images within a per-pixel tolerance of ±2 (RGBA each channel)
@@ -297,6 +298,7 @@ Framework: Go test + `image` package comparison. Reference images committed to `
 Target: render a 64×64 knob with 10 layers at 4× oversampling in < 50ms in WASM.
 
 Optimization strategies:
+
 - Parallel layer rendering using goroutines (Web Workers do not apply to WASM goroutines, but Go's scheduler still benefits from multi-core via `GOMAXPROCS`)
 - Cache primitive renders (only re-render a layer if its `Primitive` params changed)
 - Incremental preview: render at 1× oversampling for interactive preview, then upgrade to full quality asynchronously
@@ -307,6 +309,7 @@ WASM binary size: aim for < 5MB. Use TinyGo if standard Go produces an unaccepta
 ### [ ] 10.4 — Deployment
 
 Static files only:
+
 ```
 web/
     index.html
@@ -318,6 +321,7 @@ web/
 ```
 
 Deploy to GitHub Pages (`gh-pages` branch) via GitHub Actions:
+
 - On push to `master`: build WASM, copy to `web/`, publish `web/` to `gh-pages`
 
 `Makefile` target: `make deploy`
@@ -326,50 +330,50 @@ Deploy to GitHub Pages (`gh-pages` branch) via GitHub Actions:
 
 ## Appendix A — Mapping: Java Class → Go Package
 
-| Java Class | Go Location |
-|------------|-------------|
-| `AnimCurve.java` | `internal/model/animcurve.go` |
-| `Prefs.java` | `internal/model/prefs.go` |
-| `Primitive.java` | `internal/model/primitive.go` + `internal/render/primitive_*.go` |
-| `Eff.java` | `internal/model/effect.go` + `internal/render/composite.go` |
-| `Layer.java` | `internal/model/layer.go` |
-| `Control.java` | `cmd/wasm/state.go` (global document state) |
-| `Render.java` | `internal/render/render.go` |
-| `Bitmap.java` | `internal/render/buffer.go` |
-| `Col.java` | `internal/render/coloradj.go` |
-| `Tex.java` | `internal/render/texture.go` |
-| `XYMatrix.java` | `internal/render/transform.go` |
-| `DynamicText.java` | `internal/render/dyntext.go` |
-| `IntelliAlpha.java` | `internal/render/intellialpha.go` |
-| `ProfileReader/Writer` | `internal/fileio/knob.go` |
-| `APng.java` | `internal/export/apng.go` |
-| `AnimGif.java` | `internal/export/animgif.go` |
-| `History.java` | `internal/model/history.go` |
-| `GUIEditor.java` | `web/index.html` + `web/main.js` |
-| `LayerPanel.java` | `web/main.js` (layer panel JS) |
-| `PrimPanel.java` | `web/main.js` (prim params JS) |
-| `EffPanel.java` | `web/main.js` (effect stack JS) |
-| `CurveEditor.java` | `web/main.js` (curve editor canvas) |
-| `ShapeEditor.java` | `web/main.js` (shape editor canvas) |
-| `PrefsPanel.java` | `web/main.js` (prefs bar JS) |
+| Java Class             | Go Location                                                      |
+| ---------------------- | ---------------------------------------------------------------- |
+| `AnimCurve.java`       | `internal/model/animcurve.go`                                    |
+| `Prefs.java`           | `internal/model/prefs.go`                                        |
+| `Primitive.java`       | `internal/model/primitive.go` + `internal/render/primitive_*.go` |
+| `Eff.java`             | `internal/model/effect.go` + `internal/render/composite.go`      |
+| `Layer.java`           | `internal/model/layer.go`                                        |
+| `Control.java`         | `cmd/wasm/state.go` (global document state)                      |
+| `Render.java`          | `internal/render/render.go`                                      |
+| `Bitmap.java`          | `internal/render/buffer.go`                                      |
+| `Col.java`             | `internal/render/coloradj.go`                                    |
+| `Tex.java`             | `internal/render/texture.go`                                     |
+| `XYMatrix.java`        | `internal/render/transform.go`                                   |
+| `DynamicText.java`     | `internal/render/dyntext.go`                                     |
+| `IntelliAlpha.java`    | `internal/render/intellialpha.go`                                |
+| `ProfileReader/Writer` | `internal/fileio/knob.go`                                        |
+| `APng.java`            | `internal/export/apng.go`                                        |
+| `AnimGif.java`         | `internal/export/animgif.go`                                     |
+| `History.java`         | `internal/model/history.go`                                      |
+| `GUIEditor.java`       | `web/index.html` + `web/main.js`                                 |
+| `LayerPanel.java`      | `web/main.js` (layer panel JS)                                   |
+| `PrimPanel.java`       | `web/main.js` (prim params JS)                                   |
+| `EffPanel.java`        | `web/main.js` (effect stack JS)                                  |
+| `CurveEditor.java`     | `web/main.js` (curve editor canvas)                              |
+| `ShapeEditor.java`     | `web/main.js` (shape editor canvas)                              |
+| `PrefsPanel.java`      | `web/main.js` (prefs bar JS)                                     |
 
 ---
 
 ## Appendix B — Phase Summary
 
-| Phase | Status | Deliverable | Dependencies |
-|-------|--------|-------------|--------------|
-| **0** | [x] Completed | Go skeleton, legacy archived, WASM builds, blank canvas | — |
-| **1** | [x] Completed | Full data model, file format load/save, round-trip tests | Phase 0 |
-| **2** | [ ] Partial | All 16 primitives render correctly (native tests) | Phase 1 |
-| **3** | [ ] Partial | Full effect stack (transform, color, masks, shadows) | Phase 2 |
-| **4** | [ ] Partial | Animation interpolation, dynamic text, image strips | Phase 3 |
-| **5** | [x] Completed | Web UI shell: canvas, layer list, basic param panel | Phase 4 |
-| **6** | [x] Completed | All parameter controls in the web UI | Phase 5 |
-| **7** | [x] Completed | Curve editor, shape editor, layer previews, floating preview | Phase 6 |
-| **8** | [x] Completed | All 4 export formats (PNG strip, frames, GIF, APNG) | Phase 4 |
-| **9** | [ ] Partial | Undo/redo, shortcuts, file open/save, samples, session | Phase 6, 8 |
-| **10** | [ ] Not started | Visual regression tests, performance, GitHub Pages deploy | All |
+| Phase  | Status          | Deliverable                                                  | Dependencies |
+| ------ | --------------- | ------------------------------------------------------------ | ------------ |
+| **0**  | [x] Completed   | Go skeleton, legacy archived, WASM builds, blank canvas      | —            |
+| **1**  | [x] Completed   | Full data model, file format load/save, round-trip tests     | Phase 0      |
+| **2**  | [ ] Partial     | All 16 primitives render correctly (native tests)            | Phase 1      |
+| **3**  | [ ] Partial     | Full effect stack (transform, color, masks, shadows)         | Phase 2      |
+| **4**  | [ ] Partial     | Animation interpolation, dynamic text, image strips          | Phase 3      |
+| **5**  | [x] Completed   | Web UI shell: canvas, layer list, basic param panel          | Phase 4      |
+| **6**  | [x] Completed   | All parameter controls in the web UI                         | Phase 5      |
+| **7**  | [x] Completed   | Curve editor, shape editor, layer previews, floating preview | Phase 6      |
+| **8**  | [x] Completed   | All 4 export formats (PNG strip, frames, GIF, APNG)          | Phase 4      |
+| **9**  | [ ] Partial     | Undo/redo, shortcuts, file open/save, samples, session       | Phase 6, 8   |
+| **10** | [ ] Not started | Visual regression tests, performance, GitHub Pages deploy    | All          |
 
 ---
 

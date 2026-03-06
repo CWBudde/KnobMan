@@ -13,36 +13,47 @@ func SubstituteFrameCounters(s string, frame, totalFrames int) string {
 		totalFrames = 1
 	}
 	var out strings.Builder
+
 	for i := 0; i < len(s); {
 		if s[i] != '(' {
 			out.WriteByte(s[i])
 			i++
+
 			continue
 		}
+
 		end := strings.IndexByte(s[i:], ')')
 		if end <= 0 {
 			out.WriteByte(s[i])
 			i++
+
 			continue
 		}
+
 		expr := s[i+1 : i+end]
-		colon := strings.IndexByte(expr, ':')
-		if colon < 0 {
+
+		before, after, ok := strings.Cut(expr, ":")
+		if !ok {
 			out.WriteByte(s[i])
 			i++
+
 			continue
 		}
-		aTxt := strings.TrimSpace(expr[:colon])
-		bTxt := strings.TrimSpace(expr[colon+1:])
+
+		aTxt := strings.TrimSpace(before)
+		bTxt := strings.TrimSpace(after)
 		a, errA := strconv.Atoi(aTxt)
+
 		b, errB := strconv.Atoi(bTxt)
 		if errA != nil || errB != nil {
 			out.WriteByte(s[i])
 			i++
+
 			continue
 		}
 
 		val := a
+
 		if totalFrames > 1 {
 			t := float64(frame) / float64(totalFrames-1)
 			val = a + int(math.Round(float64(b-a)*t))
@@ -57,16 +68,21 @@ func SubstituteFrameCounters(s string, frame, totalFrames int) string {
 		if neg {
 			val = -val
 		}
+
 		num := strconv.Itoa(val)
 		for len(num) < w {
 			num = "0" + num
 		}
+
 		if neg {
 			num = "-" + num
 		}
+
 		out.WriteString(num)
+
 		i += end + 1
 	}
+
 	return out.String()
 }
 
@@ -75,15 +91,19 @@ func countDigits(s string) int {
 	if s == "" {
 		return 0
 	}
+
 	if s[0] == '+' || s[0] == '-' {
 		s = s[1:]
 	}
+
 	n := 0
-	for i := 0; i < len(s); i++ {
+
+	for i := range len(s) {
 		if s[i] >= '0' && s[i] <= '9' {
 			n++
 		}
 	}
+
 	return n
 }
 
@@ -91,5 +111,6 @@ func absInt(v int) int {
 	if v < 0 {
 		return -v
 	}
+
 	return v
 }
