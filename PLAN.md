@@ -36,6 +36,8 @@
 - [x] **Phase 7.3** — Layer bitmap previews (frame 0/1 primitive thumbnails)
 - [x] **Phase 7.4** — Floating preview window (detached animated popup)
 - [x] **Phase 7** — Advanced editors (curve, shape, preview tools)
+- [x] **Phase 8.1** — PNG strip export (vertical/horizontal)
+- [x] **Phase 8.2** — PNG frames export (ZIP download)
 - [ ] **Phase 8** — Export pipeline (PNG strip/frames, GIF, APNG)
 
 - [ ] **Phase 9.1** — Undo/redo integrated into app mutations (history model exists)
@@ -438,9 +440,9 @@ An optional detachable preview panel (or popup window via `window.open()`) that 
 ## Phase 8 — Export
 
 **Goal:** All four export formats from the original.
-**Status:** [ ] Not started
+**Status:** [ ] Partial (8.1–8.2 done; 8.3–8.4 pending)
 
-### [ ] 8.1 — PNG Strip (`internal/export/pngstrip.go`)
+### [x] 8.1 — PNG Strip (`internal/export/pngstrip.go`)
 
 ```go
 // Render all frames and stitch into a vertical or horizontal PNG strip.
@@ -449,7 +451,7 @@ func ExportPNGStrip(doc *model.Document, textures []*render.Texture, horizontal 
 
 Encodes using Go's `image/png`. Returns the PNG bytes for browser download.
 
-### [ ] 8.2 — Individual PNG Frames (`internal/export/pngframes.go`)
+### [x] 8.2 — Individual PNG Frames (`internal/export/pngframes.go`)
 
 ```go
 // Render all frames, return as a slice of PNG []byte (one per frame).
@@ -654,7 +656,7 @@ Deploy to GitHub Pages (`gh-pages` branch) via GitHub Actions:
 | **5** | [x] Completed | Web UI shell: canvas, layer list, basic param panel | Phase 4 |
 | **6** | [x] Completed | All parameter controls in the web UI | Phase 5 |
 | **7** | [x] Completed | Curve editor, shape editor, layer previews, floating preview | Phase 6 |
-| **8** | [ ] Not started | All 4 export formats (PNG strip, frames, GIF, APNG) | Phase 4 |
+| **8** | [ ] Partial | All 4 export formats (PNG strip, frames, GIF, APNG) | Phase 4 |
 | **9** | [ ] Partial | Undo/redo, shortcuts, file open/save, samples, session | Phase 6, 8 |
 | **10** | [ ] Not started | Visual regression tests, performance, GitHub Pages deploy | All |
 
