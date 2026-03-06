@@ -66,6 +66,7 @@ func main() {
 	js.Global().Set("knobman_getTextureData", js.FuncOf(jsGetTextureData))
 	js.Global().Set("knobman_exportPNGStrip", js.FuncOf(jsExportPNGStrip))
 	js.Global().Set("knobman_exportPNGFramesZip", js.FuncOf(jsExportPNGFramesZip))
+	js.Global().Set("knobman_exportGIF", js.FuncOf(jsExportGIF))
 
 	js.Global().Set("knobman_loadFile", js.FuncOf(jsLoadFile))
 	js.Global().Set("knobman_saveFile", js.FuncOf(jsSaveFile))
@@ -1310,6 +1311,19 @@ func jsExportPNGFramesZip(this js.Value, args []js.Value) any {
 		return js.Null()
 	}
 	out := buf.Bytes()
+	arr := js.Global().Get("Uint8Array").New(len(out))
+	js.CopyBytesToJS(arr, out)
+	return arr
+}
+
+func jsExportGIF(this js.Value, args []js.Value) any {
+	if doc == nil {
+		return js.Null()
+	}
+	out, err := exportpkg.ExportGIF(doc, textures)
+	if err != nil || len(out) == 0 {
+		return js.Null()
+	}
 	arr := js.Global().Get("Uint8Array").New(len(out))
 	js.CopyBytesToJS(arr, out)
 	return arr

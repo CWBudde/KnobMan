@@ -2388,17 +2388,21 @@ function onNew() {
   setStatus('New document');
 }
 
-function onSave() {
+async function onSave() {
   const data = window.knobman_saveFile();
   if (!data || data.length === 0) {
     setStatus('Save failed');
     return;
   }
-  downloadBytes(data, 'project.knob', 'application/octet-stream');
-  setStatus('Saved project.knob');
+  const mode = await saveBytes(data, 'project.knob', 'application/octet-stream', 'knobman-save');
+  if (mode === 'canceled') {
+    setStatus('Save canceled');
+    return;
+  }
+  setStatus(mode === 'picker' ? 'Saved project.knob' : 'Downloaded project.knob');
 }
 
-function downloadBytes(bytes, fileName, mimeType) {
+function downloadBytesFallback(bytes, fileName, mimeType) {
   const blob = new Blob([bytes], { type: mimeType || 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2410,7 +2414,36 @@ function downloadBytes(bytes, fileName, mimeType) {
   URL.revokeObjectURL(url);
 }
 
-function onExport() {
+function buildPickerTypes(fileName, mimeType) {
+  const extIdx = fileName.lastIndexOf('.');
+  if (extIdx < 0 || extIdx === fileName.length - 1) return undefined;
+  const ext = fileName.slice(extIdx).toLowerCase();
+  if (!ext || !mimeType) return undefined;
+  return [{ description: ext.slice(1).toUpperCase() + ' File', accept: { [mimeType]: [ext] } }];
+}
+
+async function saveBytes(bytes, fileName, mimeType, pickerId) {
+  if (window.isSecureContext && typeof window.showSaveFilePicker === 'function') {
+    try {
+      const handle = await window.showSaveFilePicker({
+        id: pickerId || 'knobman-download',
+        suggestedName: fileName,
+        types: buildPickerTypes(fileName, mimeType)
+      });
+      const writable = await handle.createWritable();
+      await writable.write(bytes);
+      await writable.close();
+      return 'picker';
+    } catch (err) {
+      if (err && err.name === 'AbortError') return 'canceled';
+      console.warn('showSaveFilePicker failed, falling back to download link:', err);
+    }
+  }
+  downloadBytesFallback(bytes, fileName, mimeType);
+  return 'download';
+}
+
+async function onExport() {
   const option = parseInt(document.getElementById('prefExport').value, 10) || 0;
   if (option === 0 || option === 1) {
     if (!window.knobman_exportPNGStrip) {
@@ -2424,8 +2457,12 @@ function onExport() {
       return;
     }
     const suffix = horizontal ? 'h' : 'v';
-    downloadBytes(out, `export-strip-${suffix}.png`, 'image/png');
-    setStatus(`Exported PNG strip (${horizontal ? 'H' : 'V'})`);
+    const mode = await saveBytes(out, `export-strip-${suffix}.png`, 'image/png', 'knobman-export-png-strip');
+    if (mode === 'canceled') {
+      setStatus('PNG strip export canceled');
+      return;
+    }
+    setStatus(mode === 'picker' ? `Exported PNG strip (${horizontal ? 'H' : 'V'})` : `Downloaded PNG strip (${horizontal ? 'H' : 'V'})`);
     return;
   }
   if (option === 2) {
@@ -2438,12 +2475,30 @@ function onExport() {
       setStatus('PNG frames export failed');
       return;
     }
-    downloadBytes(out, 'export-frames.zip', 'application/zip');
-    setStatus('Exported PNG frames ZIP');
+    const mode = await saveBytes(out, 'export-frames.zip', 'application/zip', 'knobman-export-frames-zip');
+    if (mode === 'canceled') {
+      setStatus('PNG frames export canceled');
+      return;
+    }
+    setStatus(mode === 'picker' ? 'Exported PNG frames ZIP' : 'Downloaded PNG frames ZIP');
     return;
   }
   if (option === 3) {
-    setStatus('GIF export is Phase 8.3 (not implemented yet)');
+    if (!window.knobman_exportGIF) {
+      setStatus('GIF export unavailable');
+      return;
+    }
+    const out = window.knobman_exportGIF();
+    if (!out || out.length === 0) {
+      setStatus('GIF export failed');
+      return;
+    }
+    const mode = await saveBytes(out, 'export.gif', 'image/gif', 'knobman-export-gif');
+    if (mode === 'canceled') {
+      setStatus('GIF export canceled');
+      return;
+    }
+    setStatus(mode === 'picker' ? 'Exported animated GIF' : 'Downloaded animated GIF');
     return;
   }
   if (option === 4) {
