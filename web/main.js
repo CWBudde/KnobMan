@@ -30,6 +30,7 @@ let selectedLayer = 0;
 let prefAspectLock = false;
 let prefAspectRatio = 1;
 let builtinTextureLoadPromise = null;
+let projectBaseName = 'project';
 let detachedPreviewWindow = null;
 let detachedPreviewTimer = null;
 let detachedPreviewPlaying = false;
@@ -72,6 +73,47 @@ const BUILTIN_TEXTURE_FILES = [
   'Scratch.jpg',
   'Stripe.bmp',
   'StripeV.bmp'
+];
+
+const SAMPLE_PROJECT_FILES = [
+  '2Color_Pointed.knob',
+  '3p_wedge.knob',
+  'Aqua.knob',
+  'Black_Gear.knob',
+  'BlueDot_V.knob',
+  'Blue_HSW.knob',
+  'Blue_HSW2.knob',
+  'CheckBox.knob',
+  'ColorRing.knob',
+  'CorkBoard.knob',
+  'FabricStar.knob',
+  'Granite.knob',
+  'Gray_Ring2.knob',
+  'GreenAb.knob',
+  'Green_Radar.knob',
+  'Green_VSW.knob',
+  'LineShadow.knob',
+  'Monotone_Simple.knob',
+  'Number.knob',
+  'Number_HSwitch.knob',
+  'NumberedTick.knob',
+  'Orange_Lever.knob',
+  'Orange_Round.knob',
+  'Pop_Meter.knob',
+  'Red_Gear.knob',
+  'Shape_sample.knob',
+  'Small_Gaged.knob',
+  'Ticked_HSlider.knob',
+  'Waveform.knob',
+  'White_Dip.knob',
+  'White_Pan.knob',
+  'White_Vol.knob',
+  'White_Wave.knob',
+  'Wood_Gear.knob',
+  'face.knob',
+  'g200kglogo.knob',
+  'led.knob',
+  'vu3.knob'
 ];
 
 const PRIM_TYPES = [
@@ -1640,6 +1682,90 @@ async function ensureBuiltinTextures() {
   return builtinTextureLoadPromise;
 }
 
+function sampleLabelFromFileName(fileName) {
+  return stripFileExtension(fileName).replace(/[_-]+/g, ' ').trim();
+}
+
+function isSamplesOverlayOpen() {
+  const overlay = document.getElementById('samplesOverlay');
+  return Boolean(overlay && !overlay.hidden);
+}
+
+function closeSamplesOverlay() {
+  const overlay = document.getElementById('samplesOverlay');
+  if (!overlay) return;
+  overlay.hidden = true;
+}
+
+function renderSampleList() {
+  const list = document.getElementById('sampleList');
+  const input = document.getElementById('sampleSearch');
+  if (!list) return;
+  const query = String(input && input.value ? input.value : '').trim().toLowerCase();
+
+  list.innerHTML = '';
+  const matches = SAMPLE_PROJECT_FILES.filter(file => {
+    if (!query) return true;
+    const label = sampleLabelFromFileName(file).toLowerCase();
+    return file.toLowerCase().includes(query) || label.includes(query);
+  });
+
+  if (matches.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'placeholder';
+    empty.textContent = 'No matching sample projects.';
+    list.appendChild(empty);
+    return;
+  }
+
+  matches.forEach(file => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sample-item';
+
+    const label = document.createElement('strong');
+    label.textContent = sampleLabelFromFileName(file);
+    btn.appendChild(label);
+
+    const meta = document.createElement('small');
+    meta.textContent = file;
+    btn.appendChild(meta);
+
+    btn.addEventListener('click', () => {
+      void loadSampleProject(file);
+    });
+    list.appendChild(btn);
+  });
+}
+
+function openSamplesOverlay() {
+  const overlay = document.getElementById('samplesOverlay');
+  const input = document.getElementById('sampleSearch');
+  if (!overlay) return;
+  overlay.hidden = false;
+  renderSampleList();
+  if (input) input.focus();
+}
+
+async function fetchSampleProjectBytes(fileName) {
+  const paths = [
+    '../assets/samples/' + fileName,
+    '/assets/samples/' + fileName,
+    'assets/samples/' + fileName
+  ];
+  for (const path of paths) {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) continue;
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength > 0) return new Uint8Array(buf);
+    } catch (_err) {
+      // Try next candidate path.
+    }
+  }
+  return null;
+}
+
 // ── Initialise after WASM load ────────────────────────────────────────────────
 
 function onWasmReady() {
@@ -1647,6 +1773,7 @@ function onWasmReady() {
   document.getElementById('app').style.display = 'flex';
 
   wireControls();
+  renderSampleList();
 
   window.knobman_init(64, 64, zoomFactor);
   initCurveEditor();
@@ -1775,6 +1902,7 @@ function wireControls() {
   // Toolbar
   document.getElementById('btnNew').addEventListener('click', onNew);
   document.getElementById('btnOpen').addEventListener('click', () => document.getElementById('fileInput').click());
+  document.getElementById('btnSamples').addEventListener('click', openSamplesOverlay);
   document.getElementById('fileInput').addEventListener('change', onFileOpen);
   document.getElementById('btnSave').addEventListener('click', onSave);
   document.getElementById('btnExport').addEventListener('click', onExport);
@@ -1788,6 +1916,21 @@ function wireControls() {
   document.getElementById('btnMoveUp').addEventListener('click', onMoveUp);
   document.getElementById('btnMoveDown').addEventListener('click', onMoveDown);
   document.getElementById('btnDuplicate').addEventListener('click', onDuplicate);
+
+  const samplesOverlay = document.getElementById('samplesOverlay');
+  const sampleSearch = document.getElementById('sampleSearch');
+  const closeSamples = document.getElementById('btnCloseSamples');
+  if (samplesOverlay) {
+    samplesOverlay.addEventListener('click', (e) => {
+      if (e.target === samplesOverlay) closeSamplesOverlay();
+    });
+  }
+  if (sampleSearch) {
+    sampleSearch.addEventListener('input', renderSampleList);
+  }
+  if (closeSamples) {
+    closeSamples.addEventListener('click', closeSamplesOverlay);
+  }
 
   document.addEventListener('keydown', onKeyDown);
 }
@@ -2381,6 +2524,7 @@ function refreshParamPanel() {
 
 function onNew() {
   window.knobman_newDocument();
+  projectBaseName = 'project';
   invalidateLayerPreviews();
   currentFrame = 0;
   refreshFromDoc();
@@ -2394,15 +2538,16 @@ async function onSave() {
     setStatus('Save failed');
     return;
   }
-  const mode = await saveBytes(data, 'project.knob', 'application/octet-stream', 'knobman-save');
+  const fileName = buildDownloadName('project', 'knob');
+  const mode = await saveBytes(data, fileName, 'application/octet-stream', 'knobman-save');
   if (mode === 'canceled') {
     setStatus('Save canceled');
     return;
   }
-  setStatus(mode === 'picker' ? 'Saved project.knob' : 'Downloaded project.knob');
+  setStatus(mode === 'picker' ? `Saved ${fileName}` : `Downloaded ${fileName}`);
 }
 
-function downloadBytesFallback(bytes, fileName, mimeType) {
+function downloadBytes(fileName, mimeType, bytes) {
   const blob = new Blob([bytes], { type: mimeType || 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2422,6 +2567,49 @@ function buildPickerTypes(fileName, mimeType) {
   return [{ description: ext.slice(1).toUpperCase() + ' File', accept: { [mimeType]: [ext] } }];
 }
 
+function sanitizeFileBaseName(name) {
+  const raw = String(name || '').trim();
+  const mapped = raw
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^[_\. -]+|[_\. -]+$/g, '');
+  if (!mapped) return 'project';
+  return mapped.slice(0, 64);
+}
+
+function stripFileExtension(name) {
+  const s = String(name || '');
+  const idx = s.lastIndexOf('.');
+  if (idx <= 0) return s;
+  return s.slice(0, idx);
+}
+
+function setProjectBaseNameFromFileName(fileName) {
+  projectBaseName = sanitizeFileBaseName(stripFileExtension(fileName));
+}
+
+function filenameTimestampNow() {
+  const d = new Date();
+  const pad2 = (n) => String(n).padStart(2, '0');
+  return [
+    d.getFullYear(),
+    pad2(d.getMonth() + 1),
+    pad2(d.getDate())
+  ].join('') + '-' + [
+    pad2(d.getHours()),
+    pad2(d.getMinutes()),
+    pad2(d.getSeconds())
+  ].join('');
+}
+
+function buildDownloadName(tag, ext) {
+  const base = sanitizeFileBaseName(projectBaseName || 'project');
+  const suffix = sanitizeFileBaseName(tag || 'file');
+  const ts = filenameTimestampNow();
+  const extension = String(ext || '').replace(/^\./, '');
+  return extension ? `${base}_${ts}_${suffix}.${extension}` : `${base}_${ts}_${suffix}`;
+}
+
 async function saveBytes(bytes, fileName, mimeType, pickerId) {
   if (window.isSecureContext && typeof window.showSaveFilePicker === 'function') {
     try {
@@ -2439,7 +2627,7 @@ async function saveBytes(bytes, fileName, mimeType, pickerId) {
       console.warn('showSaveFilePicker failed, falling back to download link:', err);
     }
   }
-  downloadBytesFallback(bytes, fileName, mimeType);
+  downloadBytes(fileName, mimeType, bytes);
   return 'download';
 }
 
@@ -2456,13 +2644,14 @@ async function onExport() {
       setStatus('PNG strip export failed');
       return;
     }
-    const suffix = horizontal ? 'h' : 'v';
-    const mode = await saveBytes(out, `export-strip-${suffix}.png`, 'image/png', 'knobman-export-png-strip');
+    const suffix = horizontal ? 'strip_h' : 'strip_v';
+    const fileName = buildDownloadName(suffix, 'png');
+    const mode = await saveBytes(out, fileName, 'image/png', 'knobman-export-png-strip');
     if (mode === 'canceled') {
       setStatus('PNG strip export canceled');
       return;
     }
-    setStatus(mode === 'picker' ? `Exported PNG strip (${horizontal ? 'H' : 'V'})` : `Downloaded PNG strip (${horizontal ? 'H' : 'V'})`);
+    setStatus(mode === 'picker' ? `Exported ${fileName}` : `Downloaded ${fileName}`);
     return;
   }
   if (option === 2) {
@@ -2475,12 +2664,13 @@ async function onExport() {
       setStatus('PNG frames export failed');
       return;
     }
-    const mode = await saveBytes(out, 'export-frames.zip', 'application/zip', 'knobman-export-frames-zip');
+    const fileName = buildDownloadName('frames', 'zip');
+    const mode = await saveBytes(out, fileName, 'application/zip', 'knobman-export-frames-zip');
     if (mode === 'canceled') {
       setStatus('PNG frames export canceled');
       return;
     }
-    setStatus(mode === 'picker' ? 'Exported PNG frames ZIP' : 'Downloaded PNG frames ZIP');
+    setStatus(mode === 'picker' ? `Exported ${fileName}` : `Downloaded ${fileName}`);
     return;
   }
   if (option === 3) {
@@ -2493,16 +2683,32 @@ async function onExport() {
       setStatus('GIF export failed');
       return;
     }
-    const mode = await saveBytes(out, 'export.gif', 'image/gif', 'knobman-export-gif');
+    const fileName = buildDownloadName('anim', 'gif');
+    const mode = await saveBytes(out, fileName, 'image/gif', 'knobman-export-gif');
     if (mode === 'canceled') {
       setStatus('GIF export canceled');
       return;
     }
-    setStatus(mode === 'picker' ? 'Exported animated GIF' : 'Downloaded animated GIF');
+    setStatus(mode === 'picker' ? `Exported ${fileName}` : `Downloaded ${fileName}`);
     return;
   }
   if (option === 4) {
-    setStatus('APNG export is Phase 8.4 (not implemented yet)');
+    if (!window.knobman_exportAPNG) {
+      setStatus('APNG export unavailable');
+      return;
+    }
+    const out = window.knobman_exportAPNG();
+    if (!out || out.length === 0) {
+      setStatus('APNG export failed');
+      return;
+    }
+    const fileName = buildDownloadName('anim', 'apng');
+    const mode = await saveBytes(out, fileName, 'image/apng', 'knobman-export-apng');
+    if (mode === 'canceled') {
+      setStatus('APNG export canceled');
+      return;
+    }
+    setStatus(mode === 'picker' ? `Exported ${fileName}` : `Downloaded ${fileName}`);
     return;
   }
   setStatus('Unknown export option');
@@ -2550,28 +2756,54 @@ function onDuplicate() {
   markDirty();
 }
 
+function applyLoadedProjectBytes(bytes, fileName, statusPrefix) {
+  const ok = window.knobman_loadFile(bytes);
+  if (!ok) return false;
+  setProjectBaseNameFromFileName(fileName);
+  invalidateLayerPreviews();
+  currentFrame = 0;
+  refreshFromDoc();
+  ensureBuiltinTextures().then(() => refreshParamPanel());
+  setStatus((statusPrefix || 'Loaded') + ' ' + fileName);
+  return true;
+}
+
+async function loadSampleProject(fileName) {
+  setStatus('Loading sample ' + fileName + '...');
+  const bytes = await fetchSampleProjectBytes(fileName);
+  if (!bytes || bytes.length === 0) {
+    setStatus('Failed to load sample ' + fileName);
+    return;
+  }
+  if (!applyLoadedProjectBytes(bytes, fileName, 'Loaded sample')) {
+    setStatus('Failed to load sample ' + fileName);
+    return;
+  }
+  closeSamplesOverlay();
+}
+
 function onFileOpen(e) {
   const file = e.target.files[0];
   if (!file) return;
 
   const reader = new FileReader();
   reader.onload = () => {
-    const ok = window.knobman_loadFile(new Uint8Array(reader.result));
-    if (!ok) {
+    const data = new Uint8Array(reader.result);
+    if (!applyLoadedProjectBytes(data, file.name, 'Loaded')) {
       setStatus('Failed to load ' + file.name);
       return;
     }
-    invalidateLayerPreviews();
-    currentFrame = 0;
-    refreshFromDoc();
-    ensureBuiltinTextures().then(() => refreshParamPanel());
-    setStatus('Loaded ' + file.name);
   };
   reader.readAsArrayBuffer(file);
   e.target.value = '';
 }
 
 function onKeyDown(e) {
+  if (e.key === 'Escape' && isSamplesOverlayOpen()) {
+    e.preventDefault();
+    closeSamplesOverlay();
+    return;
+  }
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key === 'z') { e.preventDefault(); onUndo(); }
   if (mod && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); onRedo(); }

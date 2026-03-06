@@ -14,6 +14,7 @@
         <span class="app-title">KnobMan</span>
         <button id="btnNew" title="New">New</button>
         <button id="btnOpen" title="Open .knob file">Open</button>
+        <button id="btnSamples" title="Open sample project">Samples</button>
         <button id="btnSave" title="Save .knob file">Save</button>
         <span class="sep"></span>
         <button id="btnExport" title="Export image strip">Export</button>
@@ -137,6 +138,20 @@
         </label>
         <label><input type="checkbox" id="prefBiDir" /> BiDir</label>
       </footer>
+    </div>
+
+    <div id="samplesOverlay" class="samples-overlay" hidden>
+      <div class="samples-dialog" role="dialog" aria-modal="true" aria-labelledby="samplesTitle">
+        <div class="samples-header">
+          <h2 id="samplesTitle">Sample Projects</h2>
+          <button id="btnCloseSamples" type="button">Close</button>
+        </div>
+        <label class="samples-search">
+          <span>Filter</span>
+          <input id="sampleSearch" type="text" placeholder="Type to filter samples..." />
+        </label>
+        <div id="sampleList" class="samples-list"></div>
+      </div>
     </div>
 
     <script src="wasm_exec.js"></script>
