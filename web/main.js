@@ -45,6 +45,7 @@ let curveCanvas = null;
 let curveCtx = null;
 let curveDragPoint = -1;
 let curveSelectedPoint = -1;
+let curveEditorCollapsed = false;
 let shapeMode = 'L';
 let shapeCanvas = null;
 let shapeCtx = null;
@@ -761,6 +762,23 @@ function syncCurveTabState() {
   });
 }
 
+function applyCurveEditorCollapsedState() {
+  const panel = document.getElementById('curveEditorPanel');
+  const toggle = document.getElementById('curveEditorToggle');
+  if (!panel || !toggle) return;
+  panel.classList.toggle('collapsed', curveEditorCollapsed);
+  const expanded = !curveEditorCollapsed;
+  toggle.textContent = expanded ? 'v' : '>';
+  toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  toggle.setAttribute('aria-label', expanded ? 'Collapse curve editor' : 'Expand curve editor');
+  toggle.title = expanded ? 'Collapse curve editor' : 'Expand curve editor';
+}
+
+function toggleCurveEditorCollapsed() {
+  curveEditorCollapsed = !curveEditorCollapsed;
+  applyCurveEditorCollapsedState();
+}
+
 function drawCurveEditor() {
   if (!curveCanvas || !curveCtx) return;
   const m = curveCanvasMetrics();
@@ -972,6 +990,10 @@ function initCurveEditor() {
   curveCanvas = document.getElementById('curveCanvas');
   if (!tabs || !curveCanvas) return;
   curveCtx = curveCanvas.getContext('2d');
+
+  const toggle = document.getElementById('curveEditorToggle');
+  if (toggle) toggle.addEventListener('click', toggleCurveEditorCollapsed);
+  applyCurveEditorCollapsedState();
 
   tabs.innerHTML = '';
   for (let i = 1; i <= 8; i++) {
@@ -1864,6 +1886,7 @@ function markDirty() {
   if (isDetachedPreviewOpen() && !detachedPreviewPlaying) {
     refreshDetachedPreviewNow();
   }
+  updateUndoRedoButtons();
 }
 
 // ── Controls ──────────────────────────────────────────────────────────────────
@@ -2713,8 +2736,28 @@ async function onExport() {
   }
   setStatus('Unknown export option');
 }
-function onUndo()   { setStatus('Undo (Phase 9)'); }
-function onRedo()   { setStatus('Redo (Phase 9)'); }
+function onUndo() {
+  if (!window.knobman_undo || !window.knobman_undo()) return;
+  invalidateLayerPreviews();
+  refreshFromDoc();
+  setStatus('Undo');
+  updateUndoRedoButtons();
+}
+
+function onRedo() {
+  if (!window.knobman_redo || !window.knobman_redo()) return;
+  invalidateLayerPreviews();
+  refreshFromDoc();
+  setStatus('Redo');
+  updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons() {
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
+  if (btnUndo) btnUndo.disabled = !(window.knobman_canUndo && window.knobman_canUndo());
+  if (btnRedo) btnRedo.disabled = !(window.knobman_canRedo && window.knobman_canRedo());
+}
 
 function onAddLayer() {
   selectedLayer = window.knobman_addLayer();
@@ -2805,11 +2848,12 @@ function onKeyDown(e) {
     return;
   }
   const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key === 'z') { e.preventDefault(); onUndo(); }
-  if (mod && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); onRedo(); }
-  if (mod && e.key === 's') { e.preventDefault(); onSave(); }
-  if (mod && e.key === 'o') { e.preventDefault(); document.getElementById('fileInput').click(); }
-  if (mod && e.key === 'd') { e.preventDefault(); onDuplicate(); }
+  if (mod && e.key === 'z') { e.preventDefault(); onUndo(); return; }
+  if (mod && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); onRedo(); return; }
+  if (mod && e.key === 's') { e.preventDefault(); onSave(); return; }
+  if (mod && e.key === 'o') { e.preventDefault(); document.getElementById('fileInput').click(); return; }
+  if (mod && e.key === 'e') { e.preventDefault(); onExport(); return; }
+  if (mod && e.key === 'd') { e.preventDefault(); onDuplicate(); return; }
   if (e.key === 'Delete') {
     e.preventDefault();
     if (isShapeLayerSelected() && shapeSelectedHandle) {
@@ -2817,9 +2861,10 @@ function onKeyDown(e) {
     } else {
       onDeleteLayer();
     }
+    return;
   }
-  if (e.key === 'ArrowUp') { e.preventDefault(); onMoveUp(); }
-  if (e.key === 'ArrowDown') { e.preventDefault(); onMoveDown(); }
+  if (e.key === 'ArrowUp') { e.preventDefault(); onMoveUp(); return; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); onMoveDown(); return; }
 }
 
 // ── Status bar ────────────────────────────────────────────────────────────────

@@ -52,7 +52,10 @@
           </div>
           <section id="curveEditorPanel" aria-label="Animation curves">
             <div id="curveEditorHeader">
-              <strong>Curve Editor</strong>
+              <div class="curve-editor-title">
+                <button id="curveEditorToggle" type="button" aria-label="Collapse curve editor" aria-expanded="true">v</button>
+                <strong>Curve Editor</strong>
+              </div>
               <div class="curve-editor-tools">
                 <label>Step:
                   <input type="number" id="curveStepReso" min="0" max="64" step="1" value="0" />

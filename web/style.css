@@ -223,9 +223,24 @@ button:active { background: var(--accent); }
   font-size: 12px;
 }
 
+#curveEditorHeader .curve-editor-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 #curveEditorHeader strong {
   font-size: 12px;
   letter-spacing: .02em;
+}
+
+#curveEditorToggle {
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .curve-editor-tools {
@@ -283,6 +298,13 @@ button:active { background: var(--accent); }
 #curveHelp {
   font-size: 11px;
   color: var(--text-dim);
+}
+
+#curveEditorPanel.collapsed #curveTabs,
+#curveEditorPanel.collapsed #curveCanvas,
+#curveEditorPanel.collapsed #curveHelp,
+#curveEditorPanel.collapsed .curve-editor-tools {
+  display: none;
 }
 
 #shapeEditorPanel {
