@@ -47,6 +47,16 @@ func TestBuildMaskAndApply(t *testing.T) {
 	}
 }
 
+func TestBuildMaskWithCenterShiftsMask(t *testing.T) {
+	plain := BuildMask(10, 10, 2, -20, 20, 0, 0)
+	shifted := BuildMaskWithCenter(10, 10, 2, -20, 20, 0, 0, 50, 0)
+
+	centerIdx := 5*10 + 5
+	if shifted[centerIdx] >= plain[centerIdx] {
+		t.Fatalf("expected center-shifted mask to reduce center value, got shifted=%f plain=%f", shifted[centerIdx], plain[centerIdx])
+	}
+}
+
 func TestMakeShadowOffset(t *testing.T) {
 	src := NewPixBuf(8, 8)
 	src.Set(2, 2, color.RGBA{255, 255, 255, 255})

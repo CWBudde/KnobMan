@@ -94,7 +94,7 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 	var mask []float64
 
 	if eff.Mask1Ena.Val != 0 {
-		m1 := BuildMask(
+		m1 := BuildMaskWithCenter(
 			work.Width,
 			work.Height,
 			eff.Mask1Type.Val,
@@ -102,12 +102,14 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 			EvalAnim(eff.Mask1StopF.Val, eff.Mask1StopT.Val, eff.Mask1StopAnim.Val, curves, ratio),
 			eff.Mask1Grad.Val,
 			eff.Mask1GradDir.Val,
+			eff.CenterX.Val,
+			eff.CenterY.Val,
 		)
 		mask = m1
 	}
 
 	if eff.Mask2Ena.Val != 0 {
-		m2 := BuildMask(
+		m2 := BuildMaskWithCenter(
 			work.Width,
 			work.Height,
 			eff.Mask2Type.Val,
@@ -115,6 +117,8 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 			EvalAnim(eff.Mask2StopF.Val, eff.Mask2StopT.Val, eff.Mask2StopAnim.Val, curves, ratio),
 			eff.Mask2Grad.Val,
 			eff.Mask2GradDir.Val,
+			eff.CenterX.Val,
+			eff.CenterY.Val,
 		)
 		if mask == nil {
 			mask = m2
