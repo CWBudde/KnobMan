@@ -157,12 +157,12 @@ func TestRenderImageTransparentKeyColor(t *testing.T) {
 }
 
 func TestSubstituteFrameCounters(t *testing.T) {
-	got := substituteFrameCounters("F(1:9)", 4, 9)
+	got := SubstituteFrameCounters("F(1:9)", 4, 9)
 	// 4/8 => midpoint => 5
 	if got != "F5" {
 		t.Fatalf("unexpected substitution: %q", got)
 	}
-	got2 := substituteFrameCounters("N(01:99)", 0, 10)
+	got2 := SubstituteFrameCounters("N(01:99)", 0, 10)
 	if got2 != "N01" {
 		t.Fatalf("unexpected zero-padded substitution: %q", got2)
 	}
