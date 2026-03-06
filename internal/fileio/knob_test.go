@@ -1,8 +1,11 @@
 package fileio
 
 import (
+	"bytes"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -96,3 +99,89 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoadInheritsSharedEmbeddedAssets(t *testing.T) {
+	// 1x1 PNG (opaque black)
+	png := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+		0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+		0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41,
+		0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+		0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00,
+		0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+		0x42, 0x60, 0x82,
+	}
+	hexPNG := hex.EncodeToString(png)
+	profile := strings.Join([]string{
+		"[Prefs]",
+		"Version=1490",
+		"Layers=2",
+		"OutputSizeX=64",
+		"OutputSizeY=64",
+		"RenderFrames=31",
+		"PreviewFrames=5",
+		"BkColorR=0",
+		"BkColorG=0",
+		"BkColorB=0",
+		"Visible1_0=1",
+		"Visible1_1=1",
+		"[Layer1]",
+		"Primitive=Image",
+		"PrimFile=shared-image.png",
+		"PrimTextureFile=shared-tex.png",
+		"TexBmp0=" + hexPNG,
+		"ImgBmp0=" + hexPNG,
+		"[Layer2]",
+		"Primitive=Image",
+		"PrimFile=shared-image.png",
+		"PrimTextureFile=shared-tex.png",
+		"[End]",
+		"",
+	}, "\n")
+
+	doc, err := loadDocument(parseINI([]byte(profile)))
+	if err != nil {
+		t.Fatalf("loadDocument: %v", err)
+	}
+	if len(doc.Layers) != 2 {
+		t.Fatalf("layer count: want 2 got %d", len(doc.Layers))
+	}
+	l1 := doc.Layers[0].Prim
+	l2 := doc.Layers[1].Prim
+	if len(l1.EmbeddedTexture) == 0 || len(l1.EmbeddedImage) == 0 {
+		t.Fatalf("layer1 embedded data missing: tex=%d img=%d", len(l1.EmbeddedTexture), len(l1.EmbeddedImage))
+	}
+	if !bytes.Equal(l2.EmbeddedTexture, l1.EmbeddedTexture) {
+		t.Fatalf("layer2 texture did not inherit from layer1")
+	}
+	if !bytes.Equal(l2.EmbeddedImage, l1.EmbeddedImage) {
+		t.Fatalf("layer2 image did not inherit from layer1")
+	}
+}
+
+func TestLoadFMaskStopLegacyDefault(t *testing.T) {
+	profile := strings.Join([]string{
+		"[Prefs]",
+		"Version=1490",
+		"Layers=1",
+		"OutputSizeX=64",
+		"OutputSizeY=64",
+		"[Layer1]",
+		"Primitive=None",
+		"UseFMask=1",
+		"FMaskStart=10",
+		// FMaskStop intentionally omitted: Java loader default is 0.
+		"[End]",
+		"",
+	}, "\n")
+
+	doc, err := loadDocument(parseINI([]byte(profile)))
+	if err != nil {
+		t.Fatalf("loadDocument: %v", err)
+	}
+	got := doc.Layers[0].Eff.FMaskStop.Val
+	if got != 0 {
+		t.Fatalf("FMaskStop default mismatch: got %v want 0", got)
+	}
+}

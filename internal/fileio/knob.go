@@ -361,8 +361,41 @@ func loadDocument(ini *iniFile) (*model.Document, error) {
 			return nil, fmt.Errorf("knob: layer %d: %w", i+1, err)
 		}
 	}
+	linkSharedEmbeddedAssets(doc)
 
 	return doc, nil
+}
+
+// linkSharedEmbeddedAssets mirrors legacy Java loading behavior:
+// if a layer references the same texture/file name as a previous layer and
+// does not carry embedded bytes itself, inherit the previous embedded data.
+func linkSharedEmbeddedAssets(doc *model.Document) {
+	if doc == nil {
+		return
+	}
+	texByName := make(map[string][]byte)
+	imgByFile := make(map[string][]byte)
+	for i := range doc.Layers {
+		ly := &doc.Layers[i]
+
+		texName := strings.TrimSpace(ly.Prim.TextureName)
+		if texName != "" {
+			if len(ly.Prim.EmbeddedTexture) > 0 {
+				texByName[texName] = append([]byte(nil), ly.Prim.EmbeddedTexture...)
+			} else if prev, ok := texByName[texName]; ok {
+				ly.Prim.EmbeddedTexture = append([]byte(nil), prev...)
+			}
+		}
+
+		fileName := strings.TrimSpace(ly.Prim.File.Val)
+		if fileName != "" {
+			if len(ly.Prim.EmbeddedImage) > 0 {
+				imgByFile[fileName] = append([]byte(nil), ly.Prim.EmbeddedImage...)
+			} else if prev, ok := imgByFile[fileName]; ok {
+				ly.Prim.EmbeddedImage = append([]byte(nil), prev...)
+			}
+		}
+	}
 }
 
 func loadLayer(ini *iniFile, ly *model.Layer, idx int) error {
@@ -484,7 +517,7 @@ func loadLayer(ini *iniFile, ly *model.Layer, idx int) error {
 	e.Mask2StopAnim.Val = ini.readAnim(sec, "AnimateMask2Stop", "Mask2StopCurve")
 	e.FMaskEna.Val = ini.readInt(sec, "UseFMask", 0)
 	e.FMaskStart.Val = ini.readFloat(sec, "FMaskStart", 0)
-	e.FMaskStop.Val = ini.readFloat(sec, "FMaskStop", 100)
+	e.FMaskStop.Val = ini.readFloat(sec, "FMaskStop", 0)
 	e.FMaskBits.Val = ini.readString(sec, "FMaskBits", "")
 	e.SLightDirF.Val = ini.readFloat(sec, "LightDir", -45)
 	e.SLightDirT.Val = ini.readFloat(sec, "LightDir2", -45)
