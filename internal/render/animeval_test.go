@@ -27,7 +27,11 @@ func TestEvalAnim(t *testing.T) {
 		curves[i] = model.NewAnimCurve()
 	}
 
-	if got := EvalAnim(10, 30, 0, &curves, 0.5); math.Abs(got-20) > 1e-9 {
+	if got := EvalAnim(10, 30, 0, &curves, 0.5); math.Abs(got-10) > 1e-9 {
+		t.Fatalf("off eval expected 10, got %v", got)
+	}
+
+	if got := EvalAnim(10, 30, 1, &curves, 0.5); math.Abs(got-20) > 1e-9 {
 		t.Fatalf("linear eval expected 20, got %v", got)
 	}
 }

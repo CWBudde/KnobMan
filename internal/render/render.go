@@ -71,12 +71,7 @@ func RenderAll(doc *model.Document, textures []*Texture) []*PixBuf {
 }
 
 func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Texture) {
-	bg := doc.Prefs.BkColor.Val
-	if bg.A == 0 {
-		bg.A = 255
-	}
-
-	dst.Clear(bg)
+	dst.Clear(color.RGBA{0, 0, 0, 0})
 
 	totalFrames := doc.Prefs.RenderFrames.Val
 	if totalFrames < 1 {
