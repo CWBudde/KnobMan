@@ -32,17 +32,17 @@ func RenderPrimitive(dst *PixBuf, p *model.Primitive, textures []*Texture, frame
 	case model.PrimCircleFill:
 		renderCircle(dst, p, false, textures)
 	case model.PrimMetalCircle:
-		renderMetalCircle(dst, p, textures)
+		renderCircle(dst, p, false, textures)
 	case model.PrimWaveCircle:
-		renderWaveCircle(dst, p)
+		renderWaveCircle(dst, p, textures)
 	case model.PrimSphere:
-		renderSphere(dst, p, textures)
+		renderCircle(dst, p, false, textures)
 	case model.PrimRect:
 		renderRect(dst, p, true, textures)
 	case model.PrimRectFill:
 		renderRect(dst, p, false, textures)
 	case model.PrimTriangle:
-		renderTriangle(dst, p)
+		renderTriangle(dst, p, textures)
 	case model.PrimLine:
 		renderLine(dst, p)
 	case model.PrimRadiateLine:
@@ -476,26 +476,60 @@ func renderMetalCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	}
 }
 
-func renderWaveCircle(dst *PixBuf, p *model.Primitive) {
-	c := primitiveColor(p)
-	cx := float64(dst.Width-1) * 0.5
-	cy := float64(dst.Height-1) * 0.5
-	baseR := float64(min(dst.Width, dst.Height)) * 0.42
-	amp := math.Max(1, p.Length.Val*0.01*float64(min(dst.Width, dst.Height))*0.2)
-	freq := math.Max(2, p.Step.Val*0.1)
+func renderWaveCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
+	base := primitiveColor(p)
+	lumi := 0.0
+	rStep := 180.0 / p.AngleStep.Val
+	rDepth := p.Width.Val * 0.01
+	rCX := float64(dst.Width) * 0.5
+	rCY := float64(dst.Height) * 0.5
+	rAY := 1.0
+	rAX := 1.0
+	if p.Aspect.Val > 0.0 {
+		rAX = (100.0 - math.Min(p.Aspect.Val, 99.0)) * 0.01
+	}
+	if p.Aspect.Val < 0.0 {
+		rAY = (100.0 + math.Max(p.Aspect.Val, -99.0)) * 0.01
+	}
+	rMax := math.Sqrt(math.Min(rCX, rCY) * math.Min(rCX, rCY))
+	rD := 1.0 - p.Diffuse.Val*0.01
+	txd := p.TextureDepth.Val * 0.01
 
-	stroke := math.Max(1, p.Width.Val*0.01*float64(min(dst.Width, dst.Height))*0.25)
 	for y := 0; y < dst.Height; y++ {
+		rPY := float64(y) - rCY + 0.5
+		rY := rPY / rAY
 		for x := 0; x < dst.Width; x++ {
-			dx := float64(x) - cx
-			dy := float64(y) - cy
-			ang := math.Atan2(dy, dx)
-			r := math.Hypot(dx, dy)
-
-			want := baseR + amp*math.Sin(freq*ang)
-			if math.Abs(r-want) <= stroke {
-				dst.BlendOver(x, y, c)
+			rPX := float64(x) - rCX + 0.5
+			alpha := 255
+			if idx := p.TextureFile.Val; idx > 0 && idx <= len(textures) {
+				if tex := textures[idx-1]; tex != nil {
+					tc := tex.Sample(rPX, rPY, p.TextureZoom.Val)
+					lumi = float64(int(tc.B)-128) * txd
+					alpha = 255 - int(float64(255-int(tc.A))*txd)
+				}
+			} else {
+				lumi = 0.0
 			}
+
+			rX := rPX / rAX
+			rTh := math.Abs(math.Atan2(rX, rY))
+			rCos := math.Abs(math.Sin(rTh * rStep))
+			rR := math.Hypot(rX, rY)
+			rMax2 := rMax * (1.0 - rCos*rDepth)
+			pix := changeBrightnessRGBA(base, int((-rX/rCX-rY/rCY)*128.0*p.Specular.Val*0.01+lumi))
+			if rR < rMax2 {
+				rMax2M := (rMax2 - 1.0) * rD
+				if rR >= rMax2M {
+					alpha = int(float64(alpha) - (rR-rMax2M)*255.0/(rMax2-rMax2M))
+				}
+			} else {
+				alpha = 0
+			}
+			if alpha <= 0 {
+				continue
+			}
+			pix.A = uint8(clampInt(alpha, 0, 255))
+			dst.Set(x, y, pix)
 		}
 	}
 }
@@ -782,25 +816,59 @@ func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	}
 }
 
-func renderTriangle(dst *PixBuf, p *model.Primitive) {
-	c := primitiveColor(p)
-	cx := dst.Width / 2
-	cy := dst.Height / 2
-	h := int(math.Max(2, p.Length.Val*0.01*float64(dst.Height)))
-	w := int(math.Max(2, p.Width.Val*0.02*float64(dst.Width)))
+func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
+	base := primitiveColor(p)
+	rCX := float64(dst.Width) * 0.5
+	rCY := float64(dst.Height) * 0.5
+	rYLen := float64(dst.Height) * p.Length.Val * 0.01
+	rWidth := float64(dst.Width) * p.Width.Val * 0.005
+	rD := 1.0 - p.Diffuse.Val*0.01
+	txd := p.TextureDepth.Val * 0.01
 
-	a := point{cx, cy - h/2}
-	b := point{cx - w, cy + h/2}
-	cc := point{cx + w, cy + h/2}
+	for y := 0; y < dst.Height; y++ {
+		rPY := float64(y) - rCY + 0.5
+		for x := 0; x < dst.Width; x++ {
+			rPX := float64(x) - rCX + 0.5
+			alpha := 255
+			lumi := 0
+			if idx := p.TextureFile.Val; idx > 0 && idx <= len(textures) {
+				if tex := textures[idx-1]; tex != nil {
+					tc := tex.Sample(rPX, rPY, p.TextureZoom.Val)
+					lumi = int((float64(int(tc.B) - 128)) * txd)
+					alpha = 255 - int(float64(255-int(tc.A))*txd)
+				}
+			}
 
-	if p.Fill.Val != 0 {
-		fillTriangle(dst, a, b, cc, c)
-		return
+			pix := base
+			if float64(y) > rYLen {
+				alpha = 0
+			} else {
+				rX := math.Abs(float64(x) + 0.5 - rCX)
+				rXLine := rWidth*float64(y)/rYLen + 1.0
+				rXLine2 := (rXLine - 1.0) * rD
+				if !(rX < rXLine2) {
+					if rX < rXLine {
+						alpha = int((1.0 - (rX-rXLine2)/(rXLine-rXLine2)) * float64(alpha))
+					} else {
+						alpha = 0
+					}
+				}
+				iA := 255
+				if rXLine != 0.0 {
+					iA = int((255.0 - rX/rXLine*255.0) * p.Specular.Val * 0.01)
+				}
+				iA += lumi
+				iA = clampInt(iA, 0, 254)
+				pix = changeBrightnessRGBA(pix, iA)
+			}
+
+			if alpha <= 0 {
+				continue
+			}
+			pix.A = uint8(clampInt(alpha, 0, 255))
+			dst.Set(x, y, pix)
+		}
 	}
-
-	drawLine(dst, a.x, a.y, b.x, b.y, c, 1)
-	drawLine(dst, b.x, b.y, cc.x, cc.y, c, 1)
-	drawLine(dst, cc.x, cc.y, a.x, a.y, c, 1)
 }
 
 func renderLine(dst *PixBuf, p *model.Primitive) {

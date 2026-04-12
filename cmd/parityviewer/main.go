@@ -398,19 +398,12 @@ func imageToRGBA(img image.Image) *image.RGBA {
 
 	for y := 0; y < b.Dy(); y++ {
 		for x := 0; x < b.Dx(); x++ {
-			r, g, bl, a := img.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			c := color.NRGBAModel.Convert(img.At(b.Min.X+x, b.Min.Y+y)).(color.NRGBA)
 			dst := y*out.Stride + x*4
-			if a == 0 {
-				out.Pix[dst+0] = 0
-				out.Pix[dst+1] = 0
-				out.Pix[dst+2] = 0
-				out.Pix[dst+3] = 0
-				continue
-			}
-			out.Pix[dst+0] = uint8(((r >> 8) * 255) / (a >> 8))
-			out.Pix[dst+1] = uint8(((g >> 8) * 255) / (a >> 8))
-			out.Pix[dst+2] = uint8(((bl >> 8) * 255) / (a >> 8))
-			out.Pix[dst+3] = uint8(a >> 8)
+			out.Pix[dst+0] = c.R
+			out.Pix[dst+1] = c.G
+			out.Pix[dst+2] = c.B
+			out.Pix[dst+3] = c.A
 		}
 	}
 	return out
