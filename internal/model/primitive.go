@@ -59,7 +59,8 @@ type Primitive struct {
 	TextureName   string      // texture file name (used for matching/embedding)
 	Transparent   SelectParam // transparency mode
 	Font          SelectParam // font index
-	TextAlign     SelectParam // text alignment (0=L 1=C 2=R)
+	FontName      string      // requested font family from PrimFont
+	TextAlign     SelectParam // text alignment (0=C 1=L 2=R)
 	FrameAlign    SelectParam // image frame source (0=strip 1=horizontal 2=files)
 	Aspect        FloatParam  // X/Y aspect distortion (default 0 = no distortion)
 	Round         FloatParam  // corner rounding %

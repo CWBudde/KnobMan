@@ -92,6 +92,40 @@ func TestRenderPrimitiveCoverage(t *testing.T) {
 	}
 }
 
+func TestRenderTextUsesAntialiasedAggPath(t *testing.T) {
+	buf := NewPixBuf(64, 64)
+	p := basePrim(model.PrimText)
+	p.Color.Val = color.RGBA{R: 40, G: 50, B: 60, A: 255}
+	p.Text.Val = "TX"
+	p.FontSize.Val = 62
+	p.TextAlign.Val = 0
+	p.FontName = "SansSerif"
+
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	opaque := 0
+	partial := 0
+	for y := 0; y < buf.Height; y++ {
+		for x := 0; x < buf.Width; x++ {
+			a := buf.At(x, y).A
+			if a == 255 {
+				opaque++
+			}
+			if a > 0 && a < 255 {
+				partial++
+			}
+		}
+	}
+
+	if opaque == 0 {
+		t.Fatal("expected rendered text coverage")
+	}
+
+	if partial == 0 {
+		t.Fatal("expected anti-aliased text edges")
+	}
+}
+
 func TestSphereNormalOutside(t *testing.T) {
 	if _, _, _, ok := SphereNormal(100, 100, 0, 0, 10, 10); ok {
 		t.Fatal("expected outside point to be rejected")

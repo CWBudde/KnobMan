@@ -228,47 +228,48 @@ func intelliAlphaPix(def, target color.RGBA, intelliAlpha int) color.RGBA {
 }
 
 func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
-	c := primitiveColor(p)
+	if dst == nil || p == nil {
+		return
+	}
 
 	txt := strings.TrimSpace(SubstituteFrameCounters(p.Text.Val, frame, total))
 	if txt == "" {
 		txt = "TEXT"
 	}
 
-	size := p.FontSize.Val * 0.01
-	if size <= 0 {
-		size = 0.5
+	size := p.FontSize.Val * 0.01 * float64(dst.Height)
+	if size < 6 {
+		size = 6
 	}
 
-	charH := int(math.Max(6, float64(min(dst.Width, dst.Height))*size))
-	charW := int(math.Max(4, float64(charH)*0.62))
-	spacing := int(math.Max(1, float64(charW)/4.0))
-	runes := []rune(txt)
-
-	totalW := len(runes) * charW
-	if len(runes) > 1 {
-		totalW += (len(runes) - 1) * spacing
+	ctx := AggContextForPixBuf(dst)
+	if ctx == nil {
+		return
 	}
 
-	x := (dst.Width - totalW) / 2
+	ctx.SetColor(agg.Color{R: primitiveColor(p).R, G: primitiveColor(p).G, B: primitiveColor(p).B, A: primitiveColor(p).A})
+	ctx.TextHints(true)
+	configureAggTextFont(ctx, p, size)
+
+	a := ctx.GetAgg2D()
+	anchorX := float64(dst.Width) * 0.5
+	alignX := agg.AlignCenter
+	spaceWidth := a.TextWidth(" ")
+	if spaceWidth <= 0 {
+		spaceWidth = math.Max(1, size*0.25)
+	}
 
 	switch p.TextAlign.Val {
-	case 1: // left
-		x = spacing / 2
-	case 2: // right
-		x = dst.Width - totalW - spacing/2
+	case 1:
+		alignX = agg.AlignLeft
+		anchorX = spaceWidth * 0.5
+	case 2:
+		alignX = agg.AlignRight
+		anchorX = float64(dst.Width) - spaceWidth*0.5
 	}
 
-	y := (dst.Height - charH) / 2
-
-	for _, r := range runes {
-		if r != ' ' {
-			dst.FillRect(x, y, x+charW, y+charH, c)
-			dst.FillRect(x+1, y+1, x+charW-1, y+charH-1, color.RGBA{0, 0, 0, 0})
-		}
-
-		x += charW + spacing
-	}
+	a.TextAlignment(alignX, agg.AlignCenter)
+	a.Text(anchorX, float64(dst.Height)*0.5, txt, true, 0, 0)
 }
 
 func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {

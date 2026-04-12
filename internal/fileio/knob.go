@@ -486,6 +486,7 @@ func loadLayer(ini *iniFile, ly *model.Layer, idx int) error {
 	ly.Prim.TextureDepth.Val = ini.readFloat(sec, "PrimTexture", 0)
 	ly.Prim.TextureZoom.Val = ini.readFloat(sec, "PrimTexZoom", 100)
 	ly.Prim.Diffuse.Val = ini.readFloat(sec, "PrimDiffuse", 0)
+	ly.Prim.FontName = ini.readString(sec, "PrimFont", "SansSerif")
 	ly.Prim.FontSize.Val = ini.readFloat(sec, "PrimSize", 50)
 	ly.Prim.Bold.Val = ini.readInt(sec, "PrimBold", 0)
 	ly.Prim.Italic.Val = ini.readInt(sec, "PrimItalic", 0)
@@ -706,6 +707,11 @@ func saveLayer(sb *strings.Builder, ly *model.Layer, idx int) {
 	writeFloat(sb, "PrimTexture", ly.Prim.TextureDepth.Val)
 	writeFloat(sb, "PrimTexZoom", ly.Prim.TextureZoom.Val)
 	writeFloat(sb, "PrimDiffuse", ly.Prim.Diffuse.Val)
+	fontName := strings.TrimSpace(ly.Prim.FontName)
+	if fontName == "" {
+		fontName = "SansSerif"
+	}
+	writeStr(sb, "PrimFont", fontName)
 	writeFloat(sb, "PrimAmbient", ly.Prim.Ambient.Val)
 	writeFloat(sb, "PrimSpecWidth", ly.Prim.SpecularWidth.Val)
 	writeFloat(sb, "PrimSpecular", ly.Prim.Specular.Val)

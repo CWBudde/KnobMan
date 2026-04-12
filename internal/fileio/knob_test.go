@@ -181,6 +181,40 @@ func TestLoadInheritsSharedEmbeddedAssets(t *testing.T) {
 	}
 }
 
+func TestLoadSavePreservesPrimFont(t *testing.T) {
+	profile := strings.Join([]string{
+		"[Prefs]",
+		"Version=1490",
+		"Layers=1",
+		"OutputSizeX=64",
+		"OutputSizeY=64",
+		"[Layer1]",
+		"Primitive=Text",
+		"PrimFont=DejaVu Sans",
+		"PrimText=TX",
+		"[End]",
+		"",
+	}, "\n")
+
+	doc, err := Load([]byte(profile))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	if got := doc.Layers[0].Prim.FontName; got != "DejaVu Sans" {
+		t.Fatalf("FontName after load = %q", got)
+	}
+
+	saved, err := Save(doc)
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if !strings.Contains(string(saved), "PrimFont=DejaVu Sans") {
+		t.Fatalf("saved knob missing PrimFont, got:\n%s", saved)
+	}
+}
+
 func TestLoadFMaskStopLegacyDefault(t *testing.T) {
 	profile := strings.Join([]string{
 		"[Prefs]",
