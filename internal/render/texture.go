@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
 	_ "image/gif"
@@ -49,11 +50,96 @@ func (s *TextureSet) Get(idx int) *Texture {
 // DecodeTexture decodes PNG/JPEG/GIF bytes into a texture.
 func DecodeTexture(data []byte) (*Texture, error) {
 	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
+	if err == nil {
+		return NewTextureFromImage(img), nil
 	}
 
-	return NewTextureFromImage(img), nil
+	// Standard library does not include BMP decoding in this toolchain build.
+	// Add a narrow Windows BMP compatibility path used by bundled KnobMan textures.
+	if tex, ok := decodeBMPAsRGBA(data); ok {
+		return tex, nil
+	}
+
+	return nil, err
+}
+
+func decodeBMPAsRGBA(data []byte) (*Texture, bool) {
+	if len(data) < 54 || string(data[0:2]) != "BM" {
+		return nil, false
+	}
+
+	pixelOffset := int(binary.LittleEndian.Uint32(data[10:14]))
+	headerSize := int(binary.LittleEndian.Uint32(data[14:18]))
+	if headerSize < 40 || pixelOffset <= 0 || pixelOffset >= len(data) {
+		return nil, false
+	}
+
+	width := int(int32(binary.LittleEndian.Uint32(data[18:22])))
+	heightSigned := int(int32(binary.LittleEndian.Uint32(data[22:26])))
+	if width <= 0 || heightSigned == 0 {
+		return nil, false
+	}
+
+	bpp := int(binary.LittleEndian.Uint16(data[28:30]))
+	if bpp != 24 && bpp != 32 {
+		return nil, false
+	}
+
+	compression := binary.LittleEndian.Uint32(data[30:34])
+	if compression != 0 {
+		return nil, false
+	}
+
+	flipY := true
+	height := heightSigned
+	if height < 0 {
+		flipY = false
+		height = -height
+	}
+	if height == 0 {
+		return nil, false
+	}
+
+	rowBytes := ((width*bpp + 31) / 32) * 4
+	if pixelOffset+rowBytes*height > len(data) {
+		return nil, false
+	}
+
+	out := make([]uint8, width*height*4)
+	outIdx := 0
+	for y := 0; y < height; y++ {
+		srcY := y
+		if flipY {
+			srcY = height - 1 - y
+		}
+		row := pixelOffset + srcY*rowBytes
+
+		for x := 0; x < width; x++ {
+			p := row + x*(bpp/8)
+			if p+2 >= len(data) {
+				return nil, false
+			}
+
+			b := data[p]
+			g := data[p+1]
+			r := data[p+2]
+			a := uint8(255)
+			if bpp == 32 {
+				if p+3 >= len(data) {
+					return nil, false
+				}
+				a = data[p+3]
+			}
+
+			out[outIdx+0] = r
+			out[outIdx+1] = g
+			out[outIdx+2] = b
+			out[outIdx+3] = a
+			outIdx += 4
+		}
+	}
+
+	return &Texture{Data: out, W: width, H: height}, true
 }
 
 // NewTextureFromImage converts an image to RGBA texture storage.

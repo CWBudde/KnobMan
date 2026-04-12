@@ -13,3 +13,10 @@ Thumbs.db
 
 #AI agents
 .claude/
+.codex
+
+# Legacy Java CLI helper cache
+legacy/.jknobman133/
+
+# Parity test render outputs
+tests/parity/*/artifacts/

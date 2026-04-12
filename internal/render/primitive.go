@@ -211,42 +211,237 @@ func intelliAlphaPix(def, target color.RGBA, intelliAlpha int) color.RGBA {
 }
 
 func renderCircle(dst *PixBuf, p *model.Primitive, outline bool, textures []*Texture) {
-	c := primitiveColor(p)
-	cx := float64(dst.Width-1) * 0.5
-	cy := float64(dst.Height-1) * 0.5
-	rx := float64(dst.Width) * 0.45
-	ry := float64(dst.Height) * 0.45
-
-	asp := p.Aspect.Val / 100.0
-	if asp > 0 {
-		rx *= 1.0 + asp
-	} else if asp < 0 {
-		ry *= 1.0 - asp
+	if outline {
+		renderCircleOutline(dst, p, textures)
+		return
 	}
 
-	stroke := math.Max(1, p.Width.Val*0.01*float64(min(dst.Width, dst.Height)))
+	renderCircleFill(dst, p, textures)
+}
+
+func renderCircleOutline(dst *PixBuf, p *model.Primitive, textures []*Texture) {
+	base := primitiveColor(p)
+	rCX := float64(dst.Width) * 0.5
+	rCY := float64(dst.Height) * 0.5
+	rMinSize := math.Min(rCX, rCY) * p.Width.Val * 0.01
+
+	rAY := 1.0
+	rAX := 1.0
+	if p.Aspect.Val > 0 {
+		rAX = 100.0 / (100.0 - math.Min(p.Aspect.Val, 99.0))
+	}
+	if p.Aspect.Val < 0 {
+		rAY = 100.0 / (100.0 + math.Max(p.Aspect.Val, -99.0))
+	}
+
 	for y := 0; y < dst.Height; y++ {
-		fy := (float64(y) - cy) / ry
+		rPY := -((float64(y) + 0.5) - rCY) * rAY
+		rY := rPY / rCY
+		rY2 := rY * rY
+		rYM := rPY / (rCY - rAY)
+		rYM2 := rYM * rYM
+		rYC := rPY / math.Max(0.1, rCY-rMinSize*0.5*rAY)
+		rYC2 := rYC * rYC
+		rYEM := rPY / math.Max(0.1, rCY-rMinSize*rAY+rAY)
+		rYEM2 := rYEM * rYEM
+		rYD1 := rPY / math.Max(0.1, rCY-rMinSize*0.5*p.Diffuse.Val/100.0*rAY)
+		rYD12 := rYD1 * rYD1
+		rYD2 := rPY / math.Max(0.1, rCY-rMinSize*rAY+rMinSize*0.5*p.Diffuse.Val/100.0*rAY)
+		rYD22 := rYD2 * rYD2
+		rYE := rPY / math.Max(0.1, rCY-rMinSize*rAY)
+		rYE2 := rYE * rYE
 
 		for x := 0; x < dst.Width; x++ {
-			fx := (float64(x) - cx) / rx
-			d := math.Sqrt(fx*fx + fy*fy)
+			rPX := -((float64(x) + 0.5) - rCX) * rAX
+			rX := rPX / rCX
+			rXM := rPX / (rCX - rAX)
+			rXC := rPX / math.Max(0.1, rCX-rMinSize*0.5*rAX)
+			rXEM := rPX / math.Max(0.1, rCX-rMinSize*rAX+rAX)
+			rXE := rPX / math.Max(0.1, rCX-rMinSize*rAX)
+			rXD1 := rPX / math.Max(0.1, rCX-rMinSize*0.5*p.Diffuse.Val*0.01*rAX)
+			rXD2 := rPX / math.Max(0.1, rCX-rMinSize*rAX+rMinSize*0.5*p.Diffuse.Val*0.01*rAX)
 
-			inside := d <= 1.0
-			if !inside {
+			r := rX*rX + rY2
+			rM := rXM*rXM + rYM2
+			rE := rXE*rXE + rYE2
+			rD1 := rXD1*rXD1 + rYD12
+			rD2 := rXD2*rXD2 + rYD22
+			rC := rXC*rXC + rYC2
+			rEM := rXEM*rXEM + rYEM2
+			_, _ = rC, rEM
+
+			alpha := 255.0
+			if rE < 1.0 || r > 1.0 {
+				alpha = 0.0
+			} else {
+				if rE >= 1.0 && rEM <= 1.0 {
+					alpha *= (1.0 - rE) / (rEM - rE)
+				}
+				if r < 1.0 && rM >= 1.0 {
+					alpha *= (1.0 - r) / (rM - r)
+				}
+				if rD1 >= 1.0 && r < 1.0 {
+					alpha *= (1.0 - r) / (rD1 - r)
+				} else if rE >= 1.0 && rD2 < 1.0 {
+					v := (rE - 1.0) / (rE - rD2)
+					alpha *= v * v
+				}
+			}
+			if alpha <= 0.0 {
 				continue
 			}
 
-			if outline {
-				edgeDist := (1.0 - d) * math.Min(rx, ry)
-				if edgeDist > stroke {
-					continue
+			pix := base
+			if p.Specular.Val != 0.0 && r > 0 && rE > 0 && alpha > 0.0 {
+				v1 := 1.0 / math.Sqrt(r)
+				v2 := 1.0 / math.Sqrt(rE)
+				v := 2.0 * (1.0 - v2) / (v1 - v2)
+				if v > 1.0 {
+					v = 2.0 - v
+				}
+				pix = changeBrightnessRGBA(pix, int(v*p.Specular.Val*2.55))
+			}
+			pix = applyTextureOverlay(pix, textures, p, x, y)
+			pix.A = uint8(clampInt(int(alpha), 0, 255))
+			dst.Set(x, y, pix)
+		}
+	}
+}
+
+func renderCircleFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
+	base := primitiveColor(p)
+	cx := float64(dst.Width) * 0.5
+	cy := float64(dst.Height) * 0.5
+	ax := cx
+	ay := cy
+	if p.Aspect.Val > 0.0 {
+		ax = (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0 * cx
+	}
+	if p.Aspect.Val < 0.0 {
+		ay = (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0 * cy
+	}
+
+	rThick := math.Abs(p.Emboss.Val) / 100.0
+	if rThick == 1.0 {
+		rThick = 0.99
+	}
+	rEmbossEdge := (100.0 - p.EmbossDiffuse.Val) / 100.0
+	rD := 1.0 - p.Diffuse.Val/100.0
+	rD2 := rD * rD
+	rMin := math.Min(ax, ay)
+
+	rLY := math.Sqrt(1.0 / 3.0)
+	rLX := rLY
+	rLZ := rLY
+	rTZ := 1.0 / math.Sqrt(2.0)
+
+	iMetalAmbient := int(p.Ambient.Val * 255.0 / 100.0)
+	iMetalSpecular := int(p.Specular.Val * 255.0 / 100.0)
+	dMetalSpecularWidth := 0.0
+	if p.SpecularWidth.Val == 0.0 {
+		iMetalSpecular = 0
+	} else {
+		dMetalSpecularWidth = math.Pow(1.0/(p.SpecularWidth.Val*0.01), 3.0)
+	}
+
+	rSX := -p.LightDir.Val
+	rSY := -p.LightDir.Val
+	rSZ := 50.0
+	a := math.Sqrt(rSX*rSX + rSY*rSY + rSZ*rSZ)
+	rSX /= a
+	rSY /= a
+	rSZ /= a
+
+	txd := p.TextureDepth.Val * 0.01
+
+	for y := 0; y < dst.Height; y++ {
+		py := float64(y) - cy + 0.5
+		ry := py / (ay + 0.5)
+		rym := py / (ay - 0.5)
+		rye := py / (ay + 0.5 - rMin*rThick*rEmbossEdge)
+		ryem := py / (ay - rMin*rThick)
+
+		for x := 0; x < dst.Width; x++ {
+			px := float64(x) - cx + 0.5
+			rx := px / (ax + 0.5)
+			rxy := rx*rx + ry*ry
+			rxm := px / (ax - 0.5)
+			rxym := rxm*rxm + rym*rym
+			rxe := px / (ax + 0.5 - rMin*rThick*rEmbossEdge)
+			rxem := px / (ax - rMin*rThick)
+			rxye := rxe*rxe + rye*rye
+			rxyem := rxem*rxem + ryem*ryem
+
+			pix := base
+			alpha := 255
+			lumi := 0
+			if idx := p.TextureFile.Val; idx > 0 && idx <= len(textures) {
+				if tex := textures[idx-1]; tex != nil {
+					tc := tex.Sample(px, py, p.TextureZoom.Val)
+					lumi = int((float64(int(tc.B) - 128)) * txd)
+					alpha = 255 - int(float64(255-int(tc.A))*txd)
 				}
 			}
 
-			pix := c
-			pix = applyTextureOverlay(pix, textures, p, x, y)
-			dst.BlendOver(x, y, pix)
+			if rxye < 1.0 {
+				switch model.PrimitiveType(p.Type.Val) {
+				case model.PrimCircleFill:
+					pix = changeBrightnessRGBA(pix, int((-rx-ry)*128.0*p.Specular.Val/100.0)+lumi)
+				case model.PrimMetalCircle:
+					d := math.Sin(math.Atan2(ry, rx) * 2.0)
+					d2 := math.Pow((d+1.0)*0.5, dMetalSpecularWidth)
+					a := (d+1.0)*0.5*float64(255-iMetalAmbient) + float64(iMetalAmbient) + d2*float64(iMetalSpecular) + float64(lumi)
+					pix = changeBrightnessRGBA(pix, int(a-256.0))
+				case model.PrimSphere:
+					rZ := math.Sqrt(math.Max(0.0, 1.0-rxy))
+					d := -rx*rSX - ry*rSY + rZ*rSZ
+					a := float64(iMetalAmbient) + float64(255-iMetalAmbient)*d
+					d = 2.0*rZ*d - rSZ
+					if d <= 0.0 {
+						d = 0.0
+					} else {
+						d = math.Exp(math.Log(d) * (110.0 - p.SpecularWidth.Val) / 10.0)
+					}
+					pix = brightRGBA(pix, int(a)+lumi)
+					pix = changeBrightnessRGBA(pix, int(float64(iMetalSpecular)*d))
+				}
+			}
+
+			if rxyem >= 1.0 {
+				rR2 := math.Sqrt(math.Max(1e-12, 2.0*rxy))
+				rTX := -rx / rR2
+				rTY := -ry / rR2
+				edgePix := base
+				if p.Emboss.Val > 0.0 {
+					r := rTX*rLX + rTY*rLY + rTZ*rLZ
+					edgePix = changeBrightnessRGBA(edgePix, int(r*255.0-128.0))
+				} else if p.Emboss.Val < 0.0 {
+					r := -rTX*rLX - rTY*rLY + rTZ*rLZ
+					edgePix = changeBrightnessRGBA(edgePix, int(r*255.0-128.0))
+				}
+				a := math.Min(255.0, math.Max(0.0, 255.0*math.Abs((1.0-rxyem)/(rxye-rxyem))))
+				if rxye < 1.0 {
+					pix = blendToRGBA(pix, edgePix, int(a))
+				} else {
+					pix = edgePix
+				}
+			}
+
+			if rxy > 1.0 {
+				alpha = 0
+			}
+			if rD2 < 1.0 && rxy > rD2 {
+				alpha = int(float64(alpha) * (1.0 - (rxy-rD2)/(1.0-rD2)))
+			}
+			if rxym >= 1.0 {
+				alpha = int((1.0 - rxy) / (rxym - rxy) * float64(alpha))
+			}
+			if alpha <= 0 {
+				continue
+			}
+
+			pix.A = uint8(clampInt(alpha, 0, 255))
+			dst.Set(x, y, pix)
 		}
 	}
 }
@@ -947,6 +1142,27 @@ func clampInt(v, lo, hi int) int {
 	}
 
 	return v
+}
+
+func changeBrightnessRGBA(c color.RGBA, delta int) color.RGBA {
+	c.R = uint8(clampInt(int(c.R)+delta, 0, 255))
+	c.G = uint8(clampInt(int(c.G)+delta, 0, 255))
+	c.B = uint8(clampInt(int(c.B)+delta, 0, 255))
+	return c
+}
+
+func brightRGBA(c color.RGBA, scale int) color.RGBA {
+	c.R = uint8(clampInt(int(c.R)*scale/255, 0, 255))
+	c.G = uint8(clampInt(int(c.G)*scale/255, 0, 255))
+	c.B = uint8(clampInt(int(c.B)*scale/255, 0, 255))
+	return c
+}
+
+func blendToRGBA(base, target color.RGBA, alpha int) color.RGBA {
+	base.R = uint8((int(base.R)*(256-alpha) + int(target.R)*alpha) / 256)
+	base.G = uint8((int(base.G)*(256-alpha) + int(target.G)*alpha) / 256)
+	base.B = uint8((int(base.B)*(256-alpha) + int(target.B)*alpha) / 256)
+	return base
 }
 
 func applyTextureOverlay(base color.RGBA, textures []*Texture, p *model.Primitive, x, y int) color.RGBA {

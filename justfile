@@ -43,6 +43,34 @@ test-coverage:
     go test -v -coverprofile=coverage.out ./...
     go tool cover -html=coverage.out -o coverage.html
 
+# Render frame-0 Go regression baselines from sample .knob files.
+parity-generate FLAGS="":
+    go run ./cmd/parityref {{FLAGS}}
+
+# Render frame-0 authoritative Java baselines from sample .knob files.
+java-parity-generate FLAGS="":
+    ./legacy/run-render-cli.sh --samples assets/samples --output-dir tests/parity/samples/baseline-java --frame 0 --overwrite {{FLAGS}}
+
+# Generate minimal primitive parity fixtures as .knob files.
+primitive-fixtures-generate FLAGS="":
+    go run ./cmd/primitivefixtures {{FLAGS}}
+
+# Render frame-0 Go regression baselines for the primitive fixtures.
+parity-primitives-generate FLAGS="":
+    go run ./cmd/parityref --samples tests/parity/primitives/inputs --refs tests/parity/primitives/baseline-go --frame 0 --overwrite {{FLAGS}}
+
+# Render authoritative Java baselines for the primitive fixtures.
+java-parity-primitives-generate FLAGS="":
+    ./legacy/run-render-cli.sh --samples tests/parity/primitives/inputs --output-dir tests/parity/primitives/baseline-java --frame 0 --overwrite {{FLAGS}}
+
+# Run the primitive regression suite against Go baselines.
+parity-primitives-test:
+    go test ./internal/render -run TestParityRegressionPrimitiveFixturesFrame0 -count=1
+
+# Run the primitive parity suite against authoritative Java baselines.
+parity-primitives-golden-test:
+    go test ./internal/render -run TestParityGoldenPrimitiveFixturesFrame0 -count=1
+
 # Format all code using treefmt
 fmt:
     treefmt --allow-missing-formatter

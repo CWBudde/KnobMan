@@ -18,7 +18,7 @@ Try online: https://cwbudde.github.io/KnobMan/
   - Animated GIF
   - APNG
 - **Productivity**: undo/redo, keyboard shortcuts, samples browser, recent files, session persistence.
-- **Quality**: visual regression tests against reference renders.
+- **Quality**: visual regression tests against explicit Go and Java parity baselines.
 
 ## Quickstart
 
@@ -89,8 +89,14 @@ just test
 - `internal/export/` — exporters (PNG strip/frames, GIF, APNG)
 - `web/` — static UI shell (HTML/CSS/JS + WASM loader)
 - `assets/` — embedded textures and sample `.knob` projects
-- `tests/reference/` — reference renders used by visual regression tests
+- `tests/parity/` — parity suites, baselines, and transient render artifacts
 - `legacy/` — archived legacy materials
+
+## Parity Baselines
+
+- `tests/parity/*/baseline-java/` contains the authoritative golden images rendered by legacy JKnobMan.
+- `tests/parity/*/baseline-go/` contains Go-rendered regression baselines used to catch accidental behavior changes during refactors.
+- `tests/parity/*/artifacts/` holds generated comparison outputs and should not be treated as committed source data.
 
 ## Deployment (static hosting)
 
