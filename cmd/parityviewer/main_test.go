@@ -14,9 +14,9 @@ import (
 func TestLoadCasesSortsByRMSEDescending(t *testing.T) {
 	parityDir := filepath.Join(t.TempDir(), "parity")
 	mustWritePNG(t, filepath.Join(parityDir, "samples", "baseline-go", "same.png"), solidImage(2, 2, color.RGBA{R: 10, G: 20, B: 30, A: 255}))
-	mustWritePNG(t, filepath.Join(parityDir, "samples", "artifacts", "baseline-go", "same.png"), solidImage(2, 2, color.RGBA{R: 10, G: 20, B: 30, A: 255}))
+	mustWritePNG(t, filepath.Join(parityDir, "samples", "artifacts", "same.png"), solidImage(2, 2, color.RGBA{R: 10, G: 20, B: 30, A: 255}))
 	mustWritePNG(t, filepath.Join(parityDir, "samples", "baseline-go", "different.png"), solidImage(2, 2, color.RGBA{R: 0, G: 0, B: 0, A: 255}))
-	mustWritePNG(t, filepath.Join(parityDir, "samples", "artifacts", "baseline-go", "different.png"), solidImage(2, 2, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
+	mustWritePNG(t, filepath.Join(parityDir, "samples", "artifacts", "different.png"), solidImage(2, 2, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
 
 	result, err := loadCases(parityDir)
 	if err != nil {
@@ -64,6 +64,7 @@ func TestRenderCardIncludesFiltersAndMetrics(t *testing.T) {
 	for _, want := range []string{
 		`data-suite="primitives"`,
 		`data-baseline="baseline-java"`,
+		`Re-render Artifact`,
 		`data-rmse="12.3456"`,
 		`data-avg-diff="3.2100"`,
 		`data-max-diff="17"`,
@@ -74,6 +75,29 @@ func TestRenderCardIncludesFiltersAndMetrics(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Fatalf("renderCard missing %q in output:\n%s", want, html)
 		}
+	}
+}
+
+func TestParityInputPath(t *testing.T) {
+	root := "/repo"
+	got, err := parityInputPath(root, "samples", "Aqua")
+	if err != nil {
+		t.Fatalf("samples parityInputPath: %v", err)
+	}
+	if want := filepath.Join(root, "assets", "samples", "Aqua.knob"); got != want {
+		t.Fatalf("samples path mismatch: got %q want %q", got, want)
+	}
+
+	got, err = parityInputPath(root, "primitives", "triangle_basic")
+	if err != nil {
+		t.Fatalf("primitives parityInputPath: %v", err)
+	}
+	if want := filepath.Join(root, "tests", "parity", "primitives", "inputs", "triangle_basic.knob"); got != want {
+		t.Fatalf("primitives path mismatch: got %q want %q", got, want)
+	}
+
+	if _, err := parityInputPath(root, "unknown", "x"); err == nil {
+		t.Fatal("expected error for unsupported suite")
 	}
 }
 

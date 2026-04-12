@@ -117,7 +117,7 @@ func TestRenderFrameSoloSelection(t *testing.T) {
 	buf := NewPixBuf(16, 16)
 	RenderFrame(buf, doc, 0, nil)
 
-	if got := buf.At(8, 8); got != (color.RGBA{0, 0, 0, 0}) {
+	if got := buf.At(8, 8); got != doc.Prefs.BkColor.Val {
 		t.Fatalf("solo layer should suppress non-solo layers; got %+v", got)
 	}
 

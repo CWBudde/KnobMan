@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"flag"
+	"image"
 	"image/color"
+	"image/png"
 	"log"
 	"os"
 	"path/filepath"
@@ -47,6 +50,38 @@ type fixtureDef struct {
 
 func primitiveFixtures() []fixtureDef {
 	return []fixtureDef{
+		{Name: "vu3_circle_mask_black", Build: func() *model.Document {
+			doc := newPrimitiveDocWithSize("Vu3CircleMaskBlack", 120, 80)
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircle)
+			ly.Prim.Fill.Val = 1
+			ly.Prim.Color.Val = rgb(0, 0, 0)
+			ly.Prim.Width.Val = 8
+			ly.Prim.Length.Val = 100
+			ly.Eff.CenterY.Val = -60
+			ly.Eff.OffYF.Val = -38
+			ly.Eff.Mask1Ena.Val = 1
+			ly.Eff.Mask1Type.Val = 0
+			ly.Eff.Mask1StartF.Val = -47
+			ly.Eff.Mask1StopF.Val = 20
+			return doc
+		}},
+		{Name: "vu3_circle_mask_red", Build: func() *model.Document {
+			doc := newPrimitiveDocWithSize("Vu3CircleMaskRed", 120, 80)
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircle)
+			ly.Prim.Fill.Val = 1
+			ly.Prim.Color.Val = rgb(255, 17, 17)
+			ly.Prim.Width.Val = 8
+			ly.Prim.Length.Val = 100
+			ly.Eff.CenterY.Val = -60
+			ly.Eff.OffYF.Val = -38
+			ly.Eff.Mask1Ena.Val = 1
+			ly.Eff.Mask1Type.Val = 0
+			ly.Eff.Mask1StartF.Val = 20
+			ly.Eff.Mask1StopF.Val = 47
+			return doc
+		}},
 		{Name: "circle_outline_basic", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Circle")
 			ly := &doc.Layers[0]
@@ -178,6 +213,90 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Shape.Val = "/128,24,128,24,128,24:232,224,232,224,232,224:24,224,24,224,24,224"
 			return doc
 		}},
+		{Name: "text_basic_center", Build: func() *model.Document {
+			doc := newPrimitiveDoc("TextCenter")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimText)
+			ly.Prim.Color.Val = rgb(28, 28, 28)
+			ly.Prim.FontSize.Val = 62
+			ly.Prim.TextAlign.Val = 1
+			ly.Prim.Text.Val = "TX"
+			return doc
+		}},
+		{Name: "rect_fill_texture_basic", Build: func() *model.Document {
+			doc := newPrimitiveDoc("RectFillTexture")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRectFill)
+			ly.Prim.Color.Val = rgb(96, 120, 168)
+			ly.Prim.TextureName = "embedded-checker.png"
+			ly.Prim.EmbeddedTexture = checkerTexturePNG()
+			ly.Prim.TextureDepth.Val = 70
+			ly.Prim.TextureZoom.Val = 100
+			return doc
+		}},
+		{Name: "vu3_line_transform_flip_probe", Build: func() *model.Document {
+			doc := newPrimitiveDocWithSize("Vu3LineTransformFlipProbe", 120, 80)
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimLine)
+			ly.Prim.Color.Val = rgb(0, 0, 0)
+			ly.Prim.Width.Val = 10
+			ly.Prim.Length.Val = 84
+			ly.Eff.AngleF.Val = 45
+			ly.Eff.AngleT.Val = 45
+			ly.Eff.CenterY.Val = -60
+			ly.Eff.OffYF.Val = -38
+			return doc
+		}},
+		{Name: "vu3_radiate_mask_black", Build: func() *model.Document {
+			doc := newPrimitiveDocWithSize("Vu3RadiateMaskBlack", 120, 80)
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRadiateLine)
+			ly.Prim.Color.Val = rgb(0, 0, 0)
+			ly.Prim.Width.Val = 0
+			ly.Prim.Length.Val = 11
+			ly.Prim.AngleStep.Val = 8
+			ly.Prim.Aspect.Val = 17
+			ly.Eff.ZoomXF.Val = 157
+			ly.Eff.ZoomXT.Val = 157
+			ly.Eff.CenterY.Val = -60
+			ly.Eff.OffYF.Val = -60
+			ly.Eff.Mask1Ena.Val = 1
+			ly.Eff.Mask1Type.Val = 0
+			ly.Eff.Mask1StartF.Val = -50
+			ly.Eff.Mask1StopF.Val = 16
+			return doc
+		}},
+		{Name: "vu3_radiate_mask_red", Build: func() *model.Document {
+			doc := newPrimitiveDocWithSize("Vu3RadiateMaskRed", 120, 80)
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRadiateLine)
+			ly.Prim.Color.Val = rgb(255, 0, 0)
+			ly.Prim.Width.Val = 0
+			ly.Prim.Length.Val = 11
+			ly.Prim.AngleStep.Val = 8
+			ly.Prim.Aspect.Val = 17
+			ly.Eff.ZoomXF.Val = 157
+			ly.Eff.ZoomXT.Val = 157
+			ly.Eff.CenterY.Val = -60
+			ly.Eff.OffYF.Val = -60
+			ly.Eff.Mask1Ena.Val = 1
+			ly.Eff.Mask1Type.Val = 0
+			ly.Eff.Mask1StartF.Val = 15
+			ly.Eff.Mask1StopF.Val = 47
+			return doc
+		}},
+		{Name: "circle_fill_texture_basic", Build: func() *model.Document {
+			doc := newPrimitiveDoc("CircleFillTexture")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircleFill)
+			ly.Prim.Color.Val = rgb(80, 150, 96)
+			ly.Prim.TextureName = "embedded-checker.png"
+			ly.Prim.EmbeddedTexture = checkerTexturePNG()
+			ly.Prim.TextureDepth.Val = 65
+			ly.Prim.TextureZoom.Val = 140
+			ly.Prim.Specular.Val = 18
+			return doc
+		}},
 	}
 }
 
@@ -190,7 +309,7 @@ func newPrimitiveDoc(name string) *model.Document {
 	doc.Prefs.Height = 64
 	doc.Prefs.RenderFrames.Val = 1
 	doc.Prefs.PreviewFrames.Val = 1
-	doc.Prefs.BkColor.Val = rgb(255, 255, 255)
+	doc.Prefs.BkColor.Val = color.RGBA{}
 
 	ly := &doc.Layers[0]
 	ly.Name = name
@@ -202,6 +321,37 @@ func newPrimitiveDoc(name string) *model.Document {
 	return doc
 }
 
+func newPrimitiveDocWithSize(name string, w, h int) *model.Document {
+	doc := newPrimitiveDoc(name)
+	doc.Prefs.Width = w
+	doc.Prefs.Height = h
+	doc.Prefs.PWidth.Val = w
+	doc.Prefs.PHeight.Val = h
+	return doc
+}
+
 func rgb(r, g, b uint8) color.RGBA {
 	return color.RGBA{R: r, G: g, B: b, A: 255}
+}
+
+func checkerTexturePNG() []byte {
+	img := image.NewNRGBA(image.Rect(0, 0, 8, 8))
+	light := color.NRGBA{R: 240, G: 240, B: 240, A: 255}
+	dark := color.NRGBA{R: 48, G: 48, B: 48, A: 255}
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			c := light
+			if (x/2+y/2)%2 == 1 {
+				c = dark
+			}
+			img.Set(x, y, c)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		log.Fatalf("encode checker texture: %v", err)
+	}
+
+	return buf.Bytes()
 }

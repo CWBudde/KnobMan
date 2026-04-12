@@ -14,6 +14,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -80,6 +81,17 @@ func main() {
 
 		renderPage(w, result)
 	})
+	http.HandleFunc("/rerender", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if err := rerenderArtifact(root, parityDir, r.FormValue("suite"), r.FormValue("name")); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 
 	addr := ":" + *port
 	log.Printf("Parity viewer running at http://localhost%s", addr)
@@ -113,7 +125,7 @@ func loadCases(parityDir string) (loadResult, error) {
 
 			baselineName := child.Name()
 			baselineDir := filepath.Join(suitePath, baselineName)
-			artifactDir := filepath.Join(suitePath, "artifacts", baselineName)
+			artifactDir := filepath.Join(suitePath, "artifacts")
 
 			baselines, err := filepath.Glob(filepath.Join(baselineDir, "*.png"))
 			if err != nil {
@@ -468,6 +480,65 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
+func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
+	if !isSafePathPart(suite) {
+		return fmt.Errorf("invalid suite %q", suite)
+	}
+	if !isSafePathPart(name) {
+		return fmt.Errorf("invalid case name %q", name)
+	}
+
+	inputPath, err := parityInputPath(repoRoot, suite, name)
+	if err != nil {
+		return err
+	}
+	outputPath := filepath.Join(parityDir, suite, "artifacts", name+".png")
+
+	cmd := exec.Command(
+		"go", "run", "./cmd/parityref",
+		"--input", inputPath,
+		"--output", outputPath,
+		"--frame", "0",
+	)
+	cmd.Dir = repoRoot
+	cmd.Env = append(os.Environ(), "GOCACHE=/tmp/knobman-gocache")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("rerender failed: %s", msg)
+	}
+
+	if _, err := os.Stat(outputPath); err != nil {
+		return fmt.Errorf("rerender did not produce %s: %w", outputPath, err)
+	}
+	return nil
+}
+
+func isSafePathPart(s string) bool {
+	if strings.TrimSpace(s) == "" {
+		return false
+	}
+	if s != filepath.Base(s) {
+		return false
+	}
+	return !strings.Contains(s, "..")
+}
+
+func parityInputPath(repoRoot, suite, name string) (string, error) {
+	switch suite {
+	case "samples":
+		return filepath.Join(repoRoot, "assets", "samples", name+".knob"), nil
+	case "primitives":
+		return filepath.Join(repoRoot, "tests", "parity", "primitives", "inputs", name+".knob"), nil
+	default:
+		return "", fmt.Errorf("unsupported suite %q", suite)
+	}
+}
+
 func esc(s string) string {
 	return html.EscapeString(s)
 }
@@ -528,6 +599,12 @@ func renderCard(w io.Writer, entry *caseEntry) {
 
 	fmt.Fprint(w, `<div class="card-body"><div class="card-meta">`)
 	fmt.Fprintf(w, `baseline %dx%d, artifact %dx%d`, entry.RefWidth, entry.RefHeight, entry.ActWidth, entry.ActHeight)
+	fmt.Fprintf(
+		w,
+		` <button class="rerender-btn" data-suite="%s" data-name="%s" type="button">Re-render Artifact</button>`,
+		esc(entry.Suite),
+		esc(entry.Name),
+	)
 	fmt.Fprint(w, `</div><div class="img-grid">`)
 
 	fmt.Fprint(w, `<div class="img-col">`)
@@ -643,6 +720,12 @@ body { background: #101216; color: #d7dce4; font-family: ui-monospace, SFMono-Re
 .badge-ok { background: #163323; color: #7cf0a5; border: 1px solid #2e7250; }
 .badge-warn { background: #3a2d13; color: #ffc66d; border: 1px solid #6f5521; }
 .badge-bad { background: #3b1619; color: #ff8a8f; border: 1px solid #7c2d35; }
+.rerender-btn {
+  margin-left: 10px; padding: 5px 10px; border-radius: 8px; border: 1px solid #425168;
+  background: #202734; color: #d7dce4; cursor: pointer; font: inherit;
+}
+.rerender-btn:hover { background: #273244; }
+.rerender-btn:disabled { opacity: 0.6; cursor: wait; }
 .img-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
 .img-col { display: flex; flex-direction: column; gap: 6px; overflow: auto; }
 .img-col label { font-size: 11px; color: #93a1b5; text-align: center; }
@@ -688,7 +771,7 @@ code { color: #f4f7fb; }
     </select>
     <select id="baseline-filter" onchange="filterCards()">
       <option value="">Baseline: all</option>
-      <option value="baseline-java">Baseline: java</option>
+      <option value="baseline-java" selected>Baseline: java</option>
       <option value="baseline-go">Baseline: go</option>
     </select>
     <select id="sort-select" onchange="sortCards()">
@@ -834,6 +917,30 @@ const pageFooter = `</div>
     });
   });
 
+  document.querySelectorAll('.rerender-btn').forEach(function(button) {
+    button.addEventListener('click', function(event) {
+      event.stopPropagation();
+      var suite = button.dataset.suite || '';
+      var name = button.dataset.name || '';
+      button.disabled = true;
+      fetch('/rerender', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: new URLSearchParams({ suite: suite, name: name }).toString()
+      }).then(function(response) {
+        if (!response.ok) {
+          return response.text().then(function(text) {
+            throw new Error(text || 'rerender failed');
+          });
+        }
+        window.location.reload();
+      }).catch(function(err) {
+        window.alert(err.message);
+        button.disabled = false;
+      });
+    });
+  });
+
   document.querySelectorAll('.slider-wrap').forEach(function(wrap) {
     var divider = wrap.querySelector('.slider-divider');
     var overlay = wrap.querySelector('.slider-overlay');
@@ -876,8 +983,9 @@ const pageFooter = `</div>
   window.setDiffMode = setDiffMode;
   window.setOriginalSize = setOriginalSize;
 
-  updateSortMetricBadges(document.getElementById('sort-select').value);
-  updateSummary();
+  sortCards();
+  setDiffMode(document.getElementById('diff-mode').value);
+  filterCards();
 })();
 </script>
 </body>

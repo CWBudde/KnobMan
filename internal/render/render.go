@@ -42,6 +42,7 @@ func RenderFrame(dst *PixBuf, doc *model.Document, frame int, textures []*Textur
 	if out != dst {
 		dst.CopyFrom(out)
 	}
+	flattenOverBackground(dst, doc.Prefs.BkColor.Val)
 }
 
 // RenderAll renders all export frames.
@@ -71,7 +72,7 @@ func RenderAll(doc *model.Document, textures []*Texture) []*PixBuf {
 }
 
 func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Texture) {
-	dst.Clear(color.RGBA{0, 0, 0, 0})
+	dst.Clear(color.RGBA{})
 
 	totalFrames := doc.Prefs.RenderFrames.Val
 	if totalFrames < 1 {
@@ -100,6 +101,40 @@ func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Textu
 		prim := NewPixBuf(dst.Width, dst.Height)
 		RenderPrimitive(prim, &ly.Prim, textures, frame, totalFrames)
 		ApplyEffect(dst, prim, &ly.Eff, &doc.Curves, frame, totalFrames, textures)
+	}
+}
+
+func flattenOverBackground(dst *PixBuf, bg color.RGBA) {
+	if dst == nil {
+		return
+	}
+
+	// Preserve fully transparent output if background alpha is also zero.
+	if bg.A == 0 {
+		return
+	}
+
+	for y := range dst.Height {
+		off := y * dst.Stride
+		for x := 0; x < dst.Width; x++ {
+			i := off + x*4
+			srcR := int(dst.Data[i+0])
+			srcG := int(dst.Data[i+1])
+			srcB := int(dst.Data[i+2])
+			srcA := int(dst.Data[i+3])
+
+			// Alpha compositing: color = src over bg.
+			ia := 255 - srcA
+			outA := srcA + (255-srcA)*int(bg.A)/255
+			bgWeightedAlpha := int(bg.A) * ia / 255
+			outR := (srcR*srcA + int(bg.R)*bgWeightedAlpha) / outA
+			outG := (srcG*srcA + int(bg.G)*bgWeightedAlpha) / outA
+			outB := (srcB*srcA + int(bg.B)*bgWeightedAlpha) / outA
+			dst.Data[i+0] = uint8(clampInt(outR, 0, 255))
+			dst.Data[i+1] = uint8(clampInt(outG, 0, 255))
+			dst.Data[i+2] = uint8(clampInt(outB, 0, 255))
+			dst.Data[i+3] = uint8(clampInt(outA, 0, 255))
+		}
 	}
 }
 

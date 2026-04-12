@@ -215,12 +215,102 @@ func (t *Texture) at(x, y int) color.RGBA {
 	return color.RGBA{R: t.Data[i], G: t.Data[i+1], B: t.Data[i+2], A: t.Data[i+3]}
 }
 
+// SampleHeightAlpha matches JKnobMan's Tex.Get behavior for primitive textures.
+// It treats the texture as a tiled grayscale+alpha map in coordinates centered on
+// the primitive, and switches to a 2x downsampled lookup when zoom <= 50.
+func (t *Texture) SampleHeightAlpha(x, y, zoom float64) (luma, alpha int) {
+	if t == nil || t.W <= 0 || t.H <= 0 || len(t.Data) < t.W*t.H*4 {
+		return 255, 255
+	}
+
+	if zoom == 0 {
+		return 255, 255
+	}
+
+	reduction := 1
+	if zoom <= 50.0 && t.W >= 2 && t.H >= 2 {
+		reduction = 2
+	}
+
+	zWidth := t.W / reduction
+	zHeight := t.H / reduction
+	if zWidth <= 0 {
+		zWidth = 1
+	}
+	if zHeight <= 0 {
+		zHeight = 1
+	}
+
+	z := zoom * float64(reduction)
+	x = (x+0.5)*100.0/z + float64(zWidth)*0.5
+	y = (y+0.5)*100.0/z + float64(zHeight)*0.5
+	x -= math.Floor(x/float64(zWidth)) * float64(zWidth)
+	y -= math.Floor(y/float64(zHeight)) * float64(zHeight)
+
+	ix := int(x)
+	iy := int(y)
+	fx := x - float64(ix)
+	fy := y - float64(iy)
+
+	p00, a00 := t.gridHeightAlpha(ix, iy, zWidth, zHeight, reduction)
+	p10, a10 := t.gridHeightAlpha(ix+1, iy, zWidth, zHeight, reduction)
+	p01, a01 := t.gridHeightAlpha(ix, iy+1, zWidth, zHeight, reduction)
+	p11, a11 := t.gridHeightAlpha(ix+1, iy+1, zWidth, zHeight, reduction)
+
+	p0 := float64(p00)*(1.0-fx) + float64(p10)*fx
+	p1 := float64(p01)*(1.0-fx) + float64(p11)*fx
+	a0 := float64(a00)*(1.0-fx) + float64(a10)*fx
+	a1 := float64(a01)*(1.0-fx) + float64(a11)*fx
+
+	return int(p0*(1.0-fy) + p1*fy), int(a0*(1.0-fy) + a1*fy)
+}
+
+func (t *Texture) gridHeightAlpha(gx, gy, zWidth, zHeight, reduction int) (luma, alpha int) {
+	gx = wrapInt(gx, zWidth)
+	gy = wrapInt(gy, zHeight)
+
+	if reduction == 1 {
+		return t.heightAlphaAt(gx, gy)
+	}
+
+	x0 := wrapInt(gx*reduction, t.W)
+	y0 := wrapInt(gy*reduction, t.H)
+	x1 := wrapInt(x0+1, t.W)
+	y1 := wrapInt(y0+1, t.H)
+
+	l00, a00 := t.heightAlphaAt(x0, y0)
+	l10, a10 := t.heightAlphaAt(x1, y0)
+	l01, a01 := t.heightAlphaAt(x0, y1)
+	l11, a11 := t.heightAlphaAt(x1, y1)
+
+	return (l00 + l10 + l01 + l11) / 4, (a00 + a10 + a01 + a11) / 4
+}
+
+func (t *Texture) heightAlphaAt(x, y int) (luma, alpha int) {
+	c := t.at(x, y)
+	luma = (int(c.R)*3 + int(c.G)*6 + int(c.B)) / 10
+	return luma, int(c.A)
+}
+
 func wrapFloat(v, n float64) float64 {
 	if n <= 0 {
 		return 0
 	}
 
 	v = math.Mod(v, n)
+	if v < 0 {
+		v += n
+	}
+
+	return v
+}
+
+func wrapInt(v, n int) int {
+	if n <= 0 {
+		return 0
+	}
+
+	v %= n
 	if v < 0 {
 		v += n
 	}

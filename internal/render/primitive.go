@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	agg "github.com/cwbudde/agg_go"
 	"knobman/internal/model"
 )
 
@@ -54,7 +55,7 @@ func RenderPrimitive(dst *PixBuf, p *model.Primitive, textures []*Texture, frame
 	case model.PrimText:
 		renderText(dst, p, frame, totalFrames)
 	case model.PrimShape:
-		renderShape(dst, p)
+		renderShape(dst, p, textures)
 	}
 }
 
@@ -352,8 +353,6 @@ func renderCircleFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rSY /= a
 	rSZ /= a
 
-	txd := p.TextureDepth.Val * 0.01
-
 	for y := 0; y < dst.Height; y++ {
 		py := float64(y) - cy + 0.5
 		ry := py / (ay + 0.5)
@@ -375,13 +374,7 @@ func renderCircleFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			pix := base
 			alpha := 255
 			lumi := 0
-			if idx := p.TextureFile.Val; idx > 0 && idx <= len(textures) {
-				if tex := textures[idx-1]; tex != nil {
-					tc := tex.Sample(px, py, p.TextureZoom.Val)
-					lumi = int((float64(int(tc.B) - 128)) * txd)
-					alpha = 255 - int(float64(255-int(tc.A))*txd)
-				}
-			}
+			lumi, alpha = sampleTextureLumiAlpha(textures, p, px, py)
 
 			if rxye < 1.0 {
 				switch model.PrimitiveType(p.Type.Val) {
@@ -493,23 +486,13 @@ func renderWaveCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	}
 	rMax := math.Sqrt(math.Min(rCX, rCY) * math.Min(rCX, rCY))
 	rD := 1.0 - p.Diffuse.Val*0.01
-	txd := p.TextureDepth.Val * 0.01
-
 	for y := 0; y < dst.Height; y++ {
 		rPY := float64(y) - rCY + 0.5
 		rY := rPY / rAY
 		for x := 0; x < dst.Width; x++ {
 			rPX := float64(x) - rCX + 0.5
-			alpha := 255
-			if idx := p.TextureFile.Val; idx > 0 && idx <= len(textures) {
-				if tex := textures[idx-1]; tex != nil {
-					tc := tex.Sample(rPX, rPY, p.TextureZoom.Val)
-					lumi = float64(int(tc.B)-128) * txd
-					alpha = 255 - int(float64(255-int(tc.A))*txd)
-				}
-			} else {
-				lumi = 0.0
-			}
+			lumiInt, alpha := sampleTextureLumiAlpha(textures, p, rPX, rPY)
+			lumi = float64(lumiInt)
 
 			rX := rPX / rAX
 			rTh := math.Abs(math.Atan2(rX, rY))
@@ -691,8 +674,6 @@ func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rXEM := rWidth - rMin*float64(iEm)/200.0
 	rYE := rHeight + 1.0 - rMin*float64(iEm)/200.0*rEmbossEdge
 	rYEM := rHeight - rMin*float64(iEm)/200.0
-	txd := p.TextureDepth.Val * 0.01
-
 	for y := 0; y < dst.Height; y++ {
 		rY := -((float64(y) + 0.5) - rCY)
 		rYN := rY / rCY
@@ -703,13 +684,7 @@ func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			rPX := float64(x) - rCX + 0.5
 			alpha := 255
 			lumi := 0
-			if idx := p.TextureFile.Val; idx > 0 && idx <= len(textures) {
-				if tex := textures[idx-1]; tex != nil {
-					tc := tex.Sample(rPX, rPY, p.TextureZoom.Val)
-					lumi = int((float64(int(tc.B) - 128)) * txd)
-					alpha = 255 - int(float64(255-int(tc.A))*txd)
-				}
-			}
+			lumi, alpha = sampleTextureLumiAlpha(textures, p, rPX, rPY)
 
 			rX := -((float64(x) + 0.5) - rCX)
 			rXN := rX / rCX
@@ -823,21 +798,13 @@ func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rYLen := float64(dst.Height) * p.Length.Val * 0.01
 	rWidth := float64(dst.Width) * p.Width.Val * 0.005
 	rD := 1.0 - p.Diffuse.Val*0.01
-	txd := p.TextureDepth.Val * 0.01
-
 	for y := 0; y < dst.Height; y++ {
 		rPY := float64(y) - rCY + 0.5
 		for x := 0; x < dst.Width; x++ {
 			rPX := float64(x) - rCX + 0.5
 			alpha := 255
 			lumi := 0
-			if idx := p.TextureFile.Val; idx > 0 && idx <= len(textures) {
-				if tex := textures[idx-1]; tex != nil {
-					tc := tex.Sample(rPX, rPY, p.TextureZoom.Val)
-					lumi = int((float64(int(tc.B) - 128)) * txd)
-					alpha = 255 - int(float64(255-int(tc.A))*txd)
-				}
-			}
+			lumi, alpha = sampleTextureLumiAlpha(textures, p, rPX, rPY)
 
 			pix := base
 			if float64(y) > rYLen {
@@ -1145,73 +1112,178 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	}
 }
 
-func renderShape(dst *PixBuf, p *model.Primitive) {
-	c := primitiveColor(p)
-
+func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
+	base := primitiveColor(p)
 	s := strings.TrimSpace(p.Shape.Val)
 	if s == "" {
-		// Fallback: diamond marker to visualize missing path data.
-		cx := dst.Width / 2
-		cy := dst.Height / 2
-		r := min(dst.Width, dst.Height) / 4
-		fillTriangle(dst, point{cx, cy - r}, point{cx - r, cy}, point{cx + r, cy}, c)
-		fillTriangle(dst, point{cx, cy + r}, point{cx - r, cy}, point{cx + r, cy}, c)
-
 		return
 	}
 
-	polys := parseKnobShapePolylines(s, dst.Width, dst.Height)
+	mask := NewPixBuf(dst.Width, dst.Height)
+	mask.Clear(color.RGBA{A: 255})
+	maskImg := agg.NewImage(mask.Data, mask.Width, mask.Height, mask.Stride)
+	maskCtx := agg.NewContextForImage(maskImg)
+	if maskCtx == nil {
+		return
+	}
+
+	maskCtx.Clear(agg.Color{A: 255})
+	a := maskCtx.GetAgg2D()
+	a.FillEvenOdd(true)
+	maskCtx.BeginPath()
+	if !appendShapePath(maskCtx, s, dst.Width, dst.Height, p.Fill.Val != 0) {
+		return
+	}
+
+	blue := agg.Color{B: 255, A: 255}
+	if p.Fill.Val != 0 {
+		maskCtx.SetColor(blue)
+		a.NoLine()
+		maskCtx.Fill()
+	} else {
+		renderShapeOutlineMask(mask, s, dst.Width, dst.Height, p.Width.Val*float64(dst.Width)*0.004)
+	}
+
+	rCX := float64(dst.Width) * 0.5
+	rCY := float64(dst.Height) * 0.5
+	for y := 0; y < dst.Height; y++ {
+		rY := -((float64(y) + 0.5) - rCY)
+		rYN := rY / rCY
+		rPY := float64(y) - rCY + 0.5
+		for x := 0; x < dst.Width; x++ {
+			i := y*mask.Stride + x*4
+			coverage := int(mask.Data[i+2])
+			if coverage == 0 {
+				continue
+			}
+
+			lumi := 0
+			alpha := 255
+			rPX := float64(x) - rCX + 0.5
+			rX := -((float64(x) + 0.5) - rCX)
+			rXN := rX / rCX
+			lumi, alpha = sampleTextureLumiAlpha(textures, p, rPX, rPY)
+
+			col := base
+			col = changeBrightnessRGBA(col, int((rXN+rYN)*128.0*p.Specular.Val*0.01)+lumi)
+			col.A = uint8(clampInt(coverage*alpha/255, 0, 255))
+			dst.Set(x, y, col)
+		}
+	}
+}
+
+func renderShapeOutlineMask(mask *PixBuf, s string, w, h int, strokeWidth float64) {
+	if mask == nil || strokeWidth <= 0 {
+		return
+	}
+
+	polys := parseKnobShapeAnchorPolylines(s, w, h)
 	if len(polys) == 0 {
-		// Fallback parser for simple SVG-style M/L commands.
-		pts := parseSimpleShapePoints(s, dst.Width, dst.Height)
+		pts := parseSimpleShapePoints(s, w, h)
 		if len(pts) < 2 {
 			return
 		}
-
-		if p.Fill.Val != 0 && len(pts) >= 3 {
-			for i := 1; i+1 < len(pts); i++ {
-				fillTriangle(dst, pts[0], pts[i], pts[i+1], c)
-			}
-
-			return
+		poly := make([]fpoint, len(pts))
+		for i := range pts {
+			poly[i] = fpoint{x: float64(pts[i].x), y: float64(pts[i].y)}
 		}
-
-		stroke := int(math.Max(1, p.Width.Val*0.02*float64(min(dst.Width, dst.Height))))
-		for i := 0; i < len(pts)-1; i++ {
-			drawLine(dst, pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y, c, stroke)
-		}
-
-		return
+		polys = [][]fpoint{poly}
 	}
 
-	if p.Fill.Val != 0 {
-		for y := 0; y < dst.Height; y++ {
-			py := float64(y) + 0.5
-
-			for x := 0; x < dst.Width; x++ {
-				px := float64(x) + 0.5
-				if pointInPolysEvenOdd(px, py, polys) {
-					dst.BlendOver(x, y, c)
+	const samples = 16
+	half := strokeWidth * 0.5
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			hits := 0
+			for sy := 0; sy < samples; sy++ {
+				py := float64(y) + (float64(sy)+0.5)/samples
+				for sx := 0; sx < samples; sx++ {
+					px := float64(x) + (float64(sx)+0.5)/samples
+					if pointOnStrokePolys(px, py, polys, half) {
+						hits++
+					}
 				}
 			}
+			if hits == 0 {
+				continue
+			}
+			cov := uint8(clampInt(int(float64(hits)*255.0/float64(samples*samples)+0.5), 0, 255))
+			mask.Set(x, y, color.RGBA{B: cov, A: 255})
 		}
-
-		return
 	}
+}
 
-	stroke := int(math.Max(1, p.Width.Val*0.02*float64(min(dst.Width, dst.Height))))
-
+func pointOnStrokePolys(px, py float64, polys [][]fpoint, halfWidth float64) bool {
 	for _, poly := range polys {
 		for i := 0; i+1 < len(poly); i++ {
-			drawLine(dst, int(poly[i].x+0.5), int(poly[i].y+0.5), int(poly[i+1].x+0.5), int(poly[i+1].y+0.5), c, stroke)
-		}
-
-		if len(poly) > 2 {
-			a := poly[len(poly)-1]
-			b := poly[0]
-			drawLine(dst, int(a.x+0.5), int(a.y+0.5), int(b.x+0.5), int(b.y+0.5), c, stroke)
+			if pointInSquareCappedSegment(px, py, poly[i], poly[i+1], halfWidth) {
+				return true
+			}
 		}
 	}
+	return false
+}
+
+func pointInSquareCappedSegment(px, py float64, a, b fpoint, halfWidth float64) bool {
+	dx := b.x - a.x
+	dy := b.y - a.y
+	l := math.Hypot(dx, dy)
+	if l == 0 {
+		return math.Hypot(px-a.x, py-a.y) <= halfWidth
+	}
+
+	ux := dx / l
+	uy := dy / l
+	vx := px - a.x
+	vy := py - a.y
+	t := vx*ux + vy*uy
+	n := -vx*uy + vy*ux
+	return t >= -halfWidth && t <= l+halfWidth && math.Abs(n) <= halfWidth
+}
+
+func appendShapePath(ctx *agg.Context, s string, w, h int, closePath bool) bool {
+	if polys := parseKnobShapeKnots(s); len(polys) > 0 {
+		for _, knots := range polys {
+			if len(knots) < 2 {
+				continue
+			}
+
+			ctx.MoveTo(shapeScaleX(knots[0].pX, w), shapeScaleY(knots[0].pY, h))
+			for i := 1; i < len(knots); i++ {
+				prev := knots[i-1]
+				cur := knots[i]
+				ctx.GetAgg2D().CubicCurveTo(
+					shapeScaleX(prev.outX, w), shapeScaleY(prev.outY, h),
+					shapeScaleX(cur.inX, w), shapeScaleY(cur.inY, h),
+					shapeScaleX(cur.pX, w), shapeScaleY(cur.pY, h),
+				)
+			}
+			if closePath {
+				last := knots[len(knots)-1]
+				first := knots[0]
+				ctx.GetAgg2D().CubicCurveTo(
+					shapeScaleX(last.outX, w), shapeScaleY(last.outY, h),
+					shapeScaleX(first.inX, w), shapeScaleY(first.inY, h),
+					shapeScaleX(first.pX, w), shapeScaleY(first.pY, h),
+				)
+			}
+		}
+		return true
+	}
+
+	pts := parseSimpleShapePoints(s, w, h)
+	if len(pts) < 2 {
+		return false
+	}
+
+	ctx.MoveTo(float64(pts[0].x), float64(pts[0].y))
+	for i := 1; i < len(pts); i++ {
+		ctx.LineTo(float64(pts[i].x), float64(pts[i].y))
+	}
+	if closePath {
+		ctx.ClosePath()
+	}
+	return true
 }
 
 type svgPathCmd struct {
@@ -1451,14 +1523,17 @@ func isAlphaASCII(b byte) bool {
 
 type fpoint struct{ x, y float64 }
 
-func parseKnobShapePolylines(s string, w, h int) [][]fpoint {
+type shapeKnot struct {
+	inX, inY, pX, pY, outX, outY float64
+}
+
+func parseKnobShapeKnots(s string) [][]shapeKnot {
 	if !strings.Contains(s, "/") {
 		return nil
 	}
 
 	parts := strings.Split(s, "/")
-	var polys [][]fpoint
-
+	var polys [][]shapeKnot
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
@@ -1466,43 +1541,72 @@ func parseKnobShapePolylines(s string, w, h int) [][]fpoint {
 		}
 
 		chunks := strings.Split(part, ":")
-		type knot struct {
-			inX, inY, pX, pY, outX, outY float64
-		}
-
-		knots := make([]knot, 0, len(chunks))
+		knots := make([]shapeKnot, 0, len(chunks))
 		for _, ch := range chunks {
 			vals := strings.Split(ch, ",")
 			if len(vals) != 6 {
 				continue
 			}
-			var k knot
+			var k shapeKnot
 			ok := true
 			nums := []*float64{&k.inX, &k.inY, &k.pX, &k.pY, &k.outX, &k.outY}
-
 			for i := range 6 {
 				v, err := strconv.ParseFloat(strings.TrimSpace(vals[i]), 64)
 				if err != nil {
 					ok = false
 					break
 				}
-
 				*nums[i] = v
 			}
-
 			if ok {
 				knots = append(knots, k)
 			}
 		}
-
-		if len(knots) < 2 {
-			continue
+		if len(knots) >= 2 {
+			polys = append(polys, knots)
 		}
+	}
+	return polys
+}
 
+func parseKnobShapePolylines(s string, w, h int) [][]fpoint {
+	return parseKnobShapePolylinesWithClosure(s, w, h, true)
+}
+
+func parseKnobShapePolylinesOpen(s string, w, h int) [][]fpoint {
+	return parseKnobShapePolylinesWithClosure(s, w, h, false)
+}
+
+func parseKnobShapeAnchorPolylines(s string, w, h int) [][]fpoint {
+	knotPolys := parseKnobShapeKnots(s)
+	if len(knotPolys) == 0 {
+		return nil
+	}
+
+	polys := make([][]fpoint, 0, len(knotPolys))
+	for _, knots := range knotPolys {
+		poly := make([]fpoint, 0, len(knots))
+		for _, k := range knots {
+			poly = append(poly, fpoint{x: shapeScaleX(k.pX, w), y: shapeScaleY(k.pY, h)})
+		}
+		if len(poly) >= 2 {
+			polys = append(polys, poly)
+		}
+	}
+	return polys
+}
+
+func parseKnobShapePolylinesWithClosure(s string, w, h int, closePath bool) [][]fpoint {
+	knotPolys := parseKnobShapeKnots(s)
+	if len(knotPolys) == 0 {
+		return nil
+	}
+
+	polys := make([][]fpoint, 0, len(knotPolys))
+	for _, knots := range knotPolys {
 		poly := make([]fpoint, 0, len(knots)*12)
 		start := fpoint{x: shapeScaleX(knots[0].pX, w), y: shapeScaleY(knots[0].pY, h)}
 		poly = append(poly, start)
-
 		for i := 1; i < len(knots); i++ {
 			prev := knots[i-1]
 			cur := knots[i]
@@ -1515,20 +1619,20 @@ func parseKnobShapePolylines(s string, w, h int) [][]fpoint {
 			)
 			poly = append(poly, cubic[1:]...)
 		}
-		// Close with last->first cubic like the Java MakePath(fill!=0) path.
-		last := knots[len(knots)-1]
-		first := knots[0]
-		cubic := flattenCubic(
-			fpoint{x: shapeScaleX(last.pX, w), y: shapeScaleY(last.pY, h)},
-			fpoint{x: shapeScaleX(last.outX, w), y: shapeScaleY(last.outY, h)},
-			fpoint{x: shapeScaleX(first.inX, w), y: shapeScaleY(first.inY, h)},
-			fpoint{x: shapeScaleX(first.pX, w), y: shapeScaleY(first.pY, h)},
-			12,
-		)
-		poly = append(poly, cubic[1:]...)
+		if closePath {
+			last := knots[len(knots)-1]
+			first := knots[0]
+			cubic := flattenCubic(
+				fpoint{x: shapeScaleX(last.pX, w), y: shapeScaleY(last.pY, h)},
+				fpoint{x: shapeScaleX(last.outX, w), y: shapeScaleY(last.outY, h)},
+				fpoint{x: shapeScaleX(first.inX, w), y: shapeScaleY(first.inY, h)},
+				fpoint{x: shapeScaleX(first.pX, w), y: shapeScaleY(first.pY, h)},
+				12,
+			)
+			poly = append(poly, cubic[1:]...)
+		}
 		polys = append(polys, poly)
 	}
-
 	return polys
 }
 
@@ -1686,6 +1790,28 @@ func applyTextureOverlay(base color.RGBA, textures []*Texture, p *model.Primitiv
 	tc := tex.Sample(tx, ty, zoom)
 
 	return TextureBlend(base, tc, p.TextureDepth.Val)
+}
+
+func sampleTextureLumiAlpha(textures []*Texture, p *model.Primitive, x, y float64) (lumi, alpha int) {
+	if p == nil || p.TextureDepth.Val == 0 {
+		return 0, 255
+	}
+
+	idx := p.TextureFile.Val
+	if idx <= 0 || idx > len(textures) {
+		return 0, 255
+	}
+
+	tex := textures[idx-1]
+	if tex == nil {
+		return 0, 255
+	}
+
+	luma, texAlpha := tex.SampleHeightAlpha(x, y, p.TextureZoom.Val)
+	txd := p.TextureDepth.Val * 0.01
+	lumi = int(float64(luma-128) * txd)
+	alpha = 255 - int(float64(255-texAlpha)*txd)
+	return lumi, alpha
 }
 
 type point struct{ x, y int }

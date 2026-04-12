@@ -2,4 +2,6 @@ module knobman
 
 go 1.24.0
 
-replace agg_go => github.com/MeKo-Christian/agg_go v0.2.0
+require github.com/cwbudde/agg_go v0.2.14
+
+require golang.org/x/sys v0.40.0 // indirect
