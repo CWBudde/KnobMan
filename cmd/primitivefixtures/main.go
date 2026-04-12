@@ -115,11 +115,46 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Aspect.Val = 10
 			return doc
 		}},
+		{Name: "tier3_circle_outline_shell", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier3CircleOutlineShell")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircle)
+			ly.Prim.Color.Val = rgb(192, 32, 32)
+			ly.Prim.Width.Val = 14
+			ly.Prim.Aspect.Val = 10
+			return doc
+		}},
 		{Name: "circle_fill_basic", Build: func() *model.Document {
 			doc := newPrimitiveDoc("CircleFill")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimCircleFill)
 			ly.Prim.Color.Val = rgb(48, 96, 208)
+			return doc
+		}},
+		{Name: "tier3_circle_fill_shell", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier3CircleFillShell")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircleFill)
+			ly.Prim.Color.Val = rgb(48, 96, 208)
+			return doc
+		}},
+		{Name: "tier3_circle_fill_lit", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier3CircleFillLit")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircleFill)
+			ly.Prim.Color.Val = rgb(48, 96, 208)
+			ly.Prim.Specular.Val = 40
+			ly.Prim.Diffuse.Val = 25
+			ly.Prim.Emboss.Val = 20
+			return doc
+		}},
+		{Name: "tier3_circle_fill_texture", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier3CircleFillTexture")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircleFill)
+			ly.Prim.Color.Val = rgb(48, 96, 208)
+			ly.Prim.TextureDepth.Val = 35
+			ly.Prim.EmbeddedTexture = checkerTexturePNG()
 			return doc
 		}},
 		{Name: "metal_circle_basic", Build: func() *model.Document {
@@ -212,6 +247,24 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Length.Val = 74
 			return doc
 		}},
+		{Name: "tier0_shape_fill_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier0ShapeFillPlain")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimShape)
+			ly.Prim.Color.Val = rgb(56, 144, 88)
+			ly.Prim.Fill.Val = 1
+			ly.Prim.Shape.Val = "/128,24,128,24,128,24:232,128,232,128,232,128:128,232,128,232,128,232:24,128,24,128,24,128"
+			return doc
+		}},
+		{Name: "tier0_shape_outline_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier0ShapeOutlinePlain")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimShape)
+			ly.Prim.Color.Val = rgb(56, 144, 88)
+			ly.Prim.Fill.Val = 0
+			ly.Prim.Shape.Val = "/128,24,128,24,128,24:232,128,232,128,232,128:128,232,128,232,128,232:24,128,24,128,24,128"
+			return doc
+		}},
 		{Name: "line_basic", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Line")
 			ly := &doc.Layers[0]
@@ -220,6 +273,15 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Width.Val = 12
 			ly.Prim.Length.Val = 82
 			ly.Prim.LightDir.Val = 30
+			return doc
+		}},
+		{Name: "tier2_line_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier2LinePlain")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimLine)
+			ly.Prim.Color.Val = rgb(32, 32, 32)
+			ly.Prim.Width.Val = 40
+			ly.Prim.Length.Val = 90
 			return doc
 		}},
 		{Name: "radiate_line_basic", Build: func() *model.Document {
@@ -232,6 +294,16 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.AngleStep.Val = 30
 			return doc
 		}},
+		{Name: "tier2_radiate_line_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier2RadiateLinePlain")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRadiateLine)
+			ly.Prim.Color.Val = rgb(40, 92, 160)
+			ly.Prim.Width.Val = 20
+			ly.Prim.Length.Val = 90
+			ly.Prim.AngleStep.Val = 90
+			return doc
+		}},
 		{Name: "hlines_basic", Build: func() *model.Document {
 			doc := newPrimitiveDoc("HLines")
 			ly := &doc.Layers[0]
@@ -241,6 +313,16 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Step.Val = 18
 			return doc
 		}},
+		{Name: "tier2_hlines_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier2HLinesPlain")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimHLines)
+			ly.Prim.Color.Val = rgb(60, 60, 60)
+			ly.Prim.Width.Val = 8
+			ly.Prim.Length.Val = 50
+			ly.Prim.Step.Val = 50
+			return doc
+		}},
 		{Name: "vlines_basic", Build: func() *model.Document {
 			doc := newPrimitiveDoc("VLines")
 			ly := &doc.Layers[0]
@@ -248,6 +330,16 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Color.Val = rgb(60, 60, 60)
 			ly.Prim.Width.Val = 8
 			ly.Prim.Step.Val = 18
+			return doc
+		}},
+		{Name: "tier2_vlines_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier2VLinesPlain")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimVLines)
+			ly.Prim.Color.Val = rgb(60, 60, 60)
+			ly.Prim.Width.Val = 8
+			ly.Prim.Length.Val = 50
+			ly.Prim.Step.Val = 50
 			return doc
 		}},
 		{Name: "shape_fill_basic", Build: func() *model.Document {
@@ -286,6 +378,50 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Color.Val = rgb(96, 120, 168)
 			ly.Prim.TextureName = "embedded-checker.png"
 			ly.Prim.EmbeddedTexture = checkerTexturePNG()
+			ly.Prim.TextureDepth.Val = 70
+			ly.Prim.TextureZoom.Val = 100
+			return doc
+		}},
+		{Name: "texture_wrap_rect_fill", Build: func() *model.Document {
+			doc := newPrimitiveDoc("TextureWrapRectFill")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRectFill)
+			ly.Prim.Color.Val = rgb(112, 112, 112)
+			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.EmbeddedTexture = seamTexturePNG()
+			ly.Prim.TextureDepth.Val = 80
+			ly.Prim.TextureZoom.Val = 100
+			return doc
+		}},
+		{Name: "texture_zoom_in_rect_fill", Build: func() *model.Document {
+			doc := newPrimitiveDoc("TextureZoomInRectFill")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRectFill)
+			ly.Prim.Color.Val = rgb(112, 112, 112)
+			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.EmbeddedTexture = seamTexturePNG()
+			ly.Prim.TextureDepth.Val = 80
+			ly.Prim.TextureZoom.Val = 220
+			return doc
+		}},
+		{Name: "texture_zoom_out_rect_fill", Build: func() *model.Document {
+			doc := newPrimitiveDoc("TextureZoomOutRectFill")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRectFill)
+			ly.Prim.Color.Val = rgb(112, 112, 112)
+			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.EmbeddedTexture = seamTexturePNG()
+			ly.Prim.TextureDepth.Val = 80
+			ly.Prim.TextureZoom.Val = 40
+			return doc
+		}},
+		{Name: "texture_tiling_seam_circle_fill", Build: func() *model.Document {
+			doc := newPrimitiveDoc("TextureTilingSeamCircleFill")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircleFill)
+			ly.Prim.Color.Val = rgb(96, 120, 168)
+			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.EmbeddedTexture = seamTexturePNG()
 			ly.Prim.TextureDepth.Val = 70
 			ly.Prim.TextureZoom.Val = 100
 			return doc
@@ -450,6 +586,28 @@ func checkerTexturePNG() []byte {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		log.Fatalf("encode checker texture: %v", err)
+	}
+
+	return buf.Bytes()
+}
+
+func seamTexturePNG() []byte {
+	img := image.NewNRGBA(image.Rect(0, 0, 4, 4))
+	palette := [4]color.NRGBA{
+		{R: 240, G: 32, B: 32, A: 255},
+		{R: 32, G: 32, B: 32, A: 255},
+		{R: 240, G: 240, B: 240, A: 255},
+		{R: 32, G: 120, B: 240, A: 255},
+	}
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			img.Set(x, y, palette[(x+y)%len(palette)])
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		log.Fatalf("encode seam texture: %v", err)
 	}
 
 	return buf.Bytes()

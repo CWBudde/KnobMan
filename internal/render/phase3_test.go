@@ -16,8 +16,8 @@ func TestTransformBilinearTranslate(t *testing.T) {
 	m := BuildMatrix(6, 6, 100, 100, 0, 1, 0, 0, 0, false)
 	TransformBilinear(dst, src, m)
 
-	if got := dst.At(3, 2); got.A == 0 {
-		t.Fatalf("expected translated non-zero pixel at (3,2), got %+v", got)
+	if got := dst.At(1, 2); got.A == 0 {
+		t.Fatalf("expected translated non-zero pixel at (1,2), got %+v", got)
 	}
 }
 

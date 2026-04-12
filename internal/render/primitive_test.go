@@ -244,6 +244,87 @@ func TestRenderRectFillAggAspectLeavesTransparentMargins(t *testing.T) {
 	}
 }
 
+func TestRenderRectOutlineAggLeavesCenterTransparent(t *testing.T) {
+	p := basePrim(model.PrimRect)
+	p.Color.Val = color.RGBA{R: 24, G: 128, B: 72, A: 255}
+	p.Width.Val = 12
+
+	buf := NewPixBuf(32, 32)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(16, 16); got.A != 0 {
+		t.Fatalf("expected rect outline center transparent, got %+v", got)
+	}
+	if got := buf.At(1, 16); got.A == 0 {
+		t.Fatalf("expected left border visible, got %+v", got)
+	}
+	if got := buf.At(30, 16); got.A == 0 {
+		t.Fatalf("expected right border visible, got %+v", got)
+	}
+}
+
+func TestRenderRectOutlineAggAspectShrinksHorizontalExtent(t *testing.T) {
+	p := basePrim(model.PrimRect)
+	p.Color.Val = color.RGBA{R: 24, G: 128, B: 72, A: 255}
+	p.Width.Val = 12
+	p.Aspect.Val = 50
+
+	buf := NewPixBuf(32, 32)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(1, 16); got.A != 0 {
+		t.Fatalf("expected left outer margin transparent after aspect shrink, got %+v", got)
+	}
+	if got := buf.At(8, 16); got.A == 0 {
+		t.Fatalf("expected inset border visible, got %+v", got)
+	}
+	if got := buf.At(16, 16); got.A != 0 {
+		t.Fatalf("expected center transparent, got %+v", got)
+	}
+}
+
+func TestRenderTriangleAggFillsInterior(t *testing.T) {
+	p := basePrim(model.PrimTriangle)
+	p.Color.Val = color.RGBA{R: 180, G: 96, B: 48, A: 255}
+	p.Length.Val = 80
+	p.Width.Val = 80
+	p.Fill.Val = 1
+
+	buf := NewPixBuf(32, 32)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(16, 12); got.A == 0 {
+		t.Fatalf("expected triangle interior filled near center, got %+v", got)
+	}
+	if got := buf.At(8, 24); got.A == 0 {
+		t.Fatalf("expected lower left interior filled, got %+v", got)
+	}
+	if got := buf.At(24, 24); got.A == 0 {
+		t.Fatalf("expected lower right interior filled, got %+v", got)
+	}
+}
+
+func TestRenderTriangleAggKeepsOutsideTransparent(t *testing.T) {
+	p := basePrim(model.PrimTriangle)
+	p.Color.Val = color.RGBA{R: 180, G: 96, B: 48, A: 255}
+	p.Length.Val = 80
+	p.Width.Val = 80
+	p.Fill.Val = 1
+
+	buf := NewPixBuf(32, 32)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(0, 24); got.A != 0 {
+		t.Fatalf("expected lower left outer corner transparent, got %+v", got)
+	}
+	if got := buf.At(31, 24); got.A != 0 {
+		t.Fatalf("expected lower right outer corner transparent, got %+v", got)
+	}
+	if got := buf.At(16, 31); got.A != 0 {
+		t.Fatalf("expected area below triangle length transparent, got %+v", got)
+	}
+}
+
 func TestSubstituteFrameCounters(t *testing.T) {
 	got := SubstituteFrameCounters("F(1:9)", 4, 9)
 	// 4/8 => midpoint => 5

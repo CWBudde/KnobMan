@@ -109,92 +109,22 @@
 - [x] Add focused checks for semi-transparent edges and alpha accumulation.
 - [x] Keep any path local if `agg_go` changes output beyond accepted tolerance.
 
-### Phase 7.5 — Primitive path expansion (in progress)
+### Phase 7.5 — Primitive path expansion (done)
 
-- [x] Split primitives into migration tiers.
-- [x] Refine primitive expansion into tier-specific subtasks.
-- [ ] Execute tiered primitive migration in order.
-- [ ] Keep text explicitly out of scope for this phase.
-- [ ] Defer any primitive whose legacy raster math is still unclear.
+- [x] Split primitives into migration tiers and use `PrimShape`/`PrimImage` as the baseline adapter pattern; keep outline mask, keyed transparency, and `IntelliAlpha` local.
+- [x] `Tier 1`: `PrimRectFill`, `PrimRect`, `PrimTriangle`; add fill/outline fixtures, re-check AA edge placement and clipping after each step, and try `PrimCircleFill` only if plain path fill matches baseline geometry before lighting/texture branches.
+- [x] `Tier 2`: `PrimLine`, `PrimHLines`, `PrimVLines`, `PrimRadiateLine`; add line fixtures, share one `agg_go` stroke builder where possible, and keep any family local if thickness or spacing drifts from parity fixtures.
+- [x] `Tier 3`: `PrimCircle`, deferred `PrimCircleFill`, `PrimMetalCircle`, `PrimWaveCircle`, `PrimSphere`; add texture/lighting fixtures, separate shell geometry from shading math, move only safe shell geometry to `agg_go`, and defer the rest until boundaries are explicit.
+- [x] Execute migration in tier order: Tier 1 and Tier 2 are complete, and Tier 3 shell reassessment is reflected in the current circle-family split.
+- [x] Keep `PrimText` out of scope for 7.5 and defer primitives whose legacy raster math is still unclear.
 
-#### Phase 7.5 primitive tiers
+### Phase 7.6 — Texture path review (done)
 
-- `Tier 0` already partially or fully on the migration path:
-- [x] `PrimShape`
-  Current status: filled path rendering already uses `agg_go`; outline mask is still custom.
-- [x] `PrimImage`
-  Current status: image blit/scale helper is partially moved to `agg_go` behind a safe gate; keyed/intelli-alpha paths remain local.
-
-- `Tier 1` path-friendly geometry:
-- [x] `PrimRectFill`
-- [ ] `PrimRect`
-- [ ] `PrimTriangle`
-- [ ] optional follow-up: `PrimCircleFill` only if a plain path fill can match baseline geometry before lighting/texture features are involved
-
-- `Tier 2` stroke and repeated-line families:
-- [ ] `PrimLine`
-- [ ] `PrimHLines`
-- [ ] `PrimVLines`
-- [ ] `PrimRadiateLine`
-
-- `Tier 3` texture- and lighting-influenced primitives:
-- [ ] `PrimCircle`
-- [ ] `PrimCircleFill` if deferred from Tier 1
-- [ ] `PrimMetalCircle`
-- [ ] `PrimWaveCircle`
-- [ ] `PrimSphere`
-
-- `Deferred outside 7.5`:
-- [ ] `PrimText`
-
-#### Phase 7.5 Tier 0 follow-up tasks
-
-- [ ] Keep `PrimShape` fill on `agg_go` and evaluate only whether the outline mask should migrate later.
-- [ ] Keep `PrimImage` keyed transparency and `IntelliAlpha` on the local path.
-- [ ] Treat Tier 0 as the baseline adapter pattern for later primitive migrations.
-
-#### Phase 7.5 Tier 1 subtasks
-
-- [x] Add one isolated fixture group for `Tier 1` geometry with fill-only and outline-only cases.
-- [x] Migrate `PrimRectFill` first using `agg_go` path fill.
-- [ ] Migrate `PrimRect` second using `agg_go` stroke/path handling only if stroke width parity is acceptable.
-- [ ] Migrate `PrimTriangle` third using `agg_go` path fill.
-- [ ] Re-check anti-aliased edge placement and canvas clipping after each primitive family.
-- [ ] Keep any emboss/specular/texture-influenced branch on the custom path until parity is proven.
-
-#### Phase 7.5 Tier 2 subtasks
-
-- [ ] Add one isolated fixture group for line width, cap/join appearance, spacing, and rotation.
-- [ ] Identify which Tier 2 families can share one `agg_go` stroke builder.
-- [ ] Migrate `PrimLine` first.
-- [ ] Migrate `PrimHLines` and `PrimVLines` second via shared repeated-stroke generation.
-- [ ] Migrate `PrimRadiateLine` last in Tier 2 because angle stepping compounds placement risk.
-- [ ] Keep any family local if stroke thickness or spacing deviates from current parity fixtures.
-
-#### Phase 7.5 Tier 3 subtasks
-
-- [ ] Add one isolated fixture group for texture depth, lighting direction, specular response, and edge diffuse behavior.
-- [ ] Separate Tier 3 primitives into:
-- [ ] geometry shell that may be moved to `agg_go`
-- [ ] shading/texture math that remains local until proven safe
-- [ ] Evaluate `PrimCircle` and `PrimCircleFill` first as the simplest Tier 3 shells.
-- [ ] Defer `PrimMetalCircle`, `PrimWaveCircle`, and `PrimSphere` until shell-vs-shading boundaries are explicit in code.
-- [ ] Keep legacy texture sampling and lighting math local unless parity coverage proves equivalence.
-
-#### Phase 7.5 execution order
-
-1. Complete the rest of Tier 1.
-3. Add Tier 2 fixture group and migrate line families.
-4. Reassess whether any Tier 3 shell can move without dragging texture/lighting math with it.
-5. Leave `PrimText` deferred for its separate parity track.
-
-### Phase 7.6 — Texture path review (next)
-
-- [ ] Add focused fixtures for texture wrap, zoom, low-zoom reduction, and tiling seams.
-- [ ] Compare current legacy-style texture sampling against available `agg_go` options.
-- [ ] Migrate only the non-legacy-sensitive pieces, if any.
-- [ ] Keep `SampleHeightAlpha` local unless parity coverage proves equivalence.
-- [ ] Document any texture behaviors that must remain custom.
+- [x] Add focused fixtures for texture wrap, zoom, low-zoom reduction, and tiling seams.
+- [x] Compare the current legacy-style texture sampling against available `agg_go` image filter/resample options; no direct equivalent was found for tiled grayscale+alpha sampling with explicit low-zoom reduction.
+- [x] Migrate only the non-legacy-sensitive pieces, if any: none identified yet, so the active texture sampler stays local.
+- [x] Keep `SampleHeightAlpha` local unless parity coverage proves equivalence.
+- [x] Document the texture behaviors that remain custom for now: tiled wrap, zoom-frequency mapping, `SampleHeightAlpha`'s `<= 50%` 2x reduction, and seam continuity.
 
 ### Phase 7.7 — Deferred custom domains review (next)
 
