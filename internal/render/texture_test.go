@@ -54,8 +54,10 @@ func TestTextureSampleHeightAlphaExactTexel(t *testing.T) {
 func TestTextureSampleHeightAlphaHalfResolution(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	block := []color.RGBA{
-		{10, 10, 10, 20}, {20, 20, 20, 40},
-		{30, 30, 30, 60}, {40, 40, 40, 80},
+		{10, 10, 10, 20},
+		{20, 20, 20, 40},
+		{30, 30, 30, 60},
+		{40, 40, 40, 80},
 	}
 	img.SetRGBA(0, 0, block[0])
 	img.SetRGBA(1, 0, block[1])

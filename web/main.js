@@ -1843,7 +1843,6 @@ function syncCurveTabState() {
   });
 }
 
-
 function drawCurveEditor() {
   if (!curveCanvas || !curveCtx) return;
   syncCurveCanvasSize();
@@ -2891,7 +2890,10 @@ function openWelcomeOverlay() {
   if (check) check.checked = false;
   renderWelcomeSampleList();
   const search = document.getElementById("welcomeSampleSearch");
-  if (search) { search.value = ""; search.focus(); }
+  if (search) {
+    search.value = "";
+    search.focus();
+  }
   overlay.hidden = false;
 }
 
@@ -2899,7 +2901,9 @@ function renderWelcomeSampleList() {
   const list = document.getElementById("welcomeSampleList");
   const input = document.getElementById("welcomeSampleSearch");
   if (!list) return;
-  const query = String(input && input.value ? input.value : "").trim().toLowerCase();
+  const query = String(input && input.value ? input.value : "")
+    .trim()
+    .toLowerCase();
 
   list.innerHTML = "";
   const matches = SAMPLE_PROJECT_FILES.filter((file) => {
@@ -3145,7 +3149,9 @@ function renderFrame() {
   ctx.imageSmoothingEnabled = false;
   ctx.putImageData(imageData, 0, 0);
 
-  const layers = window.knobman_getLayerList ? window.knobman_getLayerList() || [] : [];
+  const layers = window.knobman_getLayerList
+    ? window.knobman_getLayerList() || []
+    : [];
   const active = layers.find((l) => l.selected);
   updateStatusMetrics(active ? active.name || `Layer ${active.index + 1}` : "");
   saveSession();
@@ -4365,4 +4371,3 @@ function restoreSession() {
     return false;
   }
 }
-

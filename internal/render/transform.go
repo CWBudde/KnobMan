@@ -3,16 +3,57 @@ package render
 import (
 	"image/color"
 	"math"
+
+	agg "github.com/cwbudde/agg_go"
 )
 
 // BuildMatrix builds a forward affine transform matrix:
 // x' = a*x + c*y + e
 // y' = b*x + d*y + f
 // Zoom is interpreted as percentage (100 = identity).
-func BuildMatrix(zoomX, zoomY, angle, offX, offY, centerX, centerY float64) [6]float64 {
-	sx := zoomX / 100.0
-	sy := zoomY / 100.0
+//
+// The implementation mirrors legacy JKnobMan behavior using agg_go transform builders.
+func BuildMatrix(srcWidth, srcHeight int, zoomX, zoomY, angle, offX, offY, centerX, centerY float64, keepDir bool) [6]float64 {
+	if srcWidth <= 0 || srcHeight <= 0 {
+		return [6]float64{1, 0, 0, 1, 0, 0}
+	}
 
+	if zoomX == 0 {
+		zoomX = 100
+	}
+
+	if zoomY == 0 {
+		zoomY = 100
+	}
+
+	w := float64(srcWidth)
+	h := float64(srcHeight)
+	cx := (centerX + 50.0) * 0.01 * w
+	cy := (50.0 - centerY) * 0.01 * h
+
+	angleRad := angle * math.Pi / 180.0
+
+	m := agg.Translation(0, 0)
+	m.Multiply(
+		rotateAround(angleRad, cx, cy),
+	)
+	m.Multiply(agg.Translation(-offX, offY))
+	if keepDir {
+		m.Multiply(rotateAround(-angleRad, w*0.5, h*0.5))
+	}
+	m.Multiply(scaleAround(100.0/zoomX, 100.0/zoomY, w*0.5, h*0.5))
+
+	return m.AffineMatrix
+}
+
+func rotateAround(angle, x, y float64) *agg.Transformations {
+	m := agg.Translation(-x, -y)
+	m.Multiply(agg.Rotation(angle))
+	m.Multiply(agg.Translation(x, y))
+	return m
+}
+
+func scaleAround(sx, sy, x, y float64) *agg.Transformations {
 	if sx == 0 {
 		sx = 1
 	}
@@ -21,18 +62,10 @@ func BuildMatrix(zoomX, zoomY, angle, offX, offY, centerX, centerY float64) [6]f
 		sy = 1
 	}
 
-	rad := angle * math.Pi / 180.0
-	cosA := math.Cos(rad)
-	sinA := math.Sin(rad)
-
-	a := sx * cosA
-	b := sx * sinA
-	c := -sy * sinA
-	d := sy * cosA
-	e := offX + centerX - a*centerX - c*centerY
-	f := offY + centerY - b*centerX - d*centerY
-
-	return [6]float64{a, b, c, d, e, f}
+	m := agg.Translation(-x, -y)
+	m.Multiply(agg.Scaling(sx, sy))
+	m.Multiply(agg.Translation(x, y))
+	return m
 }
 
 // TransformBilinear applies matrix m from src to dst with bilinear resampling.
@@ -41,11 +74,13 @@ func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 		return
 	}
 
-	inv, ok := invertMatrix(m)
+	invTr := agg.Transformations{AffineMatrix: m}
+	ok := invTr.Invert()
 	if !ok {
 		dst.Clear(color.RGBA{})
 		return
 	}
+	inv := invTr.AffineMatrix
 
 	for y := range dst.Height {
 		fy := float64(y) + 0.5
@@ -57,25 +92,6 @@ func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 			dst.Set(x, y, sampleBilinear(src, sx, sy))
 		}
 	}
-}
-
-func invertMatrix(m [6]float64) ([6]float64, bool) {
-	a, b, c, d, e, f := m[0], m[1], m[2], m[3], m[4], m[5]
-
-	det := a*d - b*c
-	if math.Abs(det) < 1e-12 {
-		return [6]float64{}, false
-	}
-
-	invDet := 1.0 / det
-	ia := d * invDet
-	ib := -b * invDet
-	ic := -c * invDet
-	id := a * invDet
-	ie := -(ia*e + ic*f)
-	ifv := -(ib*e + id*f)
-
-	return [6]float64{ia, ib, ic, id, ie, ifv}, true
 }
 
 func sampleBilinear(src *PixBuf, x, y float64) color.RGBA {

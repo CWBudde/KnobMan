@@ -12,7 +12,7 @@ func TestTransformBilinearTranslate(t *testing.T) {
 	src.Set(2, 2, color.RGBA{255, 0, 0, 255})
 
 	dst := NewPixBuf(6, 6)
-	m := BuildMatrix(100, 100, 0, 1, 0, 0, 0)
+	m := BuildMatrix(6, 6, 100, 100, 0, 1, 0, 0, 0, false)
 	TransformBilinear(dst, src, m)
 
 	if got := dst.At(3, 2); got.A == 0 {

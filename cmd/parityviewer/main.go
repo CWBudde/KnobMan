@@ -135,10 +135,13 @@ func loadCases(parityDir string) (loadResult, error) {
 
 			for _, baselinePath := range baselines {
 				name := strings.TrimSuffix(filepath.Base(baselinePath), filepath.Ext(baselinePath))
-				artifactPath := filepath.Join(artifactDir, name+".png")
+				artifactPath := filepath.Join(artifactDir, baselineName, name+".png")
 				if _, err := os.Stat(artifactPath); err != nil {
-					result.MissingArtifactCnt++
-					continue
+					artifactPath = filepath.Join(artifactDir, name+".png")
+					if _, err := os.Stat(artifactPath); err != nil {
+						result.MissingArtifactCnt++
+						continue
+					}
 				}
 
 				entry, err := buildEntry(suiteName, baselineName, name, baselinePath, artifactPath)
@@ -492,7 +495,35 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	if err != nil {
 		return err
 	}
-	outputPath := filepath.Join(parityDir, suite, "artifacts", name+".png")
+	artifactDir := filepath.Join(parityDir, suite, "artifacts")
+	outputPaths := []string{filepath.Join(artifactDir, name+".png")}
+	for _, baselineName := range []string{"baseline-go", "baseline-java"} {
+		basePath := filepath.Join(artifactDir, baselineName, name+".png")
+		if _, err := os.Stat(filepath.Dir(basePath)); err == nil {
+			outputPaths = append(outputPaths, basePath)
+		}
+	}
+
+	seen := make(map[string]struct{}, len(outputPaths))
+	uniq := make([]string, 0, len(outputPaths))
+	for _, path := range outputPaths {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		uniq = append(uniq, path)
+	}
+	outputPaths = uniq
+
+	outputFile, err := os.CreateTemp("", "parityviewer-rerender-*.png")
+	if err != nil {
+		return fmt.Errorf("create temp output: %w", err)
+	}
+	defer os.Remove(outputFile.Name())
+	if err := outputFile.Close(); err != nil {
+		return fmt.Errorf("close temp output: %w", err)
+	}
+	outputPath := outputFile.Name()
 
 	cmd := exec.Command(
 		"go", "run", "./cmd/parityref",
@@ -514,6 +545,20 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 
 	if _, err := os.Stat(outputPath); err != nil {
 		return fmt.Errorf("rerender did not produce %s: %w", outputPath, err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		return fmt.Errorf("read rerender output: %w", err)
+	}
+
+	for _, path := range outputPaths {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return fmt.Errorf("create artifact dir: %w", err)
+		}
+		if err := os.WriteFile(path, rendered, 0o644); err != nil {
+			return fmt.Errorf("write artifact %s: %w", path, err)
+		}
 	}
 	return nil
 }

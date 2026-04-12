@@ -72,9 +72,7 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 		tmp := NewPixBuf(work.Width, work.Height)
 		offXPx := offX * 0.01 * float64(work.Width)
 		offYPx := offY * 0.01 * float64(work.Height)
-		cx := float64(work.Width)*0.5 + eff.CenterX.Val*0.01*float64(work.Width)
-		cy := float64(work.Height)*0.5 + eff.CenterY.Val*0.01*float64(work.Height)
-		m := BuildMatrix(zoomX, zoomY, angle, offXPx, offYPx, cx, cy)
+		m := BuildMatrix(work.Width, work.Height, zoomX, zoomY, angle, offXPx, offYPx, eff.CenterX.Val, eff.CenterY.Val, eff.KeepDir.Val != 0)
 		TransformBilinear(tmp, work, m)
 		work = tmp
 	}
