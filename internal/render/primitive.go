@@ -258,32 +258,28 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 		spaceWidth = math.Max(1, textSize*0.25)
 	}
 
-	inset := spaceWidth * 0.5
-	if backend == aggTextBackendGSV {
-		inset = math.Max(1, textSize*0.05)
-	}
-
 	anchorX := (float64(dst.Width) - textWidth) * 0.5
-
 	switch p.TextAlign.Val {
 	case 1:
-		anchorX = inset
+		anchorX = spaceWidth * 0.5
 	case 2:
-		anchorX = float64(dst.Width) - textWidth - inset
+		anchorX = float64(dst.Width) - textWidth - spaceWidth*0.5
 	}
 
-	anchorY := float64(dst.Height) * 0.5
-	alignY := agg.AlignCenter
-
-	switch backend {
-	case aggTextBackendGSV:
-		alignY = agg.AlignBottom
-		anchorY += size * 0.35
-	default:
-		anchorY += 2
+	ascent := ctx.GetAscender()
+	descent := -ctx.GetDescender()
+	if backend == aggTextBackendGSV && ascent <= 0 && descent <= 0 {
+		// GSV has no font metrics; approximate Java's baseline formula.
+		ascent = textSize * 0.8
+		descent = textSize * 0.2
+	}
+	if ascent <= 0 && descent <= 0 {
+		ascent = size
 	}
 
-	a.TextAlignment(agg.AlignLeft, alignY)
+	anchorY := (float64(dst.Height) + ascent - descent) * 0.5
+
+	a.TextAlignment(agg.AlignLeft, agg.AlignBottom)
 
 	if backend == aggTextBackendGSV {
 		renderTextGSVStyled(ctx, a, p, anchorX, anchorY, txt)

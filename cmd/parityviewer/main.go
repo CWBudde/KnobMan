@@ -505,7 +505,7 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	outputPath := outputFile.Name()
 
 	cmd := exec.Command(
-		"go", "run", "./cmd/parityref",
+		"go", "run", "-tags", "freetype", "./cmd/parityref",
 		"--input", inputPath,
 		"--output", outputPath,
 		"--frame", "0",

@@ -14,16 +14,9 @@ const (
 	aggTextBackendGSV
 )
 
-const aggTrueTypeSizeScale = 1.18
-
 func configureAggTextFont(ctx *agg.Context, p *model.Primitive, size float64) (aggTextBackend, float64) {
-	trueTypeSize := size
-	if !isJavaGenericFontFamily(primitiveFontFamily(p)) {
-		trueTypeSize *= aggTrueTypeSizeScale
-	}
-
-	if loadAggTrueTypeFont(ctx, p, trueTypeSize) {
-		return aggTextBackendTrueType, trueTypeSize
+	if loadAggTrueTypeFont(ctx, p, size) {
+		return aggTextBackendTrueType, size
 	}
 
 	gsvSize := size * 0.65

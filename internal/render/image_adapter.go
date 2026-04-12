@@ -58,7 +58,27 @@ func PixBufToNRGBA(buf *PixBuf) *image.NRGBA {
 	for y := range buf.Height {
 		srcOff := y * buf.Stride
 		dstOff := y * out.Stride
-		copy(out.Pix[dstOff:dstOff+buf.Width*4], buf.Data[srcOff:srcOff+buf.Width*4])
+		for x := range buf.Width {
+			si := srcOff + x*4
+			di := dstOff + x*4
+			r := uint32(buf.Data[si+0])
+			g := uint32(buf.Data[si+1])
+			b := uint32(buf.Data[si+2])
+			a := uint32(buf.Data[si+3])
+
+			if a == 0 {
+				out.Pix[di+0] = 0
+				out.Pix[di+1] = 0
+				out.Pix[di+2] = 0
+				out.Pix[di+3] = 0
+				continue
+			}
+
+			out.Pix[di+0] = uint8((r*255 + a/2) / a)
+			out.Pix[di+1] = uint8((g*255 + a/2) / a)
+			out.Pix[di+2] = uint8((b*255 + a/2) / a)
+			out.Pix[di+3] = uint8(a)
+		}
 	}
 
 	return out
