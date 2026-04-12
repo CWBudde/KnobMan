@@ -78,7 +78,7 @@ func renderImage(dst *PixBuf, p *model.Primitive, frame, totalFrames int) {
 		return
 	}
 
-	src := pixBufFromImage(img)
+	src := ImageToPixBuf(img)
 	if src == nil || src.Width <= 0 || src.Height <= 0 {
 		return
 	}
@@ -103,30 +103,12 @@ func renderImage(dst *PixBuf, p *model.Primitive, frame, totalFrames int) {
 	drawPixBufToRect(dst, frameBuf, 0, 0, frameBuf.Width, frameBuf.Height, p, def)
 }
 
-func pixBufFromImage(img image.Image) *PixBuf {
-	if img == nil {
-		return nil
-	}
-
-	b := img.Bounds()
-
-	w, h := b.Dx(), b.Dy()
-	if w <= 0 || h <= 0 {
-		return nil
-	}
-
-	pb := NewPixBuf(w, h)
-	for y := range h {
-		for x := range w {
-			pb.Set(x, y, rgbaFromImage(img, b.Min.X+x, b.Min.Y+y))
-		}
-	}
-
-	return pb
-}
-
 func drawPixBufToRect(dst, src *PixBuf, dx0, dy0, dw, dh int, p *model.Primitive, def color.RGBA) {
 	if src == nil || src.Width <= 0 || src.Height <= 0 || dw <= 0 || dh <= 0 {
+		return
+	}
+
+	if p != nil && p.Transparent.Val == 0 && pixBufRegionTransparent(dst, dx0, dy0, dw, dh) && drawPixBufToRectAgg(dst, src, dx0, dy0, dw, dh) {
 		return
 	}
 
@@ -149,9 +131,43 @@ func drawPixBufToRect(dst, src *PixBuf, dx0, dy0, dw, dh int, p *model.Primitive
 	}
 }
 
-func rgbaFromImage(img image.Image, x, y int) color.RGBA {
-	r, g, b, a := img.At(x, y).RGBA()
-	return color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a >> 8)}
+func drawPixBufToRectAgg(dst, src *PixBuf, dx0, dy0, dw, dh int) bool {
+	if dst == nil || src == nil || dw <= 0 || dh <= 0 {
+		return false
+	}
+
+	a := Agg2DForPixBuf(dst)
+	srcImg := AggImageForPixBuf(src)
+	if a == nil || srcImg == nil {
+		return false
+	}
+
+	a.ImageFilter(agg.FilterNoFilter)
+	a.ImageResample(agg.NoResample)
+	if err := a.TransformImageSimple(srcImg, float64(dx0), float64(dy0), float64(dx0+dw), float64(dy0+dh)); err != nil {
+		return false
+	}
+
+	return true
+}
+
+func pixBufRegionTransparent(buf *PixBuf, dx0, dy0, dw, dh int) bool {
+	if buf == nil || dw <= 0 || dh <= 0 {
+		return false
+	}
+
+	maxX := min(buf.Width, dx0+dw)
+	maxY := min(buf.Height, dy0+dh)
+	for y := max(0, dy0); y < maxY; y++ {
+		row := y * buf.Stride
+		for x := max(0, dx0); x < maxX; x++ {
+			if buf.Data[row+x*4+3] != 0 {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func applyImageTransparency(px, def color.RGBA, transparentMode, intelliAlpha int) color.RGBA {
@@ -648,6 +664,10 @@ func renderRectOutline(dst *PixBuf, p *model.Primitive) {
 }
 
 func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
+	if canRenderRectFillAgg(p, textures) && renderRectFillAgg(dst, p) {
+		return
+	}
+
 	base := primitiveColor(p)
 	rLY := math.Sqrt(1.0 / 3.0)
 	rLX := rLY
@@ -789,6 +809,53 @@ func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			dst.Set(x, y, pix)
 		}
 	}
+}
+
+func canRenderRectFillAgg(p *model.Primitive, textures []*Texture) bool {
+	if p == nil {
+		return false
+	}
+
+	if p.TextureDepth.Val != 0 || p.TextureFile.Val != 0 || strings.TrimSpace(p.TextureName) != "" || len(p.EmbeddedTexture) != 0 {
+		return false
+	}
+
+	if p.Diffuse.Val != 0 || p.Specular.Val != 0 || p.Emboss.Val != 0 || p.Round.Val != 0 {
+		return false
+	}
+
+	return true
+}
+
+func renderRectFillAgg(dst *PixBuf, p *model.Primitive) bool {
+	ctx := AggContextForPixBuf(dst)
+	if ctx == nil {
+		return false
+	}
+
+	base := primitiveColor(p)
+	rCX := float64(dst.Width) * 0.5
+	rCY := float64(dst.Height) * 0.5
+	rWidth := rCX
+	rHeight := rCY
+	if p.Aspect.Val > 0.0 {
+		rWidth = rWidth * (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0
+	}
+	if p.Aspect.Val < 0.0 {
+		rHeight = rHeight * (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0
+	}
+
+	x0 := rCX - rWidth
+	y0 := rCY - rHeight
+	w := rWidth * 2.0
+	h := rHeight * 2.0
+	if w <= 0 || h <= 0 {
+		return false
+	}
+
+	ctx.SetColor(agg.Color{R: base.R, G: base.G, B: base.B, A: base.A})
+	ctx.FillRectangle(x0, y0, w, h)
+	return true
 }
 
 func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
@@ -1121,8 +1188,7 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 	mask := NewPixBuf(dst.Width, dst.Height)
 	mask.Clear(color.RGBA{A: 255})
-	maskImg := agg.NewImage(mask.Data, mask.Width, mask.Height, mask.Stride)
-	maskCtx := agg.NewContextForImage(maskImg)
+	maskCtx := AggContextForPixBuf(mask)
 	if maskCtx == nil {
 		return
 	}

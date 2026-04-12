@@ -2,6 +2,7 @@ package render
 
 import (
 	"image/color"
+	"math"
 	"testing"
 
 	"knobman/internal/model"
@@ -17,6 +18,82 @@ func TestTransformBilinearTranslate(t *testing.T) {
 
 	if got := dst.At(3, 2); got.A == 0 {
 		t.Fatalf("expected translated non-zero pixel at (3,2), got %+v", got)
+	}
+}
+
+func TestBuildMatrixRotationAroundEffectCenterKeepsCenterFixed(t *testing.T) {
+	const (
+		w       = 100
+		h       = 80
+		centerX = 20.0
+		centerY = -10.0
+	)
+
+	m := BuildMatrix(w, h, 100, 100, 33, 0, 0, centerX, centerY, false)
+	cx := (centerX + 50.0) * 0.01 * float64(w)
+	cy := (50.0 - centerY) * 0.01 * float64(h)
+	tx, ty := applyAffine(m, cx, cy)
+
+	if !nearlyEqual(tx, cx, 1e-6) || !nearlyEqual(ty, cy, 1e-6) {
+		t.Fatalf("rotation center moved: got (%f,%f) want (%f,%f)", tx, ty, cx, cy)
+	}
+}
+
+func TestBuildMatrixNonUniformScale(t *testing.T) {
+	const (
+		w  = 100
+		h  = 80
+		cx = 50.0
+		cy = 40.0
+	)
+
+	m := BuildMatrix(w, h, 50, 200, 0, 0, 0, 0, 0, false)
+
+	tx, ty := applyAffine(m, cx+10, cy+10)
+	if !nearlyEqual(tx-cx, 20, 1e-6) {
+		t.Fatalf("unexpected x scale delta: got %f want 20", tx-cx)
+	}
+	if !nearlyEqual(ty-cy, 5, 1e-6) {
+		t.Fatalf("unexpected y scale delta: got %f want 5", ty-cy)
+	}
+}
+
+func TestBuildMatrixKeepDirCancelsRotationAtImageCenter(t *testing.T) {
+	const (
+		w  = 100
+		h  = 80
+		px = 70.0
+		py = 40.0
+	)
+
+	mNoKeep := BuildMatrix(w, h, 100, 100, 37, 0, 0, 0, 0, false)
+	mKeep := BuildMatrix(w, h, 100, 100, 37, 0, 0, 0, 0, true)
+
+	txNoKeep, tyNoKeep := applyAffine(mNoKeep, px, py)
+	if nearlyEqual(txNoKeep, px, 1e-6) && nearlyEqual(tyNoKeep, py, 1e-6) {
+		t.Fatalf("rotation without keepdir unexpectedly preserved point (%f,%f)", px, py)
+	}
+
+	txKeep, tyKeep := applyAffine(mKeep, px, py)
+	if !nearlyEqual(txKeep, px, 1e-6) || !nearlyEqual(tyKeep, py, 1e-6) {
+		t.Fatalf("keepdir should preserve point at image-centered rotation: got (%f,%f) want (%f,%f)", txKeep, tyKeep, px, py)
+	}
+}
+
+func TestTransformBilinearOutOfBoundsTransparentClipping(t *testing.T) {
+	src := NewPixBuf(6, 6)
+	src.FillRect(1, 1, 4, 4, color.RGBA{255, 0, 0, 255})
+
+	dst := NewPixBuf(6, 6)
+	m := BuildMatrix(6, 6, 100, 100, 0, 20, 0, 0, 0, false)
+	TransformBilinear(dst, src, m)
+
+	for y := 0; y < dst.Height; y++ {
+		for x := 0; x < dst.Width; x++ {
+			if got := dst.At(x, y); got.A != 0 {
+				t.Fatalf("expected fully transparent output after out-of-bounds transform, got pixel (%d,%d)=%+v", x, y, got)
+			}
+		}
 	}
 }
 
@@ -130,4 +207,12 @@ func TestRenderFrameSoloSelection(t *testing.T) {
 	if got := buf.At(8, 8); got.G < 150 {
 		t.Fatalf("solo layer draw expected green-ish center, got %+v", got)
 	}
+}
+
+func applyAffine(m [6]float64, x, y float64) (float64, float64) {
+	return m[0]*x + m[2]*y + m[4], m[1]*x + m[3]*y + m[5]
+}
+
+func nearlyEqual(a, b, eps float64) bool {
+	return math.Abs(a-b) <= eps
 }

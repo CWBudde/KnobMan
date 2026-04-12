@@ -68,62 +68,52 @@ func scaleAround(sx, sy, x, y float64) *agg.Transformations {
 	return m
 }
 
-// TransformBilinear applies matrix m from src to dst with bilinear resampling.
+// TransformBilinear applies matrix m from src to dst with agg_go affine image
+// rendering configured for bilinear sampling.
 func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 	if dst == nil || src == nil || dst.Width == 0 || dst.Height == 0 || src.Width == 0 || src.Height == 0 {
 		return
 	}
 
+	dst.Clear(color.RGBA{})
+
 	invTr := agg.Transformations{AffineMatrix: m}
-	ok := invTr.Invert()
-	if !ok {
+	if !invTr.Invert() {
+		return
+	}
+
+	srcImg := AggImageForPixBuf(src)
+	a := Agg2DForPixBuf(dst)
+	if srcImg == nil || a == nil {
+		return
+	}
+	a.ImageFilter(agg.FilterBilinear)
+	a.ImageResample(agg.NoResample)
+	a.AffineImageResamplePolicy(agg.AffineImageResamplePreferFiltered)
+	a.SetTransformations(&invTr)
+
+	if err := a.TransformImageSimple(srcImg, 0, 0, float64(src.Width), float64(src.Height)); err != nil {
 		dst.Clear(color.RGBA{})
 		return
 	}
-	inv := invTr.AffineMatrix
 
+	inv := invTr.AffineMatrix
 	for y := range dst.Height {
 		fy := float64(y) + 0.5
-
 		for x := range dst.Width {
 			fx := float64(x) + 0.5
 			sx := inv[0]*fx + inv[2]*fy + inv[4] - 0.5
 			sy := inv[1]*fx + inv[3]*fy + inv[5] - 0.5
-			dst.Set(x, y, sampleBilinear(src, sx, sy))
+			clip := clamp01(sampleAlphaBilinear(src, sx, sy) / 255.0)
+			if clip >= 1.0 {
+				continue
+			}
+
+			i := y*dst.Stride + x*4
+			dst.Data[i+0] = uint8(float64(dst.Data[i+0])*clip + 0.5)
+			dst.Data[i+1] = uint8(float64(dst.Data[i+1])*clip + 0.5)
+			dst.Data[i+2] = uint8(float64(dst.Data[i+2])*clip + 0.5)
+			dst.Data[i+3] = uint8(float64(dst.Data[i+3])*clip + 0.5)
 		}
-	}
-}
-
-func sampleBilinear(src *PixBuf, x, y float64) color.RGBA {
-	x0 := int(math.Floor(x))
-	y0 := int(math.Floor(y))
-	x1 := x0 + 1
-	y1 := y0 + 1
-	fx := x - float64(x0)
-	fy := y - float64(y0)
-
-	c00 := src.At(x0, y0)
-	c10 := src.At(x1, y0)
-	c01 := src.At(x0, y1)
-	c11 := src.At(x1, y1)
-
-	lerp := func(a, b uint8, t float64) float64 {
-		return float64(a) + (float64(b)-float64(a))*t
-	}
-
-	r0 := lerp(c00.R, c10.R, fx)
-	r1 := lerp(c01.R, c11.R, fx)
-	g0 := lerp(c00.G, c10.G, fx)
-	g1 := lerp(c01.G, c11.G, fx)
-	b0 := lerp(c00.B, c10.B, fx)
-	b1 := lerp(c01.B, c11.B, fx)
-	a0 := lerp(c00.A, c10.A, fx)
-	a1 := lerp(c01.A, c11.A, fx)
-
-	return color.RGBA{
-		R: uint8(clamp01((r0+(r1-r0)*fy)/255.0)*255 + 0.5),
-		G: uint8(clamp01((g0+(g1-g0)*fy)/255.0)*255 + 0.5),
-		B: uint8(clamp01((b0+(b1-b0)*fy)/255.0)*255 + 0.5),
-		A: uint8(clamp01((a0+(a1-a0)*fy)/255.0)*255 + 0.5),
 	}
 }

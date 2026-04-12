@@ -171,8 +171,40 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Length.Val = 72
 			return doc
 		}},
+		{Name: "tier1_rect_fill_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier1RectFillPlain")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRectFill)
+			ly.Prim.Color.Val = rgb(72, 172, 112)
+			return doc
+		}},
+		{Name: "tier1_rect_fill_aspect", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier1RectFillAspect")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRectFill)
+			ly.Prim.Color.Val = rgb(72, 172, 112)
+			ly.Prim.Aspect.Val = 50
+			return doc
+		}},
+		{Name: "tier1_rect_outline_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier1RectOutlinePlain")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimRect)
+			ly.Prim.Color.Val = rgb(24, 128, 72)
+			ly.Prim.Width.Val = 12
+			return doc
+		}},
 		{Name: "triangle_basic", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Triangle")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimTriangle)
+			ly.Prim.Color.Val = rgb(220, 96, 40)
+			ly.Prim.Width.Val = 62
+			ly.Prim.Length.Val = 74
+			return doc
+		}},
+		{Name: "tier1_triangle_plain", Build: func() *model.Document {
+			doc := newPrimitiveDoc("Tier1TrianglePlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimTriangle)
 			ly.Prim.Color.Val = rgb(220, 96, 40)

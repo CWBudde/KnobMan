@@ -170,6 +170,80 @@ func TestRenderImageTransparentKeyColor(t *testing.T) {
 	}
 }
 
+func TestDrawPixBufToRectAggScaledSemiTransparentPixel(t *testing.T) {
+	src := NewPixBuf(1, 1)
+	src.Set(0, 0, color.RGBA{R: 200, G: 10, B: 20, A: 128})
+
+	dst := NewPixBuf(4, 4)
+	p := model.NewPrimitive()
+	p.Transparent.Val = 0
+
+	drawPixBufToRect(dst, src, 0, 0, 4, 4, &p, color.RGBA{})
+
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			if got := dst.At(x, y); got != (color.RGBA{R: 200, G: 10, B: 20, A: 128}) {
+				t.Fatalf("scaled pixel mismatch at (%d,%d): got %+v", x, y, got)
+			}
+		}
+	}
+}
+
+func TestDrawPixBufToRectAggMatchesBlendOverAtIdentity(t *testing.T) {
+	src := NewPixBuf(1, 1)
+	src.Set(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 128})
+
+	dst := NewPixBuf(1, 1)
+	dst.Set(0, 0, color.RGBA{R: 0, G: 0, B: 255, A: 128})
+
+	want := NewPixBuf(1, 1)
+	want.Set(0, 0, color.RGBA{R: 0, G: 0, B: 255, A: 128})
+	want.BlendOver(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 128})
+
+	p := model.NewPrimitive()
+	p.Transparent.Val = 0
+	drawPixBufToRect(dst, src, 0, 0, 1, 1, &p, color.RGBA{})
+
+	if got := dst.At(0, 0); got != want.At(0, 0) {
+		t.Fatalf("agg image blend mismatch: got %+v want %+v", got, want.At(0, 0))
+	}
+}
+
+func TestRenderRectFillAggPlainFullCanvas(t *testing.T) {
+	p := basePrim(model.PrimRectFill)
+	p.Color.Val = color.RGBA{R: 72, G: 172, B: 112, A: 255}
+
+	buf := NewPixBuf(16, 16)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			if got := buf.At(x, y); got != p.Color.Val {
+				t.Fatalf("full rect fill mismatch at (%d,%d): got %+v want %+v", x, y, got, p.Color.Val)
+			}
+		}
+	}
+}
+
+func TestRenderRectFillAggAspectLeavesTransparentMargins(t *testing.T) {
+	p := basePrim(model.PrimRectFill)
+	p.Color.Val = color.RGBA{R: 72, G: 172, B: 112, A: 255}
+	p.Aspect.Val = 50
+
+	buf := NewPixBuf(20, 20)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(0, 10); got.A != 0 {
+		t.Fatalf("expected left margin transparent, got %+v", got)
+	}
+	if got := buf.At(10, 10); got != p.Color.Val {
+		t.Fatalf("expected center filled, got %+v want %+v", got, p.Color.Val)
+	}
+	if got := buf.At(19, 10); got.A != 0 {
+		t.Fatalf("expected right margin transparent, got %+v", got)
+	}
+}
+
 func TestSubstituteFrameCounters(t *testing.T) {
 	got := SubstituteFrameCounters("F(1:9)", 4, 9)
 	// 4/8 => midpoint => 5

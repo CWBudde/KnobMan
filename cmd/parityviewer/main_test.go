@@ -70,10 +70,45 @@ func TestRenderCardIncludesFiltersAndMetrics(t *testing.T) {
 		`data-max-diff="17"`,
 		`data-diff-pixels="42"`,
 		`Java Golden`,
+		`class="img-col col-ref"`,
+		`class="img-col col-artifact"`,
+		`class="parity-image"`,
 		`sort-metric-badge`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("renderCard missing %q in output:\n%s", want, html)
+		}
+	}
+}
+
+func TestPageHeaderOriginalSizeStylesExpandImageColumns(t *testing.T) {
+	for _, want := range []string{
+		`.original-size .img-grid { grid-template-columns: repeat(5, max-content); }`,
+		`.original-size .img-col { min-width: max-content; }`,
+		`.original-size .slider-wrap { width: auto; }`,
+		`<select id="resample-mode" onchange="setResampleMode(this.value)">`,
+		`<option value="smooth">Scaling: smooth</option>`,
+		`<option value="pixelated">Scaling: pixelated</option>`,
+		`.resample-pixelated .parity-image { image-rendering: pixelated; }`,
+		`.resample-pixelated .slider-wrap img.base { image-rendering: pixelated; }`,
+		`.resample-pixelated .slider-overlay img { image-rendering: pixelated; }`,
+	} {
+		if !strings.Contains(pageHeader, want) {
+			t.Fatalf("pageHeader missing %q", want)
+		}
+	}
+}
+
+func TestPageFooterInitializesResampleMode(t *testing.T) {
+	for _, want := range []string{
+		`function setResampleMode(mode) {`,
+		`container.classList.remove('resample-smooth', 'resample-pixelated');`,
+		`container.classList.add(mode === 'pixelated' ? 'resample-pixelated' : 'resample-smooth');`,
+		`window.setResampleMode = setResampleMode;`,
+		`setResampleMode(document.getElementById('resample-mode').value);`,
+	} {
+		if !strings.Contains(pageFooter, want) {
+			t.Fatalf("pageFooter missing %q", want)
 		}
 	}
 }

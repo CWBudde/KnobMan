@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"knobman/internal/render"
 )
 
 type caseEntry struct {
@@ -355,73 +357,7 @@ func pngToBase64(img image.Image) (string, error) {
 }
 
 func readPNGAsRGBA(path string) (*image.RGBA, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	img, err := png.Decode(bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-
-	return imageToRGBA(img), nil
-}
-
-func imageToRGBA(img image.Image) *image.RGBA {
-	if img == nil {
-		return nil
-	}
-	b := img.Bounds()
-	out := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-
-	switch src := img.(type) {
-	case *image.RGBA:
-		for y := 0; y < b.Dy(); y++ {
-			srcY := b.Min.Y + y
-			for x := 0; x < b.Dx(); x++ {
-				srcX := b.Min.X + x
-				srcOffset := srcY*src.Stride + srcX*4
-				a := uint32(src.Pix[srcOffset+3])
-				dstOffset := y*out.Stride + x*4
-				if a == 0 {
-					out.Pix[dstOffset+0] = 0
-					out.Pix[dstOffset+1] = 0
-					out.Pix[dstOffset+2] = 0
-					out.Pix[dstOffset+3] = 0
-					continue
-				}
-				r := uint32(src.Pix[srcOffset+0])
-				g := uint32(src.Pix[srcOffset+1])
-				bl := uint32(src.Pix[srcOffset+2])
-				out.Pix[dstOffset+0] = uint8((r*255 + a/2) / a)
-				out.Pix[dstOffset+1] = uint8((g*255 + a/2) / a)
-				out.Pix[dstOffset+2] = uint8((bl*255 + a/2) / a)
-				out.Pix[dstOffset+3] = uint8(a)
-			}
-		}
-		return out
-	case *image.NRGBA:
-		for y := 0; y < b.Dy(); y++ {
-			srcY := b.Min.Y + y
-			srcOffset := srcY*src.Stride + b.Min.X*4
-			dstOffset := y * out.Stride
-			copy(out.Pix[dstOffset:dstOffset+b.Dx()*4], src.Pix[srcOffset:srcOffset+b.Dx()*4])
-		}
-		return out
-	}
-
-	for y := 0; y < b.Dy(); y++ {
-		for x := 0; x < b.Dx(); x++ {
-			c := color.NRGBAModel.Convert(img.At(b.Min.X+x, b.Min.Y+y)).(color.NRGBA)
-			dst := y*out.Stride + x*4
-			out.Pix[dst+0] = c.R
-			out.Pix[dst+1] = c.G
-			out.Pix[dst+2] = c.B
-			out.Pix[dst+3] = c.A
-		}
-	}
-	return out
+	return render.ReadPNGAsRGBA(path)
 }
 
 func absDiff8(a, b uint8) uint8 {
@@ -652,17 +588,17 @@ func renderCard(w io.Writer, entry *caseEntry) {
 	)
 	fmt.Fprint(w, `</div><div class="img-grid">`)
 
-	fmt.Fprint(w, `<div class="img-col">`)
+	fmt.Fprint(w, `<div class="img-col col-ref">`)
 	fmt.Fprintf(w, `<label>%s</label>`, esc(refLabel))
-	fmt.Fprintf(w, `<img src="data:image/png;base64,%s" alt="baseline">`, entry.RefB64)
+	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="baseline">`, entry.RefB64)
 	fmt.Fprint(w, `</div>`)
 
-	fmt.Fprint(w, `<div class="img-col">`)
+	fmt.Fprint(w, `<div class="img-col col-artifact">`)
 	fmt.Fprint(w, `<label>Artifact</label>`)
-	fmt.Fprintf(w, `<img src="data:image/png;base64,%s" alt="artifact">`, entry.ActB64)
+	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="artifact">`, entry.ActB64)
 	fmt.Fprint(w, `</div>`)
 
-	fmt.Fprint(w, `<div class="img-col">`)
+	fmt.Fprint(w, `<div class="img-col col-overlay">`)
 	fmt.Fprint(w, `<label>Overlay</label>`)
 	fmt.Fprint(w, `<div class="slider-wrap">`)
 	fmt.Fprintf(w, `<img class="base" src="data:image/png;base64,%s" alt="base">`, entry.RefB64)
@@ -671,12 +607,12 @@ func renderCard(w io.Writer, entry *caseEntry) {
 
 	fmt.Fprint(w, `<div class="img-col col-amp">`)
 	fmt.Fprint(w, `<label>Diff (amplified)</label>`)
-	fmt.Fprintf(w, `<img src="data:image/png;base64,%s" alt="amplified-diff">`, entry.AmpDiffB64)
+	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="amplified-diff">`, entry.AmpDiffB64)
 	fmt.Fprint(w, `</div>`)
 
 	fmt.Fprint(w, `<div class="img-col col-raw" style="display:none">`)
 	fmt.Fprint(w, `<label>Diff (raw)</label>`)
-	fmt.Fprintf(w, `<img src="data:image/png;base64,%s" alt="raw-diff">`, entry.RawDiffB64)
+	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="raw-diff">`, entry.RawDiffB64)
 	fmt.Fprint(w, `</div>`)
 
 	fmt.Fprint(w, `</div></div></div>`)
@@ -771,17 +707,26 @@ body { background: #101216; color: #d7dce4; font-family: ui-monospace, SFMono-Re
 }
 .rerender-btn:hover { background: #273244; }
 .rerender-btn:disabled { opacity: 0.6; cursor: wait; }
-.img-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-.img-col { display: flex; flex-direction: column; gap: 6px; overflow: auto; }
+.img-grid {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;
+  align-items: start; overflow-x: auto;
+}
+.img-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow: auto; }
 .img-col label { font-size: 11px; color: #93a1b5; text-align: center; }
-.img-col img { display: block; image-rendering: auto; width: 100%; height: auto; border-radius: 6px; background: #0c1016; }
-.original-size .img-col img { width: auto; height: auto; max-width: none; }
+.parity-image { display: block; image-rendering: auto; width: 100%; height: auto; border-radius: 6px; background: #0c1016; max-width: 100%; }
+.resample-pixelated .parity-image { image-rendering: pixelated; }
+.original-size .img-grid { grid-template-columns: repeat(5, max-content); }
+.original-size .img-col { min-width: max-content; }
+.original-size .parity-image { width: auto; height: auto; max-width: none; }
 .col-raw { display: none; }
 .slider-wrap { position: relative; overflow: hidden; width: 100%; cursor: col-resize; border-radius: 6px; background: #0c1016; }
 .slider-wrap img.base { display: block; image-rendering: auto; width: 100%; height: auto; }
+.resample-pixelated .slider-wrap img.base { image-rendering: pixelated; }
+.original-size .slider-wrap { width: auto; }
 .original-size .slider-wrap img.base { width: auto; height: auto; max-width: none; }
 .slider-overlay { position: absolute; top: 0; left: 0; height: 100%; overflow: hidden; width: 50%; }
 .slider-overlay img { display: block; position: absolute; top: 0; left: 0; image-rendering: auto; width: 200%; }
+.resample-pixelated .slider-overlay img { image-rendering: pixelated; }
 .original-size .slider-overlay img { width: auto !important; }
 .slider-divider {
   position: absolute; top: 0; left: 50%; height: 100%; width: 3px;
@@ -836,6 +781,10 @@ code { color: #f4f7fb; }
       <option value="amp">Diff: amplified</option>
       <option value="raw">Diff: raw</option>
       <option value="both">Diff: both</option>
+    </select>
+    <select id="resample-mode" onchange="setResampleMode(this.value)">
+      <option value="smooth">Scaling: smooth</option>
+      <option value="pixelated">Scaling: pixelated</option>
     </select>
     <label><input type="checkbox" id="original-size" onchange="setOriginalSize(this.checked)"> Original size</label>
     <span id="summary"></span>
@@ -1023,13 +972,21 @@ const pageFooter = `</div>
     }
   }
 
+  function setResampleMode(mode) {
+    var container = document.getElementById('cards-container');
+    container.classList.remove('resample-smooth', 'resample-pixelated');
+    container.classList.add(mode === 'pixelated' ? 'resample-pixelated' : 'resample-smooth');
+  }
+
   window.filterCards = filterCards;
   window.sortCards = sortCards;
   window.setDiffMode = setDiffMode;
   window.setOriginalSize = setOriginalSize;
+  window.setResampleMode = setResampleMode;
 
   sortCards();
   setDiffMode(document.getElementById('diff-mode').value);
+  setResampleMode(document.getElementById('resample-mode').value);
   filterCards();
 })();
 </script>
