@@ -88,6 +88,7 @@ func TestPageHeaderOriginalSizeStylesExpandImageColumns(t *testing.T) {
 	for _, want := range []string{
 		`.original-size .img-grid { grid-template-columns: repeat(5, max-content); }`,
 		`.original-size .img-col { min-width: max-content; }`,
+		`.original-size .parity-image, .original-size .slider-wrap { align-self: flex-start; }`,
 		`.original-size .slider-wrap { width: auto; }`,
 		`<select id="resample-mode" onchange="setResampleMode(this.value)">`,
 		`<option value="smooth">Scaling: smooth</option>`,

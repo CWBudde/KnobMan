@@ -215,6 +215,34 @@ func TestLoadSavePreservesPrimFont(t *testing.T) {
 	}
 }
 
+func TestLoadUsesPerLayerVisibleWhenVisible1FlagsAbsent(t *testing.T) {
+	input := strings.Join([]string{
+		"[Prefs]",
+		"Layers=2",
+		"OutputSizeX=32",
+		"OutputSizeY=32",
+		"[Layer1]",
+		"Visible=0",
+		"Primitive=None",
+		"[Layer2]",
+		"Visible=1",
+		"Primitive=None",
+	}, "\n")
+
+	doc, err := Load([]byte(input))
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	if got := doc.Layers[0].Visible.Val; got != 0 {
+		t.Fatalf("layer1 visible = %d, want 0", got)
+	}
+
+	if got := doc.Layers[1].Visible.Val; got != 1 {
+		t.Fatalf("layer2 visible = %d, want 1", got)
+	}
+}
+
 func TestLoadFMaskStopLegacyDefault(t *testing.T) {
 	profile := strings.Join([]string{
 		"[Prefs]",

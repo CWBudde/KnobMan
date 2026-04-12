@@ -394,6 +394,7 @@ func loadDocument(ini *iniFile) (*model.Document, error) {
 
 	for i := range doc.Layers {
 		doc.Layers[i] = model.NewLayer()
+		doc.Layers[i].Visible.Val = -1
 		if visFlags[i] >= 0 {
 			doc.Layers[i].Visible.Val = visFlags[i]
 		}

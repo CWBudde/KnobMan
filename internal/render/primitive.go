@@ -230,12 +230,13 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 		return
 	}
 
-	txt := strings.TrimSpace(SubstituteFrameCounters(p.Text.Val, frame, total))
+	txt := ResolveDynamicText(p.Text.Val, frame, total)
 	if txt == "" {
 		txt = "TEXT"
 	}
 
 	size := p.FontSize.Val * 0.01 * float64(dst.Height)
+	size = math.Floor(size)
 	if size < 6 {
 		size = 6
 	}
@@ -279,7 +280,7 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 		alignY = agg.AlignBottom
 		anchorY += size * 0.35
 	default:
-		anchorY += 1
+		anchorY += 2
 	}
 
 	a.TextAlignment(agg.AlignLeft, alignY)

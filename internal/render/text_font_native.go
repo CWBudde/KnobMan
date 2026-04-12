@@ -26,7 +26,9 @@ func loadAggTrueTypeFont(ctx *agg.Context, p *model.Primitive, size float64) boo
 		return false
 	}
 
-	return ctx.Font(fontPath, size, p.Bold.Val != 0, p.Italic.Val != 0, agg.RasterFontCache, 0) == nil
+	// We already resolve the concrete face file (for example Georgia_Bold_Italic.ttf),
+	// so keep agg_go in plain mode here instead of asking it to synthesize styles.
+	return ctx.Font(fontPath, size, false, false, agg.RasterFontCache, 0) == nil
 }
 
 func resolveFontPath(family string, bold, italic bool) string {
@@ -111,11 +113,11 @@ func candidateFontFamilies(family string) []string {
 	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(family), " ", ""))
 	switch normalized {
 	case "sansserif", "dialog":
-		return []string{"Arial", "Helvetica", "Noto Sans", "DejaVu Sans", "Liberation Sans"}
+		return []string{"Noto Sans", "Helvetica", "Arial", "DejaVu Sans", "Liberation Sans"}
 	case "serif":
-		return []string{"Times New Roman", "Times", "Noto Serif", "DejaVu Serif", "Liberation Serif"}
+		return []string{"Noto Serif", "Times New Roman", "Times", "DejaVu Serif", "Liberation Serif"}
 	case "monospaced", "dialoginput", "monospace":
-		return []string{"Courier New", "Courier", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono"}
+		return []string{"Noto Sans Mono", "Courier New", "Courier", "DejaVu Sans Mono", "Liberation Mono"}
 	default:
 		return []string{family}
 	}

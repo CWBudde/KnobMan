@@ -783,6 +783,7 @@ body { background: #101216; color: #d7dce4; font-family: ui-monospace, SFMono-Re
 .resample-pixelated .parity-image { image-rendering: pixelated; }
 .original-size .img-grid { grid-template-columns: repeat(5, max-content); }
 .original-size .img-col { min-width: max-content; }
+.original-size .parity-image, .original-size .slider-wrap { align-self: flex-start; }
 .original-size .parity-image { width: auto; height: auto; max-width: none; }
 .col-raw { display: none; }
 .slider-wrap { position: relative; overflow: hidden; width: 100%; cursor: col-resize; border-radius: 6px; background: #0c1016; }

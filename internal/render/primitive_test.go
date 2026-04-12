@@ -379,8 +379,8 @@ func TestSubstituteFrameCounters(t *testing.T) {
 	}
 
 	got2 := SubstituteFrameCounters("N(01:99)", 0, 10)
-	if got2 != "N01" {
-		t.Fatalf("unexpected zero-padded substitution: %q", got2)
+	if got2 != "N1" {
+		t.Fatalf("unexpected dynamic range substitution: %q", got2)
 	}
 }
 
