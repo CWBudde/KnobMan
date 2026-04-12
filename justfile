@@ -71,6 +71,10 @@ parity-primitives-test:
 parity-primitives-golden-test:
     go test ./internal/render -run TestParityGoldenPrimitiveFixturesFrame0 -count=1
 
+# Start the parity comparison viewer on a local web server.
+parity-viewer PORT="8090":
+    PORT={{PORT}} go run ./cmd/parityviewer --port {{PORT}}
+
 # Format all code using treefmt
 fmt:
     treefmt --allow-missing-formatter

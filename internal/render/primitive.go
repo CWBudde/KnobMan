@@ -38,9 +38,9 @@ func RenderPrimitive(dst *PixBuf, p *model.Primitive, textures []*Texture, frame
 	case model.PrimSphere:
 		renderSphere(dst, p, textures)
 	case model.PrimRect:
-		renderRect(dst, p, true)
+		renderRect(dst, p, true, textures)
 	case model.PrimRectFill:
-		renderRect(dst, p, false)
+		renderRect(dst, p, false, textures)
 	case model.PrimTriangle:
 		renderTriangle(dst, p)
 	case model.PrimLine:
@@ -529,30 +529,257 @@ func renderSphere(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	}
 }
 
-func renderRect(dst *PixBuf, p *model.Primitive, outline bool) {
-	c := primitiveColor(p)
-	w := int(math.Max(1, p.Length.Val*0.01*float64(dst.Width)))
-
-	h := int(math.Max(1, p.Aspect.Val*0.01*float64(dst.Height)))
-	if h <= 1 {
-		h = int(0.6 * float64(dst.Height))
-	}
-
-	x0 := (dst.Width - w) / 2
-	y0 := (dst.Height - h) / 2
-	x1 := x0 + w
-
-	y1 := y0 + h
-	if !outline {
-		dst.FillRect(x0, y0, x1, y1, c)
+func renderRect(dst *PixBuf, p *model.Primitive, outline bool, textures []*Texture) {
+	if outline {
+		renderRectOutline(dst, p)
 		return
 	}
 
-	stroke := int(math.Max(1, p.Width.Val*0.02*float64(min(dst.Width, dst.Height))))
-	dst.FillRect(x0, y0, x1, y0+stroke, c)
-	dst.FillRect(x0, y1-stroke, x1, y1, c)
-	dst.FillRect(x0, y0, x0+stroke, y1, c)
-	dst.FillRect(x1-stroke, y0, x1, y1, c)
+	renderRectFill(dst, p, textures)
+}
+
+func renderRectOutline(dst *PixBuf, p *model.Primitive) {
+	base := primitiveColor(p)
+	rCX := float64(dst.Width) * 0.5
+	rCY := float64(dst.Height) * 0.5
+	rXRO := rCX + 0.5
+	rYRO := rCY + 0.5
+	if p.Aspect.Val > 0.0 {
+		rXRO = rXRO * (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0
+	}
+	if p.Aspect.Val < 0.0 {
+		rYRO = rYRO * (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0
+	}
+
+	rWidth := math.Min(rCX, rCY)*p.Width.Val/100.0 + 1.0
+	rWidth2 := rWidth * 0.5
+	rD := rWidth2 * p.Diffuse.Val / 100.0
+	rXRC := rXRO - rWidth2
+	rYRC := rYRO - rWidth2
+	rXRI := rXRO - rWidth
+	rYRI := rYRO - rWidth
+	rRoundO := p.Round.Val * math.Min(rCX, rCY) / 100.0
+	rRoundI := rRoundO - rWidth
+	rXCC := rXRO - rRoundO
+	rYCC := rYRO - rRoundO
+
+	for y := 0; y < dst.Height; y++ {
+		rY := -((float64(y) + 0.5) - rCY)
+		rYA := math.Abs(rY)
+
+		for x := 0; x < dst.Width; x++ {
+			rX := -((float64(x) + 0.5) - rCX)
+			rXA := math.Abs(rX)
+			rAlpha := 1.0
+			rSpec := rWidth
+
+			if rXA > rXRO {
+				rAlpha = 0.0
+			} else if rXA > rXRO-1.0-rD {
+				rAlpha = (rXRO - rXA) / (1.0 + rD)
+			}
+			if rYA > rYRO {
+				rAlpha = 0.0
+			} else if rYA > rYRO-1.0-rD {
+				rAlpha *= (rYRO - rYA) / (1.0 + rD)
+			}
+
+			if rXA >= rXCC && rYA >= rYCC {
+				r := math.Hypot(rXA-rXCC, rYA-rYCC)
+				if r > rRoundO {
+					rAlpha = 0.0
+				}
+				if r > rRoundO-1.0-rD {
+					rAlpha *= (rRoundO - r) / (1.0 + rD)
+				}
+				if r < rRoundI {
+					rAlpha = 0.0
+				}
+				if r < rRoundI+1.0 {
+					rAlpha *= r - rRoundI
+				}
+			} else if rXA < rXRI && rYA < rYRI {
+				rAlpha = 0.0
+			} else if rXA < rXRI+1.0+rD && rYA < rYRI+1.0+rD {
+				rAlpha *= math.Max(rYA-rYRI, rXA-rXRI) / (1.0 + rD)
+			}
+
+			if rYA < math.Min(rYRI, rYCC) {
+				rSpec = math.Max(0.0, math.Abs(rXA-rXRC))
+			} else if rXA < math.Min(rXRI, rXCC) {
+				rSpec = math.Max(0.0, math.Abs(rYA-rYRC))
+			} else if rXA >= rXCC && rYA >= rYCC {
+				r := math.Hypot(rXA-rXCC, rYA-rYCC)
+				rSpec = math.Abs(r + (rWidth2 - rRoundO))
+			} else if rYA-rYRI > rXA-rXRI {
+				rSpec = math.Abs(rYA - rYRC)
+			} else {
+				rSpec = math.Abs(rXA - rXRC)
+			}
+
+			alpha := clampInt(int(rAlpha*255.0), 0, 255)
+			if alpha == 0 {
+				continue
+			}
+
+			iSpec := int((1.0 - rSpec/rWidth2) * 255.0 * p.Specular.Val / 100.0)
+			pix := changeBrightnessRGBA(base, iSpec)
+			pix.A = uint8(alpha)
+			dst.Set(x, y, pix)
+		}
+	}
+}
+
+func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
+	base := primitiveColor(p)
+	rLY := math.Sqrt(1.0 / 3.0)
+	rLX := rLY
+	rLZ := rLY
+	root2 := math.Sqrt(2.0)
+	rMin := math.Min(float64(dst.Width), float64(dst.Height))
+	rRound := p.Round.Val * rMin / 200.0
+	iEm := int(math.Abs(p.Emboss.Val))
+	rEmbossEdge := (100.0 - p.EmbossDiffuse.Val) / 100.0
+	rCX := float64(dst.Width) * 0.5
+	rCY := float64(dst.Height) * 0.5
+	rWidth := rCX
+	rHeight := rCY
+	if p.Aspect.Val > 0.0 {
+		rWidth = rWidth * (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0
+	}
+	if p.Aspect.Val < 0.0 {
+		rHeight = rHeight * (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0
+	}
+
+	rXD := rWidth * (100.0 - p.Diffuse.Val) / 100.0
+	rYD := rHeight * (100.0 - p.Diffuse.Val) / 100.0
+	rXE := rWidth + 1.0 - rMin*float64(iEm)/200.0*rEmbossEdge
+	rXEM := rWidth - rMin*float64(iEm)/200.0
+	rYE := rHeight + 1.0 - rMin*float64(iEm)/200.0*rEmbossEdge
+	rYEM := rHeight - rMin*float64(iEm)/200.0
+	txd := p.TextureDepth.Val * 0.01
+
+	for y := 0; y < dst.Height; y++ {
+		rY := -((float64(y) + 0.5) - rCY)
+		rYN := rY / rCY
+		rYA := math.Abs(rY)
+		rPY := float64(y) - rCY + 0.5
+
+		for x := 0; x < dst.Width; x++ {
+			rPX := float64(x) - rCX + 0.5
+			alpha := 255
+			lumi := 0
+			if idx := p.TextureFile.Val; idx > 0 && idx <= len(textures) {
+				if tex := textures[idx-1]; tex != nil {
+					tc := tex.Sample(rPX, rPY, p.TextureZoom.Val)
+					lumi = int((float64(int(tc.B) - 128)) * txd)
+					alpha = 255 - int(float64(255-int(tc.A))*txd)
+				}
+			}
+
+			rX := -((float64(x) + 0.5) - rCX)
+			rXN := rX / rCX
+			rXA := math.Abs(rX)
+			if rYA > rHeight || rXA > rWidth {
+				alpha = 0
+			}
+			if rXA > rXD && rWidth != rXD {
+				alpha = int(math.Max(0.0, float64(alpha)*(1.0-(rXA-rXD)/(rWidth-rXD))))
+			}
+			if rYA > rYD && rHeight != rYD {
+				alpha = int(math.Max(0.0, float64(alpha)*(1.0-(rYA-rYD)/(rHeight-rYD))))
+			}
+
+			if rXA > rWidth-rRound && rYA > rHeight-rRound {
+				rXR := rXA - rWidth + rRound
+				rYR := rYA - rHeight + rRound
+				rXRM := rXR + 1.0
+				rYRM := rYR + 1.0
+				rR2 := rRound * rRound
+				if rXRM*rXRM+rYRM*rYRM >= rR2 {
+					if rXR*rXR+rYR*rYR >= rR2 {
+						alpha = 0
+					} else {
+						b := (rXR + rYR) * 2.0
+						c := rXR*rXR + rYR*rYR - rR2
+						v := (math.Sqrt(b*b-8.0*c) - b) * 0.25
+						alpha = int(float64(alpha) * v)
+					}
+				}
+			}
+
+			rRound2 := 0.0
+			if min(rWidth, rHeight) != 0 {
+				rRound2 = rRound * math.Min(rXE, rYE) / math.Min(rWidth, rHeight)
+			}
+			rXR := 0.0
+			rYR := 0.0
+			iEmbossMode := 0
+			rXYR := 0.0
+			if rXA >= rXEM {
+				rXR = rX / (rXA * root2)
+				rYR = 0.0
+				iEmbossMode = 1
+			}
+			if rYA >= rYEM {
+				rXR = 0.0
+				rYR = rY / (rYA * root2)
+				iEmbossMode = 2
+			}
+			if rXA >= rXEM-rRound2 && rYA >= rYEM-rRound2 {
+				if rX > 0.0 {
+					rXR = rXA - rXEM + rRound2
+				} else {
+					rXR = -(rXA - rXEM + rRound2)
+				}
+				if rY > 0.0 {
+					rYR = rYA - rYEM + rRound2
+				} else {
+					rYR = -(rYA - rYEM + rRound2)
+				}
+				rXYR = rXR*rXR + rYR*rYR
+				if r2 := rRound2 * rRound2; rXYR >= r2 {
+					r := math.Sqrt(2.0 * rXYR)
+					rXR /= r
+					rYR /= r
+					iEmbossMode = 3
+				}
+			}
+
+			pix := changeBrightnessRGBA(base, int((rXN+rYN)*128.0*p.Specular.Val/100.0)+lumi)
+			if iEmbossMode != 0 {
+				rTZ := 1.0 / root2
+				r := 0.0
+				if p.Emboss.Val > 0.0 {
+					r = rXR*rLX + rYR*rLY + rTZ*rLZ
+				} else {
+					r = -rXR*rLX - rYR*rLY + rTZ*rLZ
+				}
+				if r < 0.0 {
+					r = 0.0
+				}
+				edgePix := changeBrightnessRGBA(base, int(r*255.0-128.0))
+
+				a := 0.0
+				switch iEmbossMode {
+				case 1:
+					a = 255.0 * (rXA - rXEM) / (rXE - rXEM)
+				case 2:
+					a = 255.0 * (rYA - rYEM) / (rYE - rYEM)
+				case 3:
+					a = 255.0 * (math.Sqrt(rXYR) - rRound2) / (rXE - rXEM)
+				}
+				a = math.Min(255.0, math.Max(0.0, math.Abs(a)))
+				pix = blendToRGBA(pix, edgePix, int(a))
+			}
+
+			if alpha <= 0 {
+				continue
+			}
+			pix.A = uint8(clampInt(alpha, 0, 255))
+			dst.Set(x, y, pix)
+		}
+	}
 }
 
 func renderTriangle(dst *PixBuf, p *model.Primitive) {
@@ -577,53 +804,232 @@ func renderTriangle(dst *PixBuf, p *model.Primitive) {
 }
 
 func renderLine(dst *PixBuf, p *model.Primitive) {
-	c := primitiveColor(p)
-	ang := p.LightDir.Val * math.Pi / 180.0
-	length := math.Max(1, p.Length.Val*0.01*float64(min(dst.Width, dst.Height)))
-	cx := float64(dst.Width-1) * 0.5
-	cy := float64(dst.Height-1) * 0.5
-	dx := math.Cos(ang) * length * 0.5
-	dy := math.Sin(ang) * length * 0.5
-	w := int(math.Max(1, p.Width.Val*0.02*float64(min(dst.Width, dst.Height))))
-	drawLine(dst, int(cx-dx), int(cy-dy), int(cx+dx), int(cy+dy), c, w)
+	base := primitiveColor(p)
+	rWidth := float64(dst.Width) * p.Width.Val / 400.0
+	rLenY := float64(dst.Height)*p.Length.Val/100.0 - rWidth
+	if rLenY < rWidth {
+		rLenY = rWidth
+	}
+	rXC := float64(dst.Width) * 0.5
+	rD := 1.0 - p.Diffuse.Val/100.0
+	rWidth2 := (rWidth - 1.0) * rD
+
+	for y := 0; y < dst.Height; y++ {
+		rY := float64(y) + 0.5
+		rYP := rY
+		if rY < rWidth {
+			rYP = rWidth
+		} else if rY >= rLenY {
+			rYP = rLenY
+		}
+		rDY := rY - rYP
+		for x := 0; x < dst.Width; x++ {
+			rX := float64(x) + 0.5
+			rDX := rX - rXC
+			rDistance := math.Hypot(rDX, rDY)
+			if rDistance >= rWidth {
+				continue
+			}
+
+			alpha := 255
+			if rDistance >= rWidth2 {
+				alpha = int(255.0 - 255.0*(rDistance-rWidth2)/(rWidth-rWidth2))
+			}
+			pix := changeBrightnessRGBA(base, clampInt(int((255.0-rDistance/rWidth*255.0)*p.Specular.Val/100.0), 0, 255))
+			pix.A = uint8(clampInt(alpha, 0, 255))
+			dst.Set(x, y, pix)
+		}
+	}
 }
 
 func renderRadiateLines(dst *PixBuf, p *model.Primitive) {
-	c := primitiveColor(p)
-
-	step := p.AngleStep.Val
-	if step <= 0 {
-		step = 30
+	if dst.Width == 0 || dst.Height == 0 || p.AngleStep.Val == 0.0 {
+		return
 	}
 
-	length := math.Max(1, p.Length.Val*0.01*float64(min(dst.Width, dst.Height)))
-	cx := float64(dst.Width-1) * 0.5
-	cy := float64(dst.Height-1) * 0.5
-	w := int(math.Max(1, p.Width.Val*0.02*float64(min(dst.Width, dst.Height))))
+	base := primitiveColor(p)
+	vCX := float64(dst.Width) * 0.5
+	vCY := float64(dst.Height) * 0.5
+	rWidth := vCX*p.Width.Val/200.0 + 1.0
+	rD := 1.0 - p.Diffuse.Val/100.0
+	rWidth2 := (rWidth - 1.0) * rD
+	rLenY := float64(dst.Height) * p.Length.Val / 200.0
+	if rLenY < rWidth {
+		rLenY = rWidth
+	}
 
-	for a := 0.0; a < 360.0; a += step {
-		rad := a * math.Pi / 180.0
-		x1 := int(cx + math.Cos(rad)*length)
-		y1 := int(cy + math.Sin(rad)*length)
-		drawLine(dst, int(cx), int(cy), x1, y1, c, w)
+	aspectX := 1.0
+	aspectY := 1.0
+	if p.Aspect.Val > 0.0 {
+		aspectX = (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0
+	}
+	if p.Aspect.Val < 0.0 {
+		aspectY = (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0
+	}
+	aspectX *= float64(dst.Width) / float64(dst.Height)
+
+	p1x, p1y := 0.0, -vCY+rWidth
+	p2x, p2y := 0.0, -vCY+rLenY
+	tc1x, tc1y := p1x*aspectX+vCX, p1y*aspectY+vCY
+	tc2x, tc2y := p2x*aspectX+vCX, p2y*aspectY+vCY
+
+	for y := 0; y < dst.Height; y++ {
+		py := float64(y) + 0.5
+		for x := 0; x < dst.Width; x++ {
+			px := float64(x) + 0.5
+			d := linePointDistance(tc1x, tc1y, tc2x, tc2y, px, py)
+
+			for rTh := p.AngleStep.Val; rTh <= 180.0; rTh += p.AngleStep.Val {
+				rad := rTh * math.Pi / 180.0
+				sinT, cosT := math.Sin(rad), math.Cos(rad)
+
+				t1x, t1y := rotatePoint(p1x, p1y, sinT, cosT)
+				t2x, t2y := rotatePoint(p2x, p2y, sinT, cosT)
+				t1x, t1y = t1x*aspectX+vCX, t1y*aspectY+vCY
+				t2x, t2y = t2x*aspectX+vCX, t2y*aspectY+vCY
+				d = math.Min(d, linePointDistance(t1x, t1y, t2x, t2y, px, py))
+
+				t1x, t1y = rotatePoint(p1x, p1y, -sinT, cosT)
+				t2x, t2y = rotatePoint(p2x, p2y, -sinT, cosT)
+				t1x, t1y = t1x*aspectX+vCX, t1y*aspectY+vCY
+				t2x, t2y = t2x*aspectX+vCX, t2y*aspectY+vCY
+				d = math.Min(d, linePointDistance(t1x, t1y, t2x, t2y, px, py))
+			}
+
+			if d >= rWidth {
+				continue
+			}
+
+			alpha := 255
+			if d >= rWidth2 {
+				alpha = int(255.0 - (d-rWidth2)/(rWidth-rWidth2)*255.0)
+			}
+			pix := changeBrightnessRGBA(base, int((rWidth-d)/rWidth*255.0*p.Specular.Val/100.0))
+			pix.A = uint8(clampInt(alpha, 0, 255))
+			dst.Set(x, y, pix)
+		}
 	}
 }
 
 func renderParallelLines(dst *PixBuf, p *model.Primitive, horizontal bool) {
-	c := primitiveColor(p)
-	step := int(math.Max(1, p.Step.Val*0.01*float64(min(dst.Width, dst.Height))))
+	base := primitiveColor(p)
+	rCX := float64(dst.Width) * 0.5
+	rCY := float64(dst.Height) * 0.5
+	rAY := 1.0
+	rAX := 1.0
+	if p.Aspect.Val > 0.0 {
+		rAX = 100.0 / (100.0 - math.Min(p.Aspect.Val, 99.0))
+	}
+	if p.Aspect.Val < 0.0 {
+		rAY = 100.0 / (100.0 + math.Max(p.Aspect.Val, -99.0))
+	}
 
-	stroke := int(math.Max(1, p.Width.Val*0.02*float64(min(dst.Width, dst.Height))))
 	if horizontal {
-		for y := 0; y < dst.Height; y += step {
-			dst.FillRect(0, y, dst.Width, y+stroke, c)
+		rLen := rCX / rAX * p.Length.Val / 100.0
+		rYArea := rCY / rAY
+		rWidth := rYArea*p.Width.Val/200.0 + 1.0
+		rWidth2 := (rWidth - 1.0) * (1.0 - p.Diffuse.Val/100.0)
+		if dst.Width == 0 || dst.Height == 0 {
+			return
 		}
 
+		for y := 0; y < dst.Height; y++ {
+			rY := -((float64(y) + 0.5) - rCY)
+			rYA := math.Abs(rY)
+			for x := 0; x < dst.Width; x++ {
+				rX := float64(x) + 0.5 - rCX
+				rXA := math.Abs(rX)
+				rMin := 1.0
+				alpha := 0.0
+				if rYA < rYArea {
+					rMin = 100000.0
+					yy := 0.0
+					for yy <= 100.0 {
+						r := 0.0
+						if rXA < rLen {
+							r = yy * (rYArea - rWidth) / 100.0
+							r = math.Abs(r - rYA)
+						} else {
+							yyy := yy * (rYArea - rWidth) / 100.0
+							r = math.Hypot(rXA-rLen, rYA-yyy)
+						}
+						if r < rMin {
+							rMin = r
+						}
+						if p.Step.Val == 0.0 {
+							break
+						}
+						yy += p.Step.Val
+					}
+					if rMin < rWidth {
+						if rMin < rWidth2 {
+							alpha = 255.0
+						} else {
+							alpha = 255.0 - (rMin-rWidth2)/(rWidth-rWidth2)*255.0
+						}
+					}
+				}
+				if alpha == 0.0 {
+					continue
+				}
+				pix := changeBrightnessRGBA(base, int((1.0-rMin/rWidth)*255.0*p.Specular.Val/100.0))
+				pix.A = uint8(clampInt(int(alpha), 0, 255))
+				dst.Set(x, y, pix)
+			}
+		}
 		return
 	}
 
-	for x := 0; x < dst.Width; x += step {
-		dst.FillRect(x, 0, x+stroke, dst.Height, c)
+	rLen := rCY / rAY * p.Length.Val / 100.0
+	rXArea := rCX / rAX
+	rWidth := rXArea*p.Width.Val/200.0 + 1.0
+	rWidth2 := (rWidth - 1.0) * (1.0 - p.Diffuse.Val/100.0)
+	if dst.Width == 0 || dst.Height == 0 {
+		return
+	}
+	for y := 0; y < dst.Height; y++ {
+		rY := -((float64(y) + 0.5) - rCY)
+		rYA := math.Abs(rY)
+		for x := 0; x < dst.Width; x++ {
+			rX := float64(x) + 0.5 - rCX
+			rXA := math.Abs(rX)
+			rMin := 1.0
+			alpha := 0.0
+			if rXA < rXArea {
+				rMin = 100000.0
+				xx := 0.0
+				for xx <= 100.0 {
+					r := 0.0
+					if rYA < rLen {
+						r = xx * (rXArea - rWidth) / 100.0
+						r = math.Abs(r - rXA)
+					} else {
+						xxx := xx * (rXArea - rWidth) / 100.0
+						r = math.Hypot(rYA-rLen, rXA-xxx)
+					}
+					if r < rMin {
+						rMin = r
+					}
+					if p.Step.Val == 0.0 {
+						break
+					}
+					xx += p.Step.Val
+				}
+				if rMin < rWidth {
+					if rMin < rWidth2 {
+						alpha = 255.0
+					} else {
+						alpha = 255.0 - (rMin-rWidth2)/(rWidth-rWidth2)*255.0
+					}
+				}
+			}
+			if alpha == 0.0 {
+				continue
+			}
+			pix := changeBrightnessRGBA(base, int((1.0-rMin/rWidth)*255.0*p.Specular.Val/100.0))
+			pix.A = uint8(clampInt(int(alpha), 0, 255))
+			dst.Set(x, y, pix)
+		}
 	}
 }
 
@@ -1142,6 +1548,32 @@ func clampInt(v, lo, hi int) int {
 	}
 
 	return v
+}
+
+func linePointDistance(x0, y0, x1, y1, px, py float64) float64 {
+	dx := x1 - x0
+	dy := y1 - y0
+	a := dx*dx + dy*dy
+	if a == 0.0 {
+		return math.Hypot(x0-px, y0-py)
+	}
+
+	b := dx*(x0-px) + dy*(y0-py)
+	t := -(b / a)
+	if t < 0.0 {
+		t = 0.0
+	}
+	if t >= 1.0 {
+		t = 1.0
+	}
+
+	x := t*dx + x0
+	y := t*dy + y0
+	return math.Hypot(x-px, y-py)
+}
+
+func rotatePoint(x, y, sinT, cosT float64) (float64, float64) {
+	return x*cosT - y*sinT, x*sinT + y*cosT
 }
 
 func changeBrightnessRGBA(c color.RGBA, delta int) color.RGBA {

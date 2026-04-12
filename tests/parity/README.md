@@ -15,8 +15,10 @@
 - `just primitive-fixtures-generate` regenerates `tests/parity/primitives/inputs/`.
 - `just parity-primitives-generate` regenerates `tests/parity/primitives/baseline-go/`.
 - `just java-parity-primitives-generate` regenerates `tests/parity/primitives/baseline-java/`.
+- `just parity-viewer` starts a local browser-facing report that compares baselines against the latest artifacts and sorts cases by RMSE or other diff metrics.
 
 ## Testing Intent
 
 - Use `baseline-java` when you want to measure parity against the legacy implementation.
 - Use `baseline-go` when you want a stable regression tripwire during renderer refactors.
+- Run the relevant parity test before opening the viewer so `tests/parity/*/artifacts/` contains fresh comparison images.
