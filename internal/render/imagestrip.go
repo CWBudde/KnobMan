@@ -75,10 +75,7 @@ func frameIndex(frame, totalFrames, numFrames int) int {
 		frame = totalFrames - 1
 	}
 
-	idx := numFrames * frame / (totalFrames - 1)
-	if idx < 0 {
-		idx = 0
-	}
+	idx := max(numFrames*frame/(totalFrames-1), 0)
 
 	if idx >= numFrames {
 		idx = numFrames - 1

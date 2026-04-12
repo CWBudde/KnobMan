@@ -83,10 +83,7 @@ func renderImage(dst *PixBuf, p *model.Primitive, frame, totalFrames int) {
 		return
 	}
 
-	nf := p.NumFrame.Val
-	if nf < 1 {
-		nf = 1
-	}
+	nf := max(p.NumFrame.Val, 1)
 
 	frameBuf := ExtractFrameAligned(src, nf, frame, totalFrames, p.FrameAlign.Val)
 	if frameBuf == nil || frameBuf.Width <= 0 || frameBuf.Height <= 0 {
@@ -137,6 +134,7 @@ func drawPixBufToRectAgg(dst, src *PixBuf, dx0, dy0, dw, dh int) bool {
 	}
 
 	a := Agg2DForPixBuf(dst)
+
 	srcImg := AggImageForPixBuf(src)
 	if a == nil || srcImg == nil {
 		return false
@@ -144,7 +142,9 @@ func drawPixBufToRectAgg(dst, src *PixBuf, dx0, dy0, dw, dh int) bool {
 
 	a.ImageFilter(agg.FilterNoFilter)
 	a.ImageResample(agg.NoResample)
-	if err := a.TransformImageSimple(srcImg, float64(dx0), float64(dy0), float64(dx0+dw), float64(dy0+dh)); err != nil {
+
+	err := a.TransformImageSimple(srcImg, float64(dx0), float64(dy0), float64(dx0+dw), float64(dy0+dh))
+	if err != nil {
 		return false
 	}
 
@@ -157,6 +157,7 @@ func pixBufRegionTransparent(buf *PixBuf, dx0, dy0, dw, dh int) bool {
 	}
 
 	maxX := min(buf.Width, dx0+dw)
+
 	maxY := min(buf.Height, dy0+dh)
 	for y := max(0, dy0); y < maxY; y++ {
 		row := y * buf.Stride
@@ -197,10 +198,7 @@ func intelliAlphaPix(def, target color.RGBA, intelliAlpha int) color.RGBA {
 		return color.RGBA{}
 	}
 
-	alphaStep := 255 - intelliAlpha*254/100
-	if alphaStep < 16 {
-		alphaStep = 16
-	}
+	alphaStep := max(255-intelliAlpha*254/100, 16)
 
 	piAlpha := 0
 	var r, g, b int
@@ -249,31 +247,76 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 
 	ctx.SetColor(agg.Color{R: primitiveColor(p).R, G: primitiveColor(p).G, B: primitiveColor(p).B, A: primitiveColor(p).A})
 	ctx.TextHints(true)
-	configureAggTextFont(ctx, p, size)
+	backend, textSize := configureAggTextFont(ctx, p, size)
 
 	a := ctx.GetAgg2D()
-	anchorX := float64(dst.Width) * 0.5
-	alignX := agg.AlignCenter
+	textWidth := a.TextWidth(txt)
+
 	spaceWidth := a.TextWidth(" ")
 	if spaceWidth <= 0 {
-		spaceWidth = math.Max(1, size*0.25)
+		spaceWidth = math.Max(1, textSize*0.25)
 	}
+
+	inset := spaceWidth * 0.5
+	if backend == aggTextBackendGSV {
+		inset = math.Max(1, textSize*0.05)
+	}
+
+	anchorX := (float64(dst.Width) - textWidth) * 0.5
 
 	switch p.TextAlign.Val {
 	case 1:
-		alignX = agg.AlignLeft
-		anchorX = spaceWidth * 0.5
+		anchorX = inset
 	case 2:
-		alignX = agg.AlignRight
-		anchorX = float64(dst.Width) - spaceWidth*0.5
+		anchorX = float64(dst.Width) - textWidth - inset
 	}
 
-	a.TextAlignment(alignX, agg.AlignCenter)
-	a.Text(anchorX, float64(dst.Height)*0.5, txt, true, 0, 0)
+	anchorY := float64(dst.Height) * 0.5
+	alignY := agg.AlignCenter
+
+	switch backend {
+	case aggTextBackendGSV:
+		alignY = agg.AlignBottom
+		anchorY += size * 0.35
+	default:
+		anchorY += 1
+	}
+
+	a.TextAlignment(agg.AlignLeft, alignY)
+
+	if backend == aggTextBackendGSV {
+		renderTextGSVStyled(ctx, a, p, anchorX, anchorY, txt)
+		return
+	}
+
+	a.Text(anchorX, anchorY, txt, true, 0, 0)
+}
+
+func renderTextGSVStyled(ctx *agg.Context, a *agg.Agg2D, p *model.Primitive, x, y float64, txt string) {
+	if ctx == nil || a == nil {
+		return
+	}
+
+	if p.Italic.Val != 0 {
+		ctx.PushTransform()
+		ctx.Translate(x, y)
+		ctx.Skew(-12*math.Pi/180, 0)
+
+		ctx.Translate(-x, -y)
+		defer ctx.PopTransform()
+	}
+
+	a.Text(x, y, txt, true, 0, 0)
+
+	if p.Bold.Val != 0 {
+		a.Text(x, y, txt, true, 0.7, 0)
+		a.Text(x, y, txt, true, 1.4, 0)
+	}
 }
 
 func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	base := primitiveColor(p)
+
 	s := strings.TrimSpace(p.Shape.Val)
 	if s == "" {
 		return
@@ -281,6 +324,7 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 	mask := NewPixBuf(dst.Width, dst.Height)
 	mask.Clear(color.RGBA{A: 255})
+
 	maskCtx := AggContextForPixBuf(mask)
 	if maskCtx == nil {
 		return
@@ -290,6 +334,7 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	a := maskCtx.GetAgg2D()
 	a.FillEvenOdd(true)
 	maskCtx.BeginPath()
+
 	if !appendShapePath(maskCtx, s, dst.Width, dst.Height, p.Fill.Val != 0) {
 		return
 	}
@@ -304,13 +349,16 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	}
 
 	rCX := float64(dst.Width) * 0.5
+
 	rCY := float64(dst.Height) * 0.5
-	for y := 0; y < dst.Height; y++ {
+	for y := range dst.Height {
 		rY := -((float64(y) + 0.5) - rCY)
 		rYN := rY / rCY
+
 		rPY := float64(y) - rCY + 0.5
-		for x := 0; x < dst.Width; x++ {
+		for x := range dst.Width {
 			i := y*mask.Stride + x*4
+
 			coverage := int(mask.Data[i+2])
 			if coverage == 0 {
 				continue
@@ -342,30 +390,36 @@ func renderShapeOutlineMask(mask *PixBuf, s string, w, h int, strokeWidth float6
 		if len(pts) < 2 {
 			return
 		}
+
 		poly := make([]fpoint, len(pts))
 		for i := range pts {
 			poly[i] = fpoint{x: float64(pts[i].x), y: float64(pts[i].y)}
 		}
+
 		polys = [][]fpoint{poly}
 	}
 
 	const samples = 16
 	half := strokeWidth * 0.5
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+
+	for y := range h {
+		for x := range w {
 			hits := 0
-			for sy := 0; sy < samples; sy++ {
+
+			for sy := range samples {
 				py := float64(y) + (float64(sy)+0.5)/samples
-				for sx := 0; sx < samples; sx++ {
+				for sx := range samples {
 					px := float64(x) + (float64(sx)+0.5)/samples
 					if pointOnStrokePolys(px, py, polys, half) {
 						hits++
 					}
 				}
 			}
+
 			if hits == 0 {
 				continue
 			}
+
 			cov := uint8(clampInt(int(float64(hits)*255.0/float64(samples*samples)+0.5), 0, 255))
 			mask.Set(x, y, color.RGBA{B: cov, A: 255})
 		}
@@ -380,12 +434,14 @@ func pointOnStrokePolys(px, py float64, polys [][]fpoint, halfWidth float64) boo
 			}
 		}
 	}
+
 	return false
 }
 
 func pointInSquareCappedSegment(px, py float64, a, b fpoint, halfWidth float64) bool {
 	dx := b.x - a.x
 	dy := b.y - a.y
+
 	l := math.Hypot(dx, dy)
 	if l == 0 {
 		return math.Hypot(px-a.x, py-a.y) <= halfWidth
@@ -397,6 +453,7 @@ func pointInSquareCappedSegment(px, py float64, a, b fpoint, halfWidth float64) 
 	vy := py - a.y
 	t := vx*ux + vy*uy
 	n := -vx*uy + vy*ux
+
 	return t >= -halfWidth && t <= l+halfWidth && math.Abs(n) <= halfWidth
 }
 
@@ -408,6 +465,7 @@ func appendShapePath(ctx *agg.Context, s string, w, h int, closePath bool) bool 
 			}
 
 			ctx.MoveTo(shapeScaleX(knots[0].pX, w), shapeScaleY(knots[0].pY, h))
+
 			for i := 1; i < len(knots); i++ {
 				prev := knots[i-1]
 				cur := knots[i]
@@ -417,6 +475,7 @@ func appendShapePath(ctx *agg.Context, s string, w, h int, closePath bool) bool 
 					shapeScaleX(cur.pX, w), shapeScaleY(cur.pY, h),
 				)
 			}
+
 			if closePath {
 				last := knots[len(knots)-1]
 				first := knots[0]
@@ -427,6 +486,7 @@ func appendShapePath(ctx *agg.Context, s string, w, h int, closePath bool) bool 
 				)
 			}
 		}
+
 		return true
 	}
 
@@ -436,12 +496,15 @@ func appendShapePath(ctx *agg.Context, s string, w, h int, closePath bool) bool 
 	}
 
 	ctx.MoveTo(float64(pts[0].x), float64(pts[0].y))
+
 	for i := 1; i < len(pts); i++ {
 		ctx.LineTo(float64(pts[i].x), float64(pts[i].y))
 	}
+
 	if closePath {
 		ctx.ClosePath()
 	}
+
 	return true
 }
 
@@ -693,6 +756,7 @@ func parseKnobShapeKnots(s string) [][]shapeKnot {
 
 	parts := strings.Split(s, "/")
 	var polys [][]shapeKnot
+
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
@@ -700,6 +764,7 @@ func parseKnobShapeKnots(s string) [][]shapeKnot {
 		}
 
 		chunks := strings.Split(part, ":")
+
 		knots := make([]shapeKnot, 0, len(chunks))
 		for _, ch := range chunks {
 			vals := strings.Split(ch, ",")
@@ -709,22 +774,27 @@ func parseKnobShapeKnots(s string) [][]shapeKnot {
 			var k shapeKnot
 			ok := true
 			nums := []*float64{&k.inX, &k.inY, &k.pX, &k.pY, &k.outX, &k.outY}
+
 			for i := range 6 {
 				v, err := strconv.ParseFloat(strings.TrimSpace(vals[i]), 64)
 				if err != nil {
 					ok = false
 					break
 				}
+
 				*nums[i] = v
 			}
+
 			if ok {
 				knots = append(knots, k)
 			}
 		}
+
 		if len(knots) >= 2 {
 			polys = append(polys, knots)
 		}
 	}
+
 	return polys
 }
 
@@ -748,10 +818,12 @@ func parseKnobShapeAnchorPolylines(s string, w, h int) [][]fpoint {
 		for _, k := range knots {
 			poly = append(poly, fpoint{x: shapeScaleX(k.pX, w), y: shapeScaleY(k.pY, h)})
 		}
+
 		if len(poly) >= 2 {
 			polys = append(polys, poly)
 		}
 	}
+
 	return polys
 }
 
@@ -766,6 +838,7 @@ func parseKnobShapePolylinesWithClosure(s string, w, h int, closePath bool) [][]
 		poly := make([]fpoint, 0, len(knots)*12)
 		start := fpoint{x: shapeScaleX(knots[0].pX, w), y: shapeScaleY(knots[0].pY, h)}
 		poly = append(poly, start)
+
 		for i := 1; i < len(knots); i++ {
 			prev := knots[i-1]
 			cur := knots[i]
@@ -778,6 +851,7 @@ func parseKnobShapePolylinesWithClosure(s string, w, h int, closePath bool) [][]
 			)
 			poly = append(poly, cubic[1:]...)
 		}
+
 		if closePath {
 			last := knots[len(knots)-1]
 			first := knots[0]
@@ -790,8 +864,10 @@ func parseKnobShapePolylinesWithClosure(s string, w, h int, closePath bool) [][]
 			)
 			poly = append(poly, cubic[1:]...)
 		}
+
 		polys = append(polys, poly)
 	}
+
 	return polys
 }
 
@@ -884,22 +960,26 @@ func clampInt(v, lo, hi int) int {
 func linePointDistance(x0, y0, x1, y1, px, py float64) float64 {
 	dx := x1 - x0
 	dy := y1 - y0
+
 	a := dx*dx + dy*dy
 	if a == 0.0 {
 		return math.Hypot(x0-px, y0-py)
 	}
 
 	b := dx*(x0-px) + dy*(y0-py)
+
 	t := -(b / a)
 	if t < 0.0 {
 		t = 0.0
 	}
+
 	if t >= 1.0 {
 		t = 1.0
 	}
 
 	x := t*dx + x0
 	y := t*dy + y0
+
 	return math.Hypot(x-px, y-py)
 }
 
@@ -911,6 +991,7 @@ func changeBrightnessRGBA(c color.RGBA, delta int) color.RGBA {
 	c.R = uint8(clampInt(int(c.R)+delta, 0, 255))
 	c.G = uint8(clampInt(int(c.G)+delta, 0, 255))
 	c.B = uint8(clampInt(int(c.B)+delta, 0, 255))
+
 	return c
 }
 
@@ -918,6 +999,7 @@ func brightRGBA(c color.RGBA, scale int) color.RGBA {
 	c.R = uint8(clampInt(int(c.R)*scale/255, 0, 255))
 	c.G = uint8(clampInt(int(c.G)*scale/255, 0, 255))
 	c.B = uint8(clampInt(int(c.B)*scale/255, 0, 255))
+
 	return c
 }
 
@@ -925,6 +1007,7 @@ func blendToRGBA(base, target color.RGBA, alpha int) color.RGBA {
 	base.R = uint8((int(base.R)*(256-alpha) + int(target.R)*alpha) / 256)
 	base.G = uint8((int(base.G)*(256-alpha) + int(target.G)*alpha) / 256)
 	base.B = uint8((int(base.B)*(256-alpha) + int(target.B)*alpha) / 256)
+
 	return base
 }
 
@@ -970,6 +1053,7 @@ func sampleTextureLumiAlpha(textures []*Texture, p *model.Primitive, x, y float6
 	txd := p.TextureDepth.Val * 0.01
 	lumi = int(float64(luma-128) * txd)
 	alpha = 255 - int(float64(255-texAlpha)*txd)
+
 	return lumi, alpha
 }
 

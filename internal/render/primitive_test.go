@@ -105,12 +105,14 @@ func TestRenderTextUsesAntialiasedAggPath(t *testing.T) {
 
 	opaque := 0
 	partial := 0
-	for y := 0; y < buf.Height; y++ {
-		for x := 0; x < buf.Width; x++ {
+
+	for y := range buf.Height {
+		for x := range buf.Width {
 			a := buf.At(x, y).A
 			if a == 255 {
 				opaque++
 			}
+
 			if a > 0 && a < 255 {
 				partial++
 			}
@@ -214,8 +216,8 @@ func TestDrawPixBufToRectAggScaledSemiTransparentPixel(t *testing.T) {
 
 	drawPixBufToRect(dst, src, 0, 0, 4, 4, &p, color.RGBA{})
 
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			if got := dst.At(x, y); got != (color.RGBA{R: 200, G: 10, B: 20, A: 128}) {
 				t.Fatalf("scaled pixel mismatch at (%d,%d): got %+v", x, y, got)
 			}
@@ -250,8 +252,8 @@ func TestRenderRectFillAggPlainFullCanvas(t *testing.T) {
 	buf := NewPixBuf(16, 16)
 	RenderPrimitive(buf, &p, nil, 0, 1)
 
-	for y := 0; y < 16; y++ {
-		for x := 0; x < 16; x++ {
+	for y := range 16 {
+		for x := range 16 {
 			if got := buf.At(x, y); got != p.Color.Val {
 				t.Fatalf("full rect fill mismatch at (%d,%d): got %+v want %+v", x, y, got, p.Color.Val)
 			}
@@ -270,9 +272,11 @@ func TestRenderRectFillAggAspectLeavesTransparentMargins(t *testing.T) {
 	if got := buf.At(0, 10); got.A != 0 {
 		t.Fatalf("expected left margin transparent, got %+v", got)
 	}
+
 	if got := buf.At(10, 10); got != p.Color.Val {
 		t.Fatalf("expected center filled, got %+v want %+v", got, p.Color.Val)
 	}
+
 	if got := buf.At(19, 10); got.A != 0 {
 		t.Fatalf("expected right margin transparent, got %+v", got)
 	}
@@ -289,9 +293,11 @@ func TestRenderRectOutlineAggLeavesCenterTransparent(t *testing.T) {
 	if got := buf.At(16, 16); got.A != 0 {
 		t.Fatalf("expected rect outline center transparent, got %+v", got)
 	}
+
 	if got := buf.At(1, 16); got.A == 0 {
 		t.Fatalf("expected left border visible, got %+v", got)
 	}
+
 	if got := buf.At(30, 16); got.A == 0 {
 		t.Fatalf("expected right border visible, got %+v", got)
 	}
@@ -309,9 +315,11 @@ func TestRenderRectOutlineAggAspectShrinksHorizontalExtent(t *testing.T) {
 	if got := buf.At(1, 16); got.A != 0 {
 		t.Fatalf("expected left outer margin transparent after aspect shrink, got %+v", got)
 	}
+
 	if got := buf.At(8, 16); got.A == 0 {
 		t.Fatalf("expected inset border visible, got %+v", got)
 	}
+
 	if got := buf.At(16, 16); got.A != 0 {
 		t.Fatalf("expected center transparent, got %+v", got)
 	}
@@ -330,9 +338,11 @@ func TestRenderTriangleAggFillsInterior(t *testing.T) {
 	if got := buf.At(16, 12); got.A == 0 {
 		t.Fatalf("expected triangle interior filled near center, got %+v", got)
 	}
+
 	if got := buf.At(8, 24); got.A == 0 {
 		t.Fatalf("expected lower left interior filled, got %+v", got)
 	}
+
 	if got := buf.At(24, 24); got.A == 0 {
 		t.Fatalf("expected lower right interior filled, got %+v", got)
 	}
@@ -351,9 +361,11 @@ func TestRenderTriangleAggKeepsOutsideTransparent(t *testing.T) {
 	if got := buf.At(0, 24); got.A != 0 {
 		t.Fatalf("expected lower left outer corner transparent, got %+v", got)
 	}
+
 	if got := buf.At(31, 24); got.A != 0 {
 		t.Fatalf("expected lower right outer corner transparent, got %+v", got)
 	}
+
 	if got := buf.At(16, 31); got.A != 0 {
 		t.Fatalf("expected area below triangle length transparent, got %+v", got)
 	}

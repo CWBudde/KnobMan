@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -64,6 +65,7 @@ func ResolveTexturesForParity(doc *model.Document, repoRoot string) ([]*Texture,
 
 	for i := range doc.Layers {
 		ly := &doc.Layers[i]
+
 		name := strings.TrimSpace(ly.Prim.TextureName)
 		if name == "" || ly.Prim.TextureDepth.Val == 0 {
 			ly.Prim.TextureFile.Val = 0
@@ -85,11 +87,13 @@ func ResolveTexturesForParity(doc *model.Document, repoRoot string) ([]*Texture,
 					if ext == "" {
 						p = filepath.Join(base, name)
 					}
+
 					if file, err := os.ReadFile(p); err == nil {
 						data = file
 						break
 					}
 				}
+
 				if len(data) > 0 {
 					break
 				}
@@ -132,11 +136,12 @@ func ReadPNGAsRGBA(path string) (*image.RGBA, error) {
 // WritePixBufPNG writes a pixbuf to PNG file path.
 func WritePixBufPNG(path string, buf *PixBuf) error {
 	if buf == nil || buf.Width <= 0 || buf.Height <= 0 || len(buf.Data) == 0 {
-		return fmt.Errorf("invalid pixbuf")
+		return errors.New("invalid pixbuf")
 	}
+
 	img := PixBufToNRGBA(buf)
 	if img == nil {
-		return fmt.Errorf("invalid pixbuf image conversion")
+		return errors.New("invalid pixbuf image conversion")
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

@@ -21,13 +21,15 @@ func TestRenderCircleOutlineLeavesCenterTransparent(t *testing.T) {
 	}
 
 	visible := 0
-	for y := 0; y < 32; y++ {
-		for x := 0; x < 32; x++ {
+
+	for y := range 32 {
+		for x := range 32 {
 			if buf.At(x, y).A != 0 {
 				visible++
 			}
 		}
 	}
+
 	if visible == 0 {
 		t.Fatal("expected circle outline to draw visible shell pixels")
 	}
@@ -43,6 +45,7 @@ func TestRenderCircleFillCoversCenter(t *testing.T) {
 	if got := buf.At(16, 16); got.A == 0 {
 		t.Fatalf("expected circle fill center visible, got %+v", got)
 	}
+
 	if got := buf.At(0, 0); got.A != 0 {
 		t.Fatalf("expected outer corner transparent, got %+v", got)
 	}

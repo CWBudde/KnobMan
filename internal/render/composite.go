@@ -50,8 +50,26 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 	}
 
 	ratio := FrameFrac(frame, totalFrames, eff.AnimStep.Val)
-	if !frameMaskVisible(eff, frame, ratio) {
+	if !frameMaskVisibleForRenderFrame(eff, frame, totalFrames) {
 		return
+	}
+
+	applyEffectAtRatio(dst, primBuf, eff, curves, ratio, textures)
+}
+
+func applyEffectAtRatio(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]model.AnimCurve, ratio float64, textures []*Texture) {
+	_ = textures // kept for API continuity; used by later effect extensions.
+
+	if dst == nil || primBuf == nil || eff == nil {
+		return
+	}
+
+	if ratio < 0 {
+		ratio = 0
+	}
+
+	if ratio > 1 {
+		ratio = 1
 	}
 
 	work := primBuf.Clone()
@@ -204,6 +222,27 @@ func ApplyEffect(dst *PixBuf, primBuf *PixBuf, eff *model.Effect, curves *[8]mod
 	}
 
 	CompositeOver(dst, work)
+}
+
+func frameMaskVisibleForRenderFrame(eff *model.Effect, frame, totalFrames int) bool {
+	if eff == nil {
+		return true
+	}
+
+	if totalFrames < 1 {
+		totalFrames = 1
+	}
+
+	ratio := 0.0
+	if totalFrames > 1 {
+		ratio = float64(frame) / float64(totalFrames-1)
+	}
+
+	if !frameMaskVisible(eff, frame, ratio) {
+		return false
+	}
+
+	return true
 }
 
 func frameMaskVisible(eff *model.Effect, frame int, ratio float64) bool {

@@ -707,10 +707,12 @@ func saveLayer(sb *strings.Builder, ly *model.Layer, idx int) {
 	writeFloat(sb, "PrimTexture", ly.Prim.TextureDepth.Val)
 	writeFloat(sb, "PrimTexZoom", ly.Prim.TextureZoom.Val)
 	writeFloat(sb, "PrimDiffuse", ly.Prim.Diffuse.Val)
+
 	fontName := strings.TrimSpace(ly.Prim.FontName)
 	if fontName == "" {
 		fontName = "SansSerif"
 	}
+
 	writeStr(sb, "PrimFont", fontName)
 	writeFloat(sb, "PrimAmbient", ly.Prim.Ambient.Val)
 	writeFloat(sb, "PrimSpecWidth", ly.Prim.SpecularWidth.Val)

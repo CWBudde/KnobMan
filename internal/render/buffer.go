@@ -118,15 +118,9 @@ func (b *PixBuf) CopyFrom(src *PixBuf) {
 		return
 	}
 
-	w := b.Width
-	if src.Width < w {
-		w = src.Width
-	}
+	w := min(src.Width, b.Width)
 
-	h := b.Height
-	if src.Height < h {
-		h = src.Height
-	}
+	h := min(src.Height, b.Height)
 
 	for y := range h {
 		dOff := y * b.Stride

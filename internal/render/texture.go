@@ -69,12 +69,14 @@ func decodeBMPAsRGBA(data []byte) (*Texture, bool) {
 	}
 
 	pixelOffset := int(binary.LittleEndian.Uint32(data[10:14]))
+
 	headerSize := int(binary.LittleEndian.Uint32(data[14:18]))
 	if headerSize < 40 || pixelOffset <= 0 || pixelOffset >= len(data) {
 		return nil, false
 	}
 
 	width := int(int32(binary.LittleEndian.Uint32(data[18:22])))
+
 	heightSigned := int(int32(binary.LittleEndian.Uint32(data[22:26])))
 	if width <= 0 || heightSigned == 0 {
 		return nil, false
@@ -91,11 +93,13 @@ func decodeBMPAsRGBA(data []byte) (*Texture, bool) {
 	}
 
 	flipY := true
+
 	height := heightSigned
 	if height < 0 {
 		flipY = false
 		height = -height
 	}
+
 	if height == 0 {
 		return nil, false
 	}
@@ -107,14 +111,16 @@ func decodeBMPAsRGBA(data []byte) (*Texture, bool) {
 
 	out := make([]uint8, width*height*4)
 	outIdx := 0
-	for y := 0; y < height; y++ {
+
+	for y := range height {
 		srcY := y
 		if flipY {
 			srcY = height - 1 - y
 		}
+
 		row := pixelOffset + srcY*rowBytes
 
-		for x := 0; x < width; x++ {
+		for x := range width {
 			p := row + x*(bpp/8)
 			if p+2 >= len(data) {
 				return nil, false
@@ -124,10 +130,12 @@ func decodeBMPAsRGBA(data []byte) (*Texture, bool) {
 			g := data[p+1]
 			r := data[p+2]
 			a := uint8(255)
+
 			if bpp == 32 {
 				if p+3 >= len(data) {
 					return nil, false
 				}
+
 				a = data[p+3]
 			}
 
@@ -234,9 +242,11 @@ func (t *Texture) SampleHeightAlpha(x, y, zoom float64) (luma, alpha int) {
 
 	zWidth := t.W / reduction
 	zHeight := t.H / reduction
+
 	if zWidth <= 0 {
 		zWidth = 1
 	}
+
 	if zHeight <= 0 {
 		zHeight = 1
 	}
@@ -289,6 +299,7 @@ func (t *Texture) gridHeightAlpha(gx, gy, zWidth, zHeight, reduction int) (luma,
 func (t *Texture) heightAlphaAt(x, y int) (luma, alpha int) {
 	c := t.at(x, y)
 	luma = (int(c.R)*3 + int(c.G)*6 + int(c.B)) / 10
+
 	return luma, int(c.A)
 }
 

@@ -46,6 +46,7 @@ func TestTextureSampleNegativeWrapMatchesPositiveEquivalent(t *testing.T) {
 	}
 
 	got := tex.Sample(-0.25, 1.25, 1)
+
 	want := tex.Sample(1.75, 1.25, 1)
 	if got != want {
 		t.Fatalf("wrapped samples differ: got %+v want %+v", got, want)
@@ -63,6 +64,7 @@ func TestTextureSampleBlendsAcrossTilingSeam(t *testing.T) {
 	}
 
 	got := tex.Sample(1.5, 0, 1)
+
 	want := color.RGBA{R: 128, G: 128, B: 0, A: 255}
 	if got != want {
 		t.Fatalf("unexpected seam blend: got %+v want %+v", got, want)
@@ -87,6 +89,7 @@ func TestTextureSampleZoomChangesSamplingFrequency(t *testing.T) {
 	}
 
 	gotZoom200 := tex.Sample(3, 0, 2)
+
 	wantZoom200 := color.RGBA{R: 50, G: 50, B: 0, A: 255}
 	if gotZoom200 != wantZoom200 {
 		t.Fatalf("unexpected zoom=200 sample: got %+v want %+v", gotZoom200, wantZoom200)
@@ -156,9 +159,11 @@ func TestTextureSampleHeightAlphaLowZoomWrapMatchesEquivalentPeriod(t *testing.T
 
 	lumaA, alphaA := tex.SampleHeightAlpha(-1.5, -1.5, 50)
 	lumaB, alphaB := tex.SampleHeightAlpha(0.5, -1.5, 50)
+
 	if lumaA != 20 || alphaA != 40 {
 		t.Fatalf("unexpected low-zoom wrapped sample: luma=%d alpha=%d", lumaA, alphaA)
 	}
+
 	if lumaA != lumaB || alphaA != alphaB {
 		t.Fatalf("low-zoom wrapped samples differ: (%d,%d) vs (%d,%d)", lumaA, alphaA, lumaB, alphaB)
 	}

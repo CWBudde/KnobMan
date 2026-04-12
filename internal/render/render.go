@@ -42,6 +42,7 @@ func RenderFrame(dst *PixBuf, doc *model.Document, frame int, textures []*Textur
 	if out != dst {
 		dst.CopyFrom(out)
 	}
+
 	flattenOverBackground(dst, doc.Prefs.BkColor.Val)
 }
 
@@ -56,10 +57,7 @@ func RenderAll(doc *model.Document, textures []*Texture) []*PixBuf {
 		return nil
 	}
 
-	n := doc.Prefs.RenderFrames.Val
-	if n < 1 {
-		n = 1
-	}
+	n := max(doc.Prefs.RenderFrames.Val, 1)
 
 	frames := make([]*PixBuf, n)
 	for i := range n {
@@ -74,10 +72,7 @@ func RenderAll(doc *model.Document, textures []*Texture) []*PixBuf {
 func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Texture) {
 	dst.Clear(color.RGBA{})
 
-	totalFrames := doc.Prefs.RenderFrames.Val
-	if totalFrames < 1 {
-		totalFrames = 1
-	}
+	totalFrames := max(doc.Prefs.RenderFrames.Val, 1)
 
 	hasSolo := false
 
@@ -98,10 +93,83 @@ func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Textu
 			continue
 		}
 
-		prim := NewPixBuf(dst.Width, dst.Height)
-		RenderPrimitive(prim, &ly.Prim, textures, frame, totalFrames)
-		ApplyEffect(dst, prim, &ly.Eff, &doc.Curves, frame, totalFrames, textures)
+		if !frameMaskVisibleForRenderFrame(&ly.Eff, frame, totalFrames) {
+			continue
+		}
+
+		animTotal, startFrame, endFrame := layerRenderSpan(&ly.Eff, frame, totalFrames)
+		for subFrame := startFrame; subFrame <= endFrame; subFrame++ {
+			prim := NewPixBuf(dst.Width, dst.Height)
+			RenderPrimitive(prim, &ly.Prim, textures, subFrame, animTotal)
+			ratio := FrameFrac(subFrame, animTotal, ly.Eff.AnimStep.Val)
+			applyEffectAtRatio(dst, prim, &ly.Eff, &doc.Curves, ratio, textures)
+		}
 	}
+}
+
+func layerRenderSpan(eff *model.Effect, frame, totalFrames int) (animTotal, startFrame, endFrame int) {
+	if eff == nil {
+		return max(totalFrames, 1), clampFrame(frame, totalFrames), clampFrame(frame, totalFrames)
+	}
+
+	if totalFrames < 1 {
+		totalFrames = 1
+	}
+
+	if eff.Unfold.Val != 0 {
+		if eff.AnimStep.Val > 0 {
+			animTotal = eff.AnimStep.Val
+		} else {
+			animTotal = totalFrames
+		}
+
+		if animTotal < 1 {
+			animTotal = 1
+		}
+
+		return animTotal, 0, animTotal - 1
+	}
+
+	if eff.AnimStep.Val > 0 {
+		animTotal = max(eff.AnimStep.Val, 1)
+
+		return animTotal, mapFrameToAnimStep(frame, totalFrames, animTotal), mapFrameToAnimStep(frame, totalFrames, animTotal)
+	}
+
+	animTotal = totalFrames
+	cf := clampFrame(frame, totalFrames)
+
+	return animTotal, cf, cf
+}
+
+func mapFrameToAnimStep(frame, totalFrames, animTotal int) int {
+	if animTotal <= 1 {
+		return 0
+	}
+
+	if totalFrames <= 1 {
+		return 0
+	}
+
+	frame = clampFrame(frame, totalFrames)
+
+	return frame * (animTotal - 1) / (totalFrames - 1)
+}
+
+func clampFrame(frame, totalFrames int) int {
+	if totalFrames <= 1 {
+		return 0
+	}
+
+	if frame < 0 {
+		return 0
+	}
+
+	if frame >= totalFrames {
+		return totalFrames - 1
+	}
+
+	return frame
 }
 
 func flattenOverBackground(dst *PixBuf, bg color.RGBA) {
@@ -116,7 +184,7 @@ func flattenOverBackground(dst *PixBuf, bg color.RGBA) {
 
 	for y := range dst.Height {
 		off := y * dst.Stride
-		for x := 0; x < dst.Width; x++ {
+		for x := range dst.Width {
 			i := off + x*4
 			srcR := int(dst.Data[i+0])
 			srcG := int(dst.Data[i+1])

@@ -92,6 +92,7 @@ func EvalParam(from, to float64, curveIdx int, curves *[8]AnimCurve, ratio float
 	}
 
 	t := ratio
+
 	if curveIdx >= 2 && curves != nil {
 		idx := curveIdx - 2
 		if idx >= 8 {

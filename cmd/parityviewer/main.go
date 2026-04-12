@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
 	"html"
@@ -60,6 +61,7 @@ type metrics struct {
 func main() {
 	port := flag.String("port", envOr("PORT", "8090"), "Port to listen on")
 	parityDirFlag := flag.String("parity-dir", filepath.Join("tests", "parity"), "Parity directory to inspect")
+
 	flag.Parse()
 
 	root, err := detectRepoRoot()
@@ -88,10 +90,13 @@ func main() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if err := rerenderArtifact(root, parityDir, r.FormValue("suite"), r.FormValue("name")); err != nil {
+
+		err := rerenderArtifact(root, parityDir, r.FormValue("suite"), r.FormValue("name"))
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+
 		w.WriteHeader(http.StatusNoContent)
 	})
 
@@ -115,6 +120,7 @@ func loadCases(parityDir string) (loadResult, error) {
 
 		suiteName := suiteDir.Name()
 		suitePath := filepath.Join(parityDir, suiteName)
+
 		children, err := os.ReadDir(suitePath)
 		if err != nil {
 			return loadResult{}, fmt.Errorf("read suite dir %s: %w", suitePath, err)
@@ -133,10 +139,12 @@ func loadCases(parityDir string) (loadResult, error) {
 			if err != nil {
 				return loadResult{}, fmt.Errorf("glob baselines in %s: %w", baselineDir, err)
 			}
+
 			sort.Strings(baselines)
 
 			for _, baselinePath := range baselines {
 				name := strings.TrimSuffix(filepath.Base(baselinePath), filepath.Ext(baselinePath))
+
 				artifactPath := filepath.Join(artifactDir, baselineName, name+".png")
 				if _, err := os.Stat(artifactPath); err != nil {
 					artifactPath = filepath.Join(artifactDir, name+".png")
@@ -150,6 +158,7 @@ func loadCases(parityDir string) (loadResult, error) {
 				if err != nil {
 					return loadResult{}, fmt.Errorf("build entry %s/%s/%s: %w", suiteName, baselineName, name, err)
 				}
+
 				result.Cases = append(result.Cases, entry)
 				result.ComparedCount++
 			}
@@ -162,10 +171,13 @@ func loadCases(parityDir string) (loadResult, error) {
 				if result.Cases[i].Baseline == result.Cases[j].Baseline {
 					return result.Cases[i].Name < result.Cases[j].Name
 				}
+
 				return result.Cases[i].Baseline < result.Cases[j].Baseline
 			}
+
 			return result.Cases[i].Suite < result.Cases[j].Suite
 		}
+
 		return result.Cases[i].RMSE > result.Cases[j].RMSE
 	})
 
@@ -177,6 +189,7 @@ func buildEntry(suite, baseline, name, baselinePath, artifactPath string) (caseE
 	if err != nil {
 		return caseEntry{}, fmt.Errorf("read baseline: %w", err)
 	}
+
 	act, err := readPNGAsRGBA(artifactPath)
 	if err != nil {
 		return caseEntry{}, fmt.Errorf("read artifact: %w", err)
@@ -190,14 +203,17 @@ func buildEntry(suite, baseline, name, baselinePath, artifactPath string) (caseE
 	if err != nil {
 		return caseEntry{}, fmt.Errorf("encode baseline: %w", err)
 	}
+
 	actB64, err := pngToBase64(act)
 	if err != nil {
 		return caseEntry{}, fmt.Errorf("encode artifact: %w", err)
 	}
+
 	rawDiffB64, err := pngToBase64(rawDiff)
 	if err != nil {
 		return caseEntry{}, fmt.Errorf("encode raw diff: %w", err)
 	}
+
 	ampDiffB64, err := pngToBase64(ampDiff)
 	if err != nil {
 		return caseEntry{}, fmt.Errorf("encode amplified diff: %w", err)
@@ -226,6 +242,7 @@ func buildEntry(suite, baseline, name, baselinePath, artifactPath string) (caseE
 
 func compareImages(ref, act *image.RGBA) metrics {
 	bounds := unionBounds(ref.Bounds(), act.Bounds())
+
 	totalPixels := bounds.Dx() * bounds.Dy()
 	if totalPixels == 0 {
 		return metrics{}
@@ -250,6 +267,7 @@ func compareImages(ref, act *image.RGBA) metrics {
 			if pixelMax > maxDiff {
 				maxDiff = pixelMax
 			}
+
 			if pixelMax != 0 {
 				diffPixels++
 			}
@@ -319,6 +337,7 @@ func amplifiedDiffImage(ref, act *image.RGBA) *image.RGBA {
 			if pixelMax < 255 {
 				intensity = uint8((float64(pixelMax) / 255.0) * 255.0)
 			}
+
 			out.SetRGBA(x, y, color.RGBA{R: intensity, G: 0, B: 0, A: 255})
 		}
 	}
@@ -330,7 +349,9 @@ func rgbaAt(img *image.RGBA, x, y int) (uint8, uint8, uint8, uint8) {
 	if img == nil || !image.Pt(x, y).In(img.Bounds()) {
 		return 0, 0, 0, 0
 	}
+
 	i := img.PixOffset(x, y)
+
 	return img.Pix[i+0], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3]
 }
 
@@ -339,20 +360,26 @@ func unionBounds(a, b image.Rectangle) image.Rectangle {
 	minY := min(a.Min.Y, b.Min.Y)
 	maxX := max(a.Max.X, b.Max.X)
 	maxY := max(a.Max.Y, b.Max.Y)
+
 	if maxX < minX {
 		maxX = minX
 	}
+
 	if maxY < minY {
 		maxY = minY
 	}
+
 	return image.Rect(minX, minY, maxX, maxY)
 }
 
 func pngToBase64(img image.Image) (string, error) {
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
+
+	err := png.Encode(&buf, img)
+	if err != nil {
 		return "", err
 	}
+
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
@@ -364,6 +391,7 @@ func absDiff8(a, b uint8) uint8 {
 	if a > b {
 		return a - b
 	}
+
 	return b - a
 }
 
@@ -371,12 +399,15 @@ func max4(a, b, c, d uint8) uint8 {
 	if a < b {
 		a = b
 	}
+
 	if a < c {
 		a = c
 	}
+
 	if a < d {
 		a = d
 	}
+
 	return a
 }
 
@@ -389,6 +420,7 @@ func clampAlpha(a uint8) uint8 {
 	if a == 0 {
 		return 255
 	}
+
 	return a
 }
 
@@ -398,24 +430,27 @@ func detectRepoRoot() (string, error) {
 		return "", err
 	}
 
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		if _, err := os.Stat(filepath.Join(wd, "go.mod")); err == nil {
 			return wd, nil
 		}
+
 		next := filepath.Dir(wd)
 		if next == wd {
 			break
 		}
+
 		wd = next
 	}
 
-	return "", fmt.Errorf("go.mod not found from cwd")
+	return "", errors.New("go.mod not found from cwd")
 }
 
 func envOr(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
 	}
+
 	return fallback
 }
 
@@ -423,6 +458,7 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	if !isSafePathPart(suite) {
 		return fmt.Errorf("invalid suite %q", suite)
 	}
+
 	if !isSafePathPart(name) {
 		return fmt.Errorf("invalid case name %q", name)
 	}
@@ -431,7 +467,9 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	if err != nil {
 		return err
 	}
+
 	artifactDir := filepath.Join(parityDir, suite, "artifacts")
+
 	outputPaths := []string{filepath.Join(artifactDir, name+".png")}
 	for _, baselineName := range []string{"baseline-go", "baseline-java"} {
 		basePath := filepath.Join(artifactDir, baselineName, name+".png")
@@ -441,14 +479,17 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	}
 
 	seen := make(map[string]struct{}, len(outputPaths))
+
 	uniq := make([]string, 0, len(outputPaths))
 	for _, path := range outputPaths {
 		if _, ok := seen[path]; ok {
 			continue
 		}
+
 		seen[path] = struct{}{}
 		uniq = append(uniq, path)
 	}
+
 	outputPaths = uniq
 
 	outputFile, err := os.CreateTemp("", "parityviewer-rerender-*.png")
@@ -456,9 +497,11 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 		return fmt.Errorf("create temp output: %w", err)
 	}
 	defer os.Remove(outputFile.Name())
+
 	if err := outputFile.Close(); err != nil {
 		return fmt.Errorf("close temp output: %w", err)
 	}
+
 	outputPath := outputFile.Name()
 
 	cmd := exec.Command(
@@ -468,6 +511,7 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 		"--frame", "0",
 	)
 	cmd.Dir = repoRoot
+
 	cmd.Env = append(os.Environ(), "GOCACHE=/tmp/knobman-gocache")
 
 	out, err := cmd.CombinedOutput()
@@ -476,6 +520,7 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 		if msg == "" {
 			msg = err.Error()
 		}
+
 		return fmt.Errorf("rerender failed: %s", msg)
 	}
 
@@ -489,13 +534,17 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	}
 
 	for _, path := range outputPaths {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		err := os.MkdirAll(filepath.Dir(path), 0o755)
+		if err != nil {
 			return fmt.Errorf("create artifact dir: %w", err)
 		}
-		if err := os.WriteFile(path, rendered, 0o644); err != nil {
+
+		err = os.WriteFile(path, rendered, 0o644)
+		if err != nil {
 			return fmt.Errorf("write artifact %s: %w", path, err)
 		}
 	}
+
 	return nil
 }
 
@@ -503,9 +552,11 @@ func isSafePathPart(s string) bool {
 	if strings.TrimSpace(s) == "" {
 		return false
 	}
+
 	if s != filepath.Base(s) {
 		return false
 	}
+
 	return !strings.Contains(s, "..")
 }
 
@@ -527,18 +578,23 @@ func esc(s string) string {
 func renderPage(w io.Writer, result loadResult) {
 	fmt.Fprint(w, pageHeader)
 	fmt.Fprintf(w, `<div class="header-meta">%d comparisons loaded`, result.ComparedCount)
+
 	if result.MissingArtifactCnt > 0 {
 		fmt.Fprintf(w, `, %d baselines skipped because no matching artifact exists`, result.MissingArtifactCnt)
 	}
+
 	fmt.Fprint(w, `.</div></div>`)
 	fmt.Fprint(w, `<div class="container" id="cards-container">`)
+
 	for i := range result.Cases {
 		renderCard(w, &result.Cases[i])
 	}
+
 	if len(result.Cases) == 0 {
 		fmt.Fprint(w, `<div class="empty-state">No parity comparisons found. Run a parity test first so `+
 			`the suite writes images under <code>tests/parity/*/artifacts/</code>.</div>`)
 	}
+
 	fmt.Fprint(w, pageFooter)
 }
 
@@ -548,9 +604,11 @@ func renderCard(w io.Writer, entry *caseEntry) {
 	}
 
 	refLabel := "Baseline"
-	if entry.Baseline == "baseline-java" {
+
+	switch entry.Baseline {
+	case "baseline-java":
 		refLabel = "Java Golden"
-	} else if entry.Baseline == "baseline-go" {
+	case "baseline-go":
 		refLabel = "Go Baseline"
 	}
 
@@ -622,9 +680,11 @@ func badgeClass(rmse float64) string {
 	if rmse <= 5 {
 		return "badge-ok"
 	}
+
 	if rmse <= 20 {
 		return "badge-warn"
 	}
+
 	return "badge-bad"
 }
 
@@ -632,9 +692,11 @@ func badgeClassAvgDiff(v float64) string {
 	if v <= 2 {
 		return "badge-ok"
 	}
+
 	if v <= 8 {
 		return "badge-warn"
 	}
+
 	return "badge-bad"
 }
 
@@ -642,9 +704,11 @@ func badgeClassMaxDiff(v uint8) string {
 	if v <= 10 {
 		return "badge-ok"
 	}
+
 	if v <= 40 {
 		return "badge-warn"
 	}
+
 	return "badge-bad"
 }
 
@@ -652,9 +716,11 @@ func badgeClassDiffRatio(r float64) string {
 	if r <= 0.01 {
 		return "badge-ok"
 	}
+
 	if r <= 0.05 {
 		return "badge-warn"
 	}
+
 	return "badge-bad"
 }
 
@@ -993,17 +1059,3 @@ const pageFooter = `</div>
 </body>
 </html>
 `
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

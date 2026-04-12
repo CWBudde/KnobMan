@@ -25,8 +25,8 @@ func TestImageToPixBufRoundTripPreservesStraightAlpha(t *testing.T) {
 		t.Fatal("PixBufToNRGBA returned nil")
 	}
 
-	for y := 0; y < 2; y++ {
-		for x := 0; x < 2; x++ {
+	for y := range 2 {
+		for x := range 2 {
 			if got.At(x, y) != src.At(x, y) {
 				t.Fatalf("round-trip mismatch at (%d,%d): got %+v want %+v", x, y, got.At(x, y), src.At(x, y))
 			}
@@ -61,6 +61,7 @@ func TestAggContextForPixBufSharesBackingBuffer(t *testing.T) {
 	}
 
 	ctx.Clear(agg.Color{R: 7, G: 8, B: 9, A: 10})
+
 	if got := pb.At(1, 1); got != (color.RGBA{R: 7, G: 8, B: 9, A: 10}) {
 		t.Fatalf("agg context did not update pixbuf backing store: %+v", got)
 	}

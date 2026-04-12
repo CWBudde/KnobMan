@@ -34,6 +34,7 @@ func Agg2DForPixBuf(buf *PixBuf) *agg.Agg2D {
 
 	a := agg.NewAgg2D()
 	a.Attach(buf.Data, buf.Width, buf.Height, buf.Stride)
+
 	return a
 }
 
@@ -54,7 +55,7 @@ func PixBufToNRGBA(buf *PixBuf) *image.NRGBA {
 	}
 
 	out := image.NewNRGBA(image.Rect(0, 0, buf.Width, buf.Height))
-	for y := 0; y < buf.Height; y++ {
+	for y := range buf.Height {
 		srcOff := y * buf.Stride
 		dstOff := y * out.Stride
 		copy(out.Pix[dstOff:dstOff+buf.Width*4], buf.Data[srcOff:srcOff+buf.Width*4])
@@ -80,12 +81,14 @@ func ImageToRGBA(img image.Image) *image.RGBA {
 			dstOffset := y * out.Stride
 			copy(out.Pix[dstOffset:dstOffset+b.Dx()*4], src.Pix[srcOffset:srcOffset+b.Dx()*4])
 		}
+
 		return out
 	case *image.Gray:
 		for y := 0; y < b.Dy(); y++ {
 			srcY := b.Min.Y + y
 			srcOffset := srcY*src.Stride + b.Min.X
 			dstOffset := y * out.Stride
+
 			for x := 0; x < b.Dx(); x++ {
 				v := src.Pix[srcOffset+x]
 				dst := dstOffset + x*4
@@ -95,6 +98,7 @@ func ImageToRGBA(img image.Image) *image.RGBA {
 				out.Pix[dst+3] = 255
 			}
 		}
+
 		return out
 	case *image.RGBA:
 		for y := 0; y < b.Dy(); y++ {
@@ -113,6 +117,7 @@ func ImageToRGBA(img image.Image) *image.RGBA {
 					out.Pix[dstOffset+1] = 0
 					out.Pix[dstOffset+2] = 0
 					out.Pix[dstOffset+3] = 0
+
 					continue
 				}
 
@@ -122,6 +127,7 @@ func ImageToRGBA(img image.Image) *image.RGBA {
 				out.Pix[dstOffset+3] = uint8(a)
 			}
 		}
+
 		return out
 	}
 
@@ -145,13 +151,14 @@ func pixBufFromRGBA(img *image.RGBA) *PixBuf {
 	}
 
 	b := img.Bounds()
+
 	w, h := b.Dx(), b.Dy()
 	if w <= 0 || h <= 0 {
 		return nil
 	}
 
 	pb := NewPixBuf(w, h)
-	for y := 0; y < h; y++ {
+	for y := range h {
 		srcOff := y * img.Stride
 		dstOff := y * pb.Stride
 		copy(pb.Data[dstOff:dstOff+w*4], img.Pix[srcOff:srcOff+w*4])

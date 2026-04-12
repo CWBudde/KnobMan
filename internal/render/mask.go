@@ -34,6 +34,7 @@ func maskWipeLegacy(maskType int, x, y float64, xDest, yDest int, start, stop, g
 	}
 
 	dir := false
+
 	if start > stop {
 		start, stop = stop, start
 		dir = true
@@ -47,6 +48,7 @@ func maskWipeLegacy(maskType int, x, y float64, xDest, yDest int, start, stop, g
 
 		xx := x - float64(xDest)*0.5
 		yy := y - float64(yDest)*0.5
+
 		c := math.Sqrt(xx*xx + yy*yy)
 		if c == 0.0 {
 			return 255.0
@@ -57,19 +59,23 @@ func maskWipeLegacy(maskType int, x, y float64, xDest, yDest int, start, stop, g
 		aStop := stop * math.Pi / 180.0
 		aMin := math.Min(aStart, aStop)
 		aMax := math.Max(aStart, aStop)
+
 		a := math.Atan2(xx, -yy) - math.Pi*2.0
 		for a < aMin-rc {
 			a += math.Pi * 2.0
 		}
+
 		for a > aMax+rc {
 			a -= math.Pi * 2.0
 		}
 
 		alpha := 255.0
+
 		if a >= aMin-rc && a <= aMax+rc {
 			if a < aMin {
 				alpha = alpha * (a - (aMin - rc)) / rc
 			}
+
 			if a > aMax {
 				alpha = alpha * (aMax + rc - a) / rc
 			}
@@ -87,12 +93,15 @@ func maskWipeLegacy(maskType int, x, y float64, xDest, yDest int, start, stop, g
 		} else {
 			rGrad = (a - aMax - rc) / ((aMin - aMax) * grad / 100.0)
 		}
+
 		if rGrad < 0.0 {
 			rGrad = 0.0
 		}
+
 		if rGrad > 1.0 {
 			rGrad = 1.0
 		}
+
 		return alpha * rGrad
 	case 1:
 		rStart := start * float64(min(yDest, xDest)) / 200.0
@@ -100,19 +109,24 @@ func maskWipeLegacy(maskType int, x, y float64, xDest, yDest int, start, stop, g
 		xx := x - float64(xDest/2)
 		yy := y - float64(yDest/2)
 		c := math.Sqrt(xx*xx + yy*yy)
+
 		alpha := 255.0
 		if c < rStart {
 			alpha = 0.0
 		}
+
 		if c < rStart+1.0 {
 			alpha = (c - rStart) * alpha
 		}
+
 		if c > rStop {
 			alpha = 0.0
 		}
+
 		if c > rStop-1.0 {
 			alpha = (rStop - c) * alpha
 		}
+
 		if grad == 0.0 {
 			return alpha
 		}
@@ -127,29 +141,37 @@ func maskWipeLegacy(maskType int, x, y float64, xDest, yDest int, start, stop, g
 		} else {
 			rGrad = (c - rStop) / ((rStart - rStop) * grad / 100.0)
 		}
+
 		if rGrad < 0.0 {
 			rGrad = 0.0
 		}
+
 		if rGrad > 1.0 {
 			rGrad = 1.0
 		}
+
 		return alpha * rGrad
 	case 2:
 		rStart := (start + 100.0) * float64(xDest) / 200.0
 		rStop := (stop + 100.0) * float64(xDest) / 200.0
 		alpha := 255.0
+
 		if x < rStart-1.0 {
 			return 0.0
 		}
+
 		if x < rStart {
 			alpha *= x - (rStart - 1.0)
 		}
+
 		if x > rStop+1.0 {
 			return 0.0
 		}
+
 		if x > rStop {
 			alpha *= rStop + 1.0 - x
 		}
+
 		if grad == 0.0 {
 			return alpha
 		}
@@ -164,29 +186,37 @@ func maskWipeLegacy(maskType int, x, y float64, xDest, yDest int, start, stop, g
 		} else {
 			rGrad = (x - rStop) / ((rStart - rStop) * grad / 100.0)
 		}
+
 		if rGrad < 0.0 {
 			rGrad = 0.0
 		}
+
 		if rGrad > 1.0 {
 			rGrad = 1.0
 		}
+
 		return alpha * rGrad
 	case 3:
 		rStop := (-start + 100.0) * float64(yDest) / 200.0
 		rStart := (-stop + 100.0) * float64(yDest) / 200.0
 		alpha := 255.0
+
 		if y < rStart-1.0 {
 			return 0.0
 		}
+
 		if y < rStart {
 			alpha *= y - (rStart - 1.0)
 		}
+
 		if y > rStop+1.0 {
 			return 0.0
 		}
+
 		if y > rStop {
 			alpha *= rStop + 1.0 - y
 		}
+
 		if grad == 0.0 {
 			return alpha
 		}
@@ -201,12 +231,15 @@ func maskWipeLegacy(maskType int, x, y float64, xDest, yDest int, start, stop, g
 		} else {
 			rGrad = (y - rStop) / ((rStart - rStop) * grad / 100.0)
 		}
+
 		if rGrad < 0.0 {
 			rGrad = 0.0
 		}
+
 		if rGrad > 1.0 {
 			rGrad = 1.0
 		}
+
 		return alpha * rGrad
 	default:
 		return 255.0
@@ -223,10 +256,7 @@ func CombineMasks(m1, m2 []float64, op int) []float64 {
 		return append([]float64(nil), m1...)
 	}
 
-	n := len(m1)
-	if len(m2) < n {
-		n = len(m2)
-	}
+	n := min(len(m2), len(m1))
 
 	out := make([]float64, n)
 	for i := range n {
@@ -246,10 +276,7 @@ func ApplyMask(src *PixBuf, mask []float64) {
 		return
 	}
 
-	n := src.Width * src.Height
-	if len(mask) < n {
-		n = len(mask)
-	}
+	n := min(len(mask), src.Width*src.Height)
 
 	for i := range n {
 		ai := i*4 + 3

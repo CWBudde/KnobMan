@@ -26,12 +26,15 @@ func TestLoadCasesSortsByRMSEDescending(t *testing.T) {
 	if len(result.Cases) != 2 {
 		t.Fatalf("expected 2 cases, got %d", len(result.Cases))
 	}
+
 	if got := result.Cases[0].Name; got != "different" {
 		t.Fatalf("expected highest-RMSE case first, got %q", got)
 	}
+
 	if result.Cases[0].RMSE <= result.Cases[1].RMSE {
 		t.Fatalf("expected descending RMSE order, got %.2f then %.2f", result.Cases[0].RMSE, result.Cases[1].RMSE)
 	}
+
 	if result.Cases[0].Suite != "samples" || result.Cases[0].Baseline != "baseline-go" {
 		t.Fatalf("unexpected case metadata: %+v", result.Cases[0])
 	}
@@ -115,10 +118,12 @@ func TestPageFooterInitializesResampleMode(t *testing.T) {
 
 func TestParityInputPath(t *testing.T) {
 	root := "/repo"
+
 	got, err := parityInputPath(root, "samples", "Aqua")
 	if err != nil {
 		t.Fatalf("samples parityInputPath: %v", err)
 	}
+
 	if want := filepath.Join(root, "assets", "samples", "Aqua.knob"); got != want {
 		t.Fatalf("samples path mismatch: got %q want %q", got, want)
 	}
@@ -127,6 +132,7 @@ func TestParityInputPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("primitives parityInputPath: %v", err)
 	}
+
 	if want := filepath.Join(root, "tests", "parity", "primitives", "inputs", "triangle_basic.knob"); got != want {
 		t.Fatalf("primitives path mismatch: got %q want %q", got, want)
 	}
@@ -138,24 +144,28 @@ func TestParityInputPath(t *testing.T) {
 
 func solidImage(width, height int, c color.RGBA) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
+	for y := range height {
+		for x := range width {
 			img.SetRGBA(x, y, c)
 		}
 	}
+
 	return img
 }
 
 func mustWritePNG(t *testing.T, path string, img image.Image) {
 	t.Helper()
+
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 	}
+
 	f, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("create %s: %v", path, err)
 	}
 	defer f.Close()
+
 	if err := png.Encode(f, img); err != nil {
 		t.Fatalf("encode %s: %v", path, err)
 	}

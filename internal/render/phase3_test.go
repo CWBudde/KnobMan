@@ -16,8 +16,8 @@ func TestTransformBilinearTranslate(t *testing.T) {
 	m := BuildMatrix(6, 6, 100, 100, 0, 1, 0, 0, 0, false)
 	TransformBilinear(dst, src, m)
 
-	if got := dst.At(1, 2); got.A == 0 {
-		t.Fatalf("expected translated non-zero pixel at (1,2), got %+v", got)
+	if got := dst.At(3, 2); got.A == 0 {
+		t.Fatalf("expected translated non-zero pixel at (3,2), got %+v", got)
 	}
 }
 
@@ -53,6 +53,7 @@ func TestBuildMatrixNonUniformScale(t *testing.T) {
 	if !nearlyEqual(tx-cx, 20, 1e-6) {
 		t.Fatalf("unexpected x scale delta: got %f want 20", tx-cx)
 	}
+
 	if !nearlyEqual(ty-cy, 5, 1e-6) {
 		t.Fatalf("unexpected y scale delta: got %f want 5", ty-cy)
 	}
@@ -88,12 +89,29 @@ func TestTransformBilinearOutOfBoundsTransparentClipping(t *testing.T) {
 	m := BuildMatrix(6, 6, 100, 100, 0, 20, 0, 0, 0, false)
 	TransformBilinear(dst, src, m)
 
-	for y := 0; y < dst.Height; y++ {
-		for x := 0; x < dst.Width; x++ {
+	for y := range dst.Height {
+		for x := range dst.Width {
 			if got := dst.At(x, y); got.A != 0 {
 				t.Fatalf("expected fully transparent output after out-of-bounds transform, got pixel (%d,%d)=%+v", x, y, got)
 			}
 		}
+	}
+}
+
+func TestTransformBilinearPartialOutOfBoundsStaysTransparentAtEdge(t *testing.T) {
+	src := NewPixBuf(4, 4)
+	src.FillRect(0, 0, 4, 4, color.RGBA{255, 0, 0, 255})
+
+	dst := NewPixBuf(4, 4)
+	m := BuildMatrix(4, 4, 100, 100, 0, -1, 0, 0, 0, false)
+	TransformBilinear(dst, src, m)
+
+	if got := dst.At(3, 1); got.A != 0 {
+		t.Fatalf("expected uncovered right edge transparent, got %+v", got)
+	}
+
+	if got := dst.At(2, 1); got.A == 0 {
+		t.Fatalf("expected shifted interior pixel visible, got %+v", got)
 	}
 }
 
@@ -206,6 +224,26 @@ func TestRenderFrameSoloSelection(t *testing.T) {
 
 	if got := buf.At(8, 8); got.G < 150 {
 		t.Fatalf("solo layer draw expected green-ish center, got %+v", got)
+	}
+}
+
+func TestDownsampleBoxPreservesUniformColorAndAveragesAlpha(t *testing.T) {
+	src := NewPixBuf(2, 2)
+	src.Set(0, 0, color.RGBA{R: 80, G: 120, B: 160, A: 0})
+	src.Set(1, 0, color.RGBA{R: 80, G: 120, B: 160, A: 64})
+	src.Set(0, 1, color.RGBA{R: 80, G: 120, B: 160, A: 128})
+	src.Set(1, 1, color.RGBA{R: 80, G: 120, B: 160, A: 255})
+
+	dst := NewPixBuf(1, 1)
+	downsampleBox(dst, src, 2)
+
+	got := dst.At(0, 0)
+	if got.R != 80 || got.G != 120 || got.B != 160 {
+		t.Fatalf("expected uniform color to stay unchanged, got %+v", got)
+	}
+
+	if got.A < 111 || got.A > 112 {
+		t.Fatalf("expected alpha average near 112, got %+v", got)
 	}
 }
 

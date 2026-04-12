@@ -31,10 +31,12 @@ func loadAggTrueTypeFont(ctx *agg.Context, p *model.Primitive, size float64) boo
 
 func resolveFontPath(family string, bold, italic bool) string {
 	key := strings.ToLower(strings.TrimSpace(family))
+
 	key += "|"
 	if bold {
 		key += "b"
 	}
+
 	if italic {
 		key += "i"
 	}
@@ -61,13 +63,33 @@ func findFontPath(family string, bold, italic bool) string {
 		}
 	}
 
-	for _, name := range candidateFontFamilies(family) {
-		if path := resolveFontWithFCMatch(name, bold, italic); path != "" {
+	if isJavaGenericFontFamily(family) {
+		for _, name := range candidateFontFamilies(family) {
+			if path := resolveFontWithFCMatchExact(name, name, bold, italic); path != "" {
+				return path
+			}
+		}
+
+		for _, path := range fallbackFontPaths(family) {
+			if _, err := os.Stat(path); err == nil {
+				return path
+			}
+		}
+
+		return ""
+	}
+
+	if path := resolveFontWithFCMatchExact(family, family, bold, italic); path != "" {
+		return path
+	}
+
+	for _, name := range candidateFontFamilies("SansSerif") {
+		if path := resolveFontWithFCMatchExact(name, name, bold, italic); path != "" {
 			return path
 		}
 	}
 
-	for _, path := range fallbackFontPaths(family) {
+	for _, path := range fallbackFontPaths("SansSerif") {
 		if _, err := os.Stat(path); err == nil {
 			return path
 		}
@@ -76,32 +98,45 @@ func findFontPath(family string, bold, italic bool) string {
 	return ""
 }
 
+func isJavaGenericFontFamily(family string) bool {
+	switch strings.ToLower(strings.ReplaceAll(strings.TrimSpace(family), " ", "")) {
+	case "sansserif", "dialog", "serif", "monospaced", "dialoginput", "monospace":
+		return true
+	default:
+		return false
+	}
+}
+
 func candidateFontFamilies(family string) []string {
 	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(family), " ", ""))
 	switch normalized {
 	case "sansserif", "dialog":
-		return []string{"SansSerif", "Noto Sans", "DejaVu Sans", "Liberation Sans", "Arial", "Helvetica"}
+		return []string{"Arial", "Helvetica", "Noto Sans", "DejaVu Sans", "Liberation Sans"}
 	case "serif":
-		return []string{"Serif", "Noto Serif", "DejaVu Serif", "Liberation Serif", "Times New Roman", "Times"}
+		return []string{"Times New Roman", "Times", "Noto Serif", "DejaVu Serif", "Liberation Serif"}
 	case "monospaced", "dialoginput", "monospace":
-		return []string{"Monospaced", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono", "Courier New", "Courier"}
+		return []string{"Courier New", "Courier", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono"}
 	default:
 		return []string{family}
 	}
 }
 
-func resolveFontWithFCMatch(family string, bold, italic bool) string {
+func resolveFontWithFCMatchExact(patternFamily, requestedFamily string, bold, italic bool) string {
 	if _, err := exec.LookPath("fc-match"); err != nil {
 		return ""
 	}
 
-	for _, pattern := range fontconfigPatterns(family, bold, italic) {
-		out, err := exec.Command("fc-match", "-f", "%{file}\n", pattern).Output()
+	for _, pattern := range fontconfigPatterns(patternFamily, bold, italic) {
+		out, err := exec.Command("fc-match", "-f", "%{family}\n%{file}\n", pattern).Output()
 		if err != nil {
 			continue
 		}
 
-		path := strings.TrimSpace(string(out))
+		families, path := parseFCMatchOutput(string(out))
+		if path == "" || !familyListMatchesRequested(families, requestedFamily) {
+			continue
+		}
+
 		if path == "" {
 			continue
 		}
@@ -114,6 +149,44 @@ func resolveFontWithFCMatch(family string, bold, italic bool) string {
 	return ""
 }
 
+func parseFCMatchOutput(out string) ([]string, string) {
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) == 0 {
+		return nil, ""
+	}
+
+	path := strings.TrimSpace(lines[len(lines)-1])
+	if len(lines) == 1 {
+		return nil, path
+	}
+
+	var families []string
+
+	for family := range strings.SplitSeq(lines[0], ",") {
+		name := strings.TrimSpace(family)
+		if name != "" {
+			families = append(families, name)
+		}
+	}
+
+	return families, path
+}
+
+func familyListMatchesRequested(families []string, requested string) bool {
+	requested = strings.TrimSpace(requested)
+	if requested == "" {
+		return false
+	}
+
+	for _, family := range families {
+		if strings.EqualFold(strings.TrimSpace(family), requested) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func fontconfigPatterns(family string, bold, italic bool) []string {
 	family = strings.TrimSpace(family)
 	if family == "" {
@@ -121,6 +194,7 @@ func fontconfigPatterns(family string, bold, italic bool) []string {
 	}
 
 	patterns := []string{family}
+
 	switch {
 	case bold && italic:
 		patterns = append(patterns, family+":style=Bold Italic", family+":style=Bold Oblique")
@@ -137,6 +211,7 @@ func fontconfigPatterns(family string, bold, italic bool) []string {
 
 func fallbackFontPaths(family string) []string {
 	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(family), " ", ""))
+
 	switch runtime.GOOS {
 	case "darwin":
 		switch normalized {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -20,15 +21,18 @@ func main() {
 	frame := flag.Int("frame", 0, "Frame index to render")
 	overwrite := flag.Bool("overwrite", false, "Overwrite existing reference images")
 	transparentBG := flag.Bool("transparent-bg", false, "Force document background alpha to 0 before rendering")
+
 	flag.Parse()
 
 	paths, err := filepath.Glob(filepath.Join(*samplesDir, "*.knob"))
 	if err != nil {
 		log.Fatalf("glob samples: %v", err)
 	}
+
 	if len(paths) == 0 {
 		log.Fatalf("no sample .knob files found in %s", *samplesDir)
 	}
+
 	sort.Strings(paths)
 
 	root, err := detectRepoRoot()
@@ -40,10 +44,14 @@ func main() {
 		if *outputPath == "" {
 			log.Fatal("--output is required when --input is used")
 		}
-		if err := renderOne(root, *inputPath, *outputPath, *frame, *transparentBG); err != nil {
+
+		err := renderOne(root, *inputPath, *outputPath, *frame, *transparentBG)
+		if err != nil {
 			log.Fatalf("render %s: %v", *inputPath, err)
 		}
+
 		fmt.Println(*outputPath)
+
 		return
 	}
 
@@ -57,9 +65,11 @@ func main() {
 			}
 		}
 
-		if err := renderOne(root, sample, refPath, *frame, *transparentBG); err != nil {
+		err := renderOne(root, sample, refPath, *frame, *transparentBG)
+		if err != nil {
 			log.Fatalf("render %s: %v", sample, err)
 		}
+
 		fmt.Println(refPath)
 	}
 }
@@ -69,19 +79,22 @@ func renderOne(root, samplePath, outputPath string, frame int, transparentBG boo
 	if err != nil {
 		return fmt.Errorf("load sample: %w", err)
 	}
+
 	if transparentBG {
 		doc.Prefs.BkColor.Val.A = 0
 	}
 
 	out := render.NewPixBuf(doc.Prefs.PWidth.Val, doc.Prefs.PHeight.Val)
 	if out == nil {
-		return fmt.Errorf("allocate buffer")
+		return errors.New("allocate buffer")
 	}
 
 	render.RenderFrame(out, doc, frame, textures)
+
 	if err := render.WritePixBufPNG(outputPath, out); err != nil {
 		return fmt.Errorf("write png: %w", err)
 	}
+
 	return nil
 }
 
@@ -91,17 +104,20 @@ func detectRepoRoot() (string, error) {
 		return "", err
 	}
 
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		if fileExists(filepath.Join(wd, "go.mod")) {
 			return wd, nil
 		}
+
 		next := filepath.Dir(wd)
 		if next == wd {
 			break
 		}
+
 		wd = next
 	}
-	return "", fmt.Errorf("go.mod not found from cwd")
+
+	return "", errors.New("go.mod not found from cwd")
 }
 
 func fileExists(path string) bool {

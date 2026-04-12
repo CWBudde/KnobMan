@@ -24,28 +24,28 @@ serve: build-wasm
 
 # Build for native (no WASM) - useful for testing non-UI packages
 build:
-    go build ./...
+    go build -tags freetype ./...
 
 # Run all Go tests (native build, no WASM)
 test:
-    go test ./...
+    go test -tags freetype ./...
 
 # Run tests with verbose output
 test-v:
-    go test -v ./...
+    go test -v -tags freetype ./...
 
 # Run tests with race detector
 test-race:
-    go test -race ./...
+    go test -race -tags freetype ./...
 
 # Run tests with coverage
 test-coverage:
-    go test -v -coverprofile=coverage.out ./...
+    go test -v -tags freetype -coverprofile=coverage.out ./...
     go tool cover -html=coverage.out -o coverage.html
 
 # Render frame-0 Go regression baselines from sample .knob files.
 parity-generate FLAGS="":
-    go run ./cmd/parityref {{FLAGS}}
+    go run -tags freetype ./cmd/parityref {{FLAGS}}
 
 # Render frame-0 authoritative Java baselines from sample .knob files.
 java-parity-generate FLAGS="":
@@ -57,7 +57,7 @@ primitive-fixtures-generate FLAGS="":
 
 # Render frame-0 Go regression baselines for the primitive fixtures.
 parity-primitives-generate FLAGS="":
-    go run ./cmd/parityref --samples tests/parity/primitives/inputs --refs tests/parity/primitives/baseline-go --frame 0 --overwrite {{FLAGS}}
+    go run -tags freetype ./cmd/parityref --samples tests/parity/primitives/inputs --refs tests/parity/primitives/baseline-go --frame 0 --overwrite {{FLAGS}}
 
 # Render authoritative Java baselines for the primitive fixtures.
 java-parity-primitives-generate FLAGS="":
@@ -65,15 +65,15 @@ java-parity-primitives-generate FLAGS="":
 
 # Run the primitive regression suite against Go baselines.
 parity-primitives-test:
-    go test ./internal/render -run TestParityRegressionPrimitiveFixturesFrame0 -count=1
+    go test -tags freetype ./internal/render -run TestParityRegressionPrimitiveFixturesFrame0 -count=1
 
 # Run the primitive parity suite against authoritative Java baselines.
 parity-primitives-golden-test:
-    go test ./internal/render -run TestParityGoldenPrimitiveFixturesFrame0 -count=1
+    go test -tags freetype ./internal/render -run TestParityGoldenPrimitiveFixturesFrame0 -count=1
 
 # Start the parity comparison viewer on a local web server.
 parity-viewer PORT="8090":
-    PORT={{PORT}} go run ./cmd/parityviewer --port {{PORT}}
+    PORT={{PORT}} go run -tags freetype ./cmd/parityviewer --port {{PORT}}
 
 # Format all code using treefmt
 fmt:

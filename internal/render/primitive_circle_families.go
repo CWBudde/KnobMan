@@ -28,15 +28,17 @@ func renderCircleOutline(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rMinSize := math.Min(rCX, rCY) * p.Width.Val * 0.01
 
 	rAY := 1.0
+
 	rAX := 1.0
 	if p.Aspect.Val > 0 {
 		rAX = 100.0 / (100.0 - math.Min(p.Aspect.Val, 99.0))
 	}
+
 	if p.Aspect.Val < 0 {
 		rAY = 100.0 / (100.0 + math.Max(p.Aspect.Val, -99.0))
 	}
 
-	for y := 0; y < dst.Height; y++ {
+	for y := range dst.Height {
 		rPY := -((float64(y) + 0.5) - rCY) * rAY
 		rY := rPY / rCY
 		rY2 := rY * rY
@@ -53,7 +55,7 @@ func renderCircleOutline(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 		rYE := rPY / math.Max(0.1, rCY-rMinSize*rAY)
 		rYE2 := rYE * rYE
 
-		for x := 0; x < dst.Width; x++ {
+		for x := range dst.Width {
 			rPX := -((float64(x) + 0.5) - rCX) * rAX
 			rX := rPX / rCX
 			rXM := rPX / (rCX - rAX)
@@ -79,9 +81,11 @@ func renderCircleOutline(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 				if rE >= 1.0 && rEM <= 1.0 {
 					alpha *= (1.0 - rE) / (rEM - rE)
 				}
+
 				if r < 1.0 && rM >= 1.0 {
 					alpha *= (1.0 - r) / (rM - r)
 				}
+
 				if rD1 >= 1.0 && r < 1.0 {
 					alpha *= (1.0 - r) / (rD1 - r)
 				} else if rE >= 1.0 && rD2 < 1.0 {
@@ -89,20 +93,25 @@ func renderCircleOutline(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 					alpha *= v * v
 				}
 			}
+
 			if alpha <= 0.0 {
 				continue
 			}
 
 			pix := base
+
 			if p.Specular.Val != 0.0 && r > 0 && rE > 0 && alpha > 0.0 {
 				v1 := 1.0 / math.Sqrt(r)
 				v2 := 1.0 / math.Sqrt(rE)
+
 				v := 2.0 * (1.0 - v2) / (v1 - v2)
 				if v > 1.0 {
 					v = 2.0 - v
 				}
+
 				pix = changeBrightnessRGBA(pix, int(v*p.Specular.Val*2.55))
 			}
+
 			pix = applyTextureOverlay(pix, textures, p, x, y)
 			pix.A = uint8(clampInt(int(alpha), 0, 255))
 			dst.Set(x, y, pix)
@@ -121,12 +130,14 @@ func renderCircleOutlineAgg(dst *PixBuf, p *model.Primitive) bool {
 	}
 
 	cx, cy, rx, ry := circleShellRadii(dst, p)
+
 	strokeWidth := math.Min(float64(dst.Width)*0.5, float64(dst.Height)*0.5) * p.Width.Val * 0.01
 	if strokeWidth <= 0 {
 		return false
 	}
 
 	rx -= strokeWidth * 0.5
+
 	ry -= strokeWidth * 0.5
 	if rx <= 0 || ry <= 0 {
 		return false
@@ -136,34 +147,35 @@ func renderCircleOutlineAgg(dst *PixBuf, p *model.Primitive) bool {
 	ctx.SetColor(agg.Color{R: base.R, G: base.G, B: base.B, A: base.A})
 	ctx.SetLineWidth(strokeWidth)
 	ctx.DrawEllipse(cx, cy, rx, ry)
+
 	return true
 }
 
 type circleFillGeometry struct {
-	cx, cy       float64
-	ax, ay       float64
-	rThick       float64
-	rEmbossEdge  float64
-	rD2          float64
-	rMin         float64
+	cx, cy      float64
+	ax, ay      float64
+	rThick      float64
+	rEmbossEdge float64
+	rD2         float64
+	rMin        float64
 }
 
 type circleFillSample struct {
-	px, py       float64
-	rx, ry       float64
-	rxy          float64
-	rxym         float64
-	rxye         float64
-	rxyem        float64
+	px, py float64
+	rx, ry float64
+	rxy    float64
+	rxym   float64
+	rxye   float64
+	rxyem  float64
 }
 
 type circleFillLighting struct {
-	rLX, rLY, rLZ float64
-	rTZ           float64
-	iMetalAmbient int
-	iMetalSpecular int
+	rLX, rLY, rLZ       float64
+	rTZ                 float64
+	iMetalAmbient       int
+	iMetalSpecular      int
 	dMetalSpecularWidth float64
-	rSX, rSY, rSZ float64
+	rSX, rSY, rSZ       float64
 }
 
 func newCircleFillGeometry(dst *PixBuf, p *model.Primitive) circleFillGeometry {
@@ -171,9 +183,11 @@ func newCircleFillGeometry(dst *PixBuf, p *model.Primitive) circleFillGeometry {
 	cy := float64(dst.Height) * 0.5
 	ax := cx
 	ay := cy
+
 	if p.Aspect.Val > 0.0 {
 		ax = (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0 * cx
 	}
+
 	if p.Aspect.Val < 0.0 {
 		ay = (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0 * cy
 	}
@@ -182,6 +196,7 @@ func newCircleFillGeometry(dst *PixBuf, p *model.Primitive) circleFillGeometry {
 	if rThick == 1.0 {
 		rThick = 0.99
 	}
+
 	rD := 1.0 - p.Diffuse.Val/100.0
 
 	return circleFillGeometry{
@@ -224,12 +239,15 @@ func (g circleFillGeometry) applyAlpha(alpha int, s circleFillSample) int {
 	if s.rxy > 1.0 {
 		alpha = 0
 	}
+
 	if g.rD2 < 1.0 && s.rxy > g.rD2 {
 		alpha = int(float64(alpha) * (1.0 - (s.rxy-g.rD2)/(1.0-g.rD2)))
 	}
+
 	if s.rxym >= 1.0 {
 		alpha = int((1.0 - s.rxy) / (s.rxym - s.rxy) * float64(alpha))
 	}
+
 	return alpha
 }
 
@@ -242,6 +260,7 @@ func newCircleFillLighting(p *model.Primitive) circleFillLighting {
 	iMetalAmbient := int(p.Ambient.Val * 255.0 / 100.0)
 	iMetalSpecular := int(p.Specular.Val * 255.0 / 100.0)
 	dMetalSpecularWidth := 0.0
+
 	if p.SpecularWidth.Val == 0.0 {
 		iMetalSpecular = 0
 	} else {
@@ -258,11 +277,11 @@ func newCircleFillLighting(p *model.Primitive) circleFillLighting {
 
 	return circleFillLighting{
 		rLX: rLX, rLY: rLY, rLZ: rLZ,
-		rTZ: rTZ,
-		iMetalAmbient: iMetalAmbient,
-		iMetalSpecular: iMetalSpecular,
+		rTZ:                 rTZ,
+		iMetalAmbient:       iMetalAmbient,
+		iMetalSpecular:      iMetalSpecular,
 		dMetalSpecularWidth: dMetalSpecularWidth,
-		rSX: rSX, rSY: rSY, rSZ: rSZ,
+		rSX:                 rSX, rSY: rSY, rSZ: rSZ,
 	}
 }
 
@@ -284,12 +303,14 @@ func shadeCircleFillInterior(base color.RGBA, p *model.Primitive, s circleFillSa
 		rZ := math.Sqrt(math.Max(0.0, 1.0-s.rxy))
 		d := -s.rx*l.rSX - s.ry*l.rSY + rZ*l.rSZ
 		a := float64(l.iMetalAmbient) + float64(255-l.iMetalAmbient)*d
+
 		d = 2.0*rZ*d - l.rSZ
 		if d <= 0.0 {
 			d = 0.0
 		} else {
 			d = math.Exp(math.Log(d) * (110.0 - p.SpecularWidth.Val) / 10.0)
 		}
+
 		pix = brightRGBA(pix, int(a)+lumi)
 		pix = changeBrightnessRGBA(pix, int(float64(l.iMetalSpecular)*d))
 	}
@@ -306,6 +327,7 @@ func applyCircleFillEmboss(base, pix color.RGBA, p *model.Primitive, s circleFil
 	rTX := -s.rx / rR2
 	rTY := -s.ry / rR2
 	edgePix := base
+
 	if p.Emboss.Val > 0.0 {
 		r := rTX*l.rLX + rTY*l.rLY + l.rTZ*l.rLZ
 		edgePix = changeBrightnessRGBA(edgePix, int(r*255.0-128.0))
@@ -313,10 +335,12 @@ func applyCircleFillEmboss(base, pix color.RGBA, p *model.Primitive, s circleFil
 		r := -rTX*l.rLX - rTY*l.rLY + l.rTZ*l.rLZ
 		edgePix = changeBrightnessRGBA(edgePix, int(r*255.0-128.0))
 	}
+
 	a := math.Min(255.0, math.Max(0.0, 255.0*math.Abs((1.0-s.rxyem)/(s.rxye-s.rxyem))))
 	if s.rxye < 1.0 {
 		return blendToRGBA(pix, edgePix, int(a))
 	}
+
 	return edgePix
 }
 
@@ -329,8 +353,8 @@ func renderCircleFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	geom := newCircleFillGeometry(dst, p)
 	lighting := newCircleFillLighting(p)
 
-	for y := 0; y < dst.Height; y++ {
-		for x := 0; x < dst.Width; x++ {
+	for y := range dst.Height {
+		for x := range dst.Width {
 			s := geom.sample(x, y)
 
 			pix := base
@@ -340,6 +364,7 @@ func renderCircleFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 			pix = shadeCircleFillInterior(pix, p, s, lumi, lighting)
 			pix = applyCircleFillEmboss(base, pix, p, s, lighting)
+
 			alpha = geom.applyAlpha(alpha, s)
 			if alpha <= 0 {
 				continue
@@ -369,6 +394,7 @@ func renderCircleFillAgg(dst *PixBuf, p *model.Primitive) bool {
 	base := primitiveColor(p)
 	ctx.SetColor(agg.Color{R: base.R, G: base.G, B: base.B, A: base.A})
 	ctx.FillEllipse(cx, cy, rx, ry)
+
 	return true
 }
 
@@ -377,12 +403,15 @@ func circleShellRadii(dst *PixBuf, p *model.Primitive) (cx, cy, rx, ry float64) 
 	cy = float64(dst.Height) * 0.5
 	rx = cx
 	ry = cy
+
 	if p.Aspect.Val > 0.0 {
 		rx = (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0 * cx
 	}
+
 	if p.Aspect.Val < 0.0 {
 		ry = (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0 * cy
 	}
+
 	return cx, cy, rx, ry
 }
 
@@ -392,8 +421,8 @@ func renderMetalCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	cy := float64(dst.Height-1) * 0.5
 
 	r := float64(min(dst.Width, dst.Height)) * 0.46
-	for y := 0; y < dst.Height; y++ {
-		for x := 0; x < dst.Width; x++ {
+	for y := range dst.Height {
+		for x := range dst.Width {
 			dx := (float64(x) - cx) / r
 			dy := (float64(y) - cy) / r
 
@@ -424,19 +453,24 @@ func renderWaveCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rCX := float64(dst.Width) * 0.5
 	rCY := float64(dst.Height) * 0.5
 	rAY := 1.0
+
 	rAX := 1.0
 	if p.Aspect.Val > 0.0 {
 		rAX = (100.0 - math.Min(p.Aspect.Val, 99.0)) * 0.01
 	}
+
 	if p.Aspect.Val < 0.0 {
 		rAY = (100.0 + math.Max(p.Aspect.Val, -99.0)) * 0.01
 	}
+
 	rMax := math.Sqrt(math.Min(rCX, rCY) * math.Min(rCX, rCY))
 	rD := 1.0 - p.Diffuse.Val*0.01
-	for y := 0; y < dst.Height; y++ {
+
+	for y := range dst.Height {
 		rPY := float64(y) - rCY + 0.5
 		rY := rPY / rAY
-		for x := 0; x < dst.Width; x++ {
+
+		for x := range dst.Width {
 			rPX := float64(x) - rCX + 0.5
 			lumiInt, alpha := sampleTextureLumiAlpha(textures, p, rPX, rPY)
 			lumi = float64(lumiInt)
@@ -447,6 +481,7 @@ func renderWaveCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			rR := math.Hypot(rX, rY)
 			rMax2 := rMax * (1.0 - rCos*rDepth)
 			pix := changeBrightnessRGBA(base, int((-rX/rCX-rY/rCY)*128.0*p.Specular.Val*0.01+lumi))
+
 			if rR < rMax2 {
 				rMax2M := (rMax2 - 1.0) * rD
 				if rR >= rMax2M {
@@ -455,9 +490,11 @@ func renderWaveCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			} else {
 				alpha = 0
 			}
+
 			if alpha <= 0 {
 				continue
 			}
+
 			pix.A = uint8(clampInt(alpha, 0, 255))
 			dst.Set(x, y, pix)
 		}
@@ -471,8 +508,8 @@ func renderSphere(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rx := float64(dst.Width) * 0.45
 
 	ry := float64(dst.Height) * 0.45
-	for y := 0; y < dst.Height; y++ {
-		for x := 0; x < dst.Width; x++ {
+	for y := range dst.Height {
+		for x := range dst.Width {
 			nx, ny, nz, ok := SphereNormal(float64(x), float64(y), cx, cy, rx, ry)
 			if !ok {
 				continue

@@ -55,6 +55,10 @@ python3 -m http.server 8080 --directory web
 just test
 ```
 
+Native commands use `-tags freetype` so `agg_go` can render real system fonts.
+The WASM/web build still falls back to `agg_go`'s built-in `FontGSV(...)` path,
+which does not exactly match arbitrary installed fonts.
+
 ## Using KnobMan
 
 ### Workflow

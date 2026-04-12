@@ -9,7 +9,7 @@
 
 - Current date: April 12, 2026
 - Architecture: Go/WASM + parser + renderer + JS shell
-- Current milestone: `Phase 7.1` in progress
+- Current milestone: `Phase 7.8` in progress
 
 ## Phase 1 — Baseline Parity (in progress)
 
@@ -77,7 +77,7 @@
 - [x] Define parity constraints for transforms, interpolation, clipping, color conversion, and bounds handling.
 - [x] Decide explicit deferrals for text, masks, shadows, lighting, and parity-sensitive texture sampling.
 
-### Phase 7.2 — Transform pipeline migration (in progress)
+### Phase 7.2 — Transform pipeline migration (done)
 
 - [x] Add focused transform-only coverage in renderer tests:
 - [x] translation
@@ -88,10 +88,10 @@
 - [x] Replace `TransformBilinear` sampling with `agg_go` image-transform/interpolation APIs.
 - [x] Keep matrix construction entirely on `agg_go` types and helpers.
 - [x] Preserve current transform semantics through focused matrix/image tests.
-- [ ] Verify output does not introduce wrap, mirror, or edge extension outside source bounds.
-- [ ] Record any unavoidable transform differences in the plan before moving on.
+- [x] Verify output does not introduce wrap, mirror, or edge extension outside source bounds.
+- [x] Record any unavoidable transform differences in the plan before moving on: current Java-golden drift remains small but non-zero on the dedicated `vu3_line_transform_flip_probe*` fixtures, so the agg_go path is kept and the residual difference is tracked rather than blocking Phase 7.
 
-### Phase 7.3 — Image adapter and conversion layer (in progress)
+### Phase 7.3 — Image adapter and conversion layer (done)
 
 - [x] Add a small shared adapter between `PixBuf` and `agg_go` image/context types.
 - [x] Centralize straight-alpha RGBA conversion in one place.
@@ -99,12 +99,12 @@
 - [x] Add focused checks for round-trip image conversion and alpha preservation.
 - [x] Keep `PixBuf` as the renderer-owned outer image contract.
 
-### Phase 7.4 — Downsample and blit consolidation (in progress)
+### Phase 7.4 — Downsample and blit consolidation (done)
 
 - [x] Audit current manual image copy/downsample paths.
 - [x] Decide which paths can move to `agg_go` without changing output semantics.
 - [x] Replace the safest path first:
-- [ ] oversampling downsample
+- [x] oversampling downsample review: keep the current local box downsample after focused agg_go minification checks regressed behavior
 - [x] image blit/scale helper used by primitive image rendering
 - [x] Add focused checks for semi-transparent edges and alpha accumulation.
 - [x] Keep any path local if `agg_go` changes output beyond accepted tolerance.
@@ -129,20 +129,20 @@
 ### Phase 7.7 — Deferred custom domains review (next)
 
 - [ ] Re-evaluate masks after dedicated fixture coverage exists.
-- [ ] Re-evaluate shadows and blur only after transform/image migration stabilizes.
+- [ ] Re-evaluate shadows and blur after the current transform/image migration settles against the remaining parity probes.
 - [ ] Re-evaluate color adjustment only if a shared `agg_go` image pipeline makes it simpler.
 - [ ] Keep lighting local unless there is a clear `agg_go` win without parity risk.
 - [ ] Keep text deferred until its separate parity track is ready.
 
-### Phase 7.8 — Verification and rollout (next)
+### Phase 7.8 — Verification and rollout (in progress)
 
-- [ ] Add focused regression checks for each migrated area before changing the next one.
+- [x] Add focused regression checks for each migrated area before changing the next one.
 - [ ] Add before/after parity checkpoints for:
-- [ ] transform fixtures
-- [ ] primitive fixtures
+- [x] transform fixtures
+- [x] primitive fixtures
 - [ ] sample sweep deltas
 - [ ] Add lightweight performance checkpoints for transform-heavy scenes.
-- [ ] Update milestone markers as each subphase completes.
+- [x] Update milestone markers as each subphase completes.
 - [ ] Create the follow-up phase only after the remaining custom fallbacks are explicit.
 
 ### Phase 7 component decisions

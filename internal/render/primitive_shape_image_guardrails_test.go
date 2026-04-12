@@ -19,6 +19,7 @@ func TestShapeFillAggInteriorAndClip(t *testing.T) {
 	if got := buf.At(16, 12); got.A == 0 {
 		t.Fatalf("expected shape fill interior visible, got %+v", got)
 	}
+
 	if got := buf.At(0, 0); got.A != 0 {
 		t.Fatalf("expected outer corner transparent, got %+v", got)
 	}
@@ -31,6 +32,7 @@ func TestImageTransparentKeyPreserved(t *testing.T) {
 	if got := applyImageTransparency(key, key, 2, 0); got.A != 0 {
 		t.Fatalf("expected keyed first pixel transparent, got %+v", got)
 	}
+
 	if got := applyImageTransparency(fill, key, 2, 0); got.A == 0 {
 		t.Fatalf("expected non-key pixel visible, got %+v", got)
 	}
