@@ -13,7 +13,7 @@ func TestImageToPixBufRoundTripPreservesStraightAlpha(t *testing.T) {
 	src.SetNRGBA(0, 0, color.NRGBA{R: 10, G: 20, B: 30, A: 40})
 	src.SetNRGBA(1, 0, color.NRGBA{R: 200, G: 10, B: 60, A: 128})
 	src.SetNRGBA(0, 1, color.NRGBA{R: 0, G: 0, B: 0, A: 0})
-	src.SetNRGBA(1, 1, color.NRGBA{R: 255, G: 240, B: 16, A: 255})
+	src.Set(1, 1, color.NRGBA{R: 255, G: 240, B: 16, A: 255})
 
 	pb := ImageToPixBuf(src)
 	if pb == nil {
@@ -49,6 +49,42 @@ func TestImageToRGBAUnpremultipliesRGBA(t *testing.T) {
 	want := color.RGBA{R: 128, G: 64, B: 32, A: 128}
 	if px := got.RGBAAt(0, 0); px != want {
 		t.Fatalf("unexpected unpremultiplied pixel: got %+v want %+v", px, want)
+	}
+}
+
+func TestImageToRGBAClampsOverAlphaComponents(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	src.Pix[0] = 200
+	src.Pix[1] = 64
+	src.Pix[2] = 16
+	src.Pix[3] = 128
+
+	got := ImageToRGBA(src)
+	if got == nil {
+		t.Fatal("ImageToRGBA returned nil")
+	}
+
+	want := color.RGBA{R: 255, G: 128, B: 32, A: 128}
+	if px := got.RGBAAt(0, 0); px != want {
+		t.Fatalf("unexpected clamped pixel: got %+v want %+v", px, want)
+	}
+}
+
+func TestPixBufToNRGBAClampsOverAlphaComponents(t *testing.T) {
+	pb := NewPixBuf(1, 1)
+	pb.Data[0] = 200
+	pb.Data[1] = 64
+	pb.Data[2] = 16
+	pb.Data[3] = 128
+
+	got := PixBufToNRGBA(pb)
+	if got == nil {
+		t.Fatal("PixBufToNRGBA returned nil")
+	}
+
+	want := color.NRGBA{R: 200, G: 64, B: 16, A: 128}
+	if px := got.NRGBAAt(0, 0); px != want {
+		t.Fatalf("unexpected exported pixel: got %+v want %+v", px, want)
 	}
 }
 

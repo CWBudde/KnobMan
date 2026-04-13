@@ -143,7 +143,7 @@
 - [ ] sample sweep deltas
 - [ ] Add lightweight performance checkpoints for transform-heavy scenes.
 - [x] Update milestone markers as each subphase completes.
-- [ ] Create the follow-up phase only after the remaining custom fallbacks are explicit.
+- [x] Create the follow-up phase once the remaining custom fallbacks are explicit.
 
 ### Phase 7 component decisions
 
@@ -156,3 +156,61 @@
 - [x] `coloradj.go`: defer unless shared image pipeline reduces risk.
 - [x] `lighting.go`: defer.
 - [x] `buffer.go` and `render.go`: keep local boundary; migrate through adapters, not wholesale replacement.
+
+## Phase 8 — Renderer Contract Realignment over Lower-Level AGG (in progress)
+
+Goal: move from the current mixed `PixBuf`/`Agg2D` contract toward a renderer-owned
+straight-alpha `PixBuf` model closer to the original Java `Bitmap` behavior, while
+still preferring lower-level `agg_go` math, transforms, rasterizers, and pixel formats
+over custom geometry/math code.
+
+### Phase 8.1 — Lock the target contract (in progress)
+
+- [-] Make `PixBuf` the authoritative renderer boundary again and define it explicitly as straight-alpha storage.
+- [x] Document the Java reference contract around `Bitmap` read/write/composite behavior and map each relevant Go boundary to it in `docs/render-contract-phase8.md`.
+- [x] Record every place where AGG currently writes premultiplied data into `PixBuf` in `docs/render-contract-phase8.md`.
+- [x] Define which operations remain allowed to use `Agg2D` during transition and which must move to lower-level `agg_go` building blocks in `docs/render-contract-phase8.md`.
+
+### Phase 8.2 — Move premultiply/demultiply to explicit AGG boundaries (done)
+
+- [x] Stop relying on implicit shared-buffer assumptions between `PixBuf` and AGG image rendering paths.
+- [x] Introduce explicit conversion helpers for straight-alpha `PixBuf` <-> premultiplied AGG image buffers.
+- [x] Restrict premultiply/demultiply to the narrowest image-transform/blend boundaries that actually require it.
+- [x] Add focused tests for semi-transparent pixels, filtered image edges, and `RGB > A` cases across those boundaries.
+
+### Phase 8.3 — Replace high-level `Agg2D` usage where lower-level AGG is clearer
+
+- [x] Replace the AGG-backed image transform/blit production path with custom nearest and bilinear sampling, keeping `agg_go` only for affine matrix construction helpers.
+- [x] Move rectangle / triangle rendering back to the custom raster paths as the primary engine and remove the now-unused Agg helper variants.
+- [x] Move line-family rendering (`renderLine`, `renderRadiateLines`, `renderParallelLines`) back to the custom raster paths as the primary engine and remove the now-unused Agg helper variants.
+- [x] Move circle-family rendering back to the custom raster paths as the primary engine and remove the now-unused Agg helper variants.
+- [x] Replace filled-shape AGG mask generation with a custom supersampled even-odd fill mask in `primitive.go` and delete the now-unused AGG path-construction helper.
+- [x] Keep text on AGG intentionally, but isolate it behind an explicit off-screen render-to-temp-and-blend-back adapter instead of direct `PixBuf` attachment.
+- [x] Move the active GSV fallback off `Agg2D.Text` / `TextWidth` / `FontGSV` by exposing a public GSV path source in `agg_go` and rendering it through ordinary AGG path stroking.
+- [x] Audit `AggContextForPixBuf` / `Agg2DForPixBuf` call sites after the text move; no remaining production call sites are left, so keep the adapters fenced as legacy/test helpers only.
+- [-] Treat text as an intentional AGG dependency; if a needed font/text adapter is missing, add it locally in KnobMan rather than forcing a non-AGG text rewrite.
+- [ ] Add a dedicated non-`Agg2D` TrueType/FreeType text adapter if the optional FreeType-backed path needs to stay active.
+- [ ] Decide whether the fenced legacy/test shared-buffer adapters in `image_adapter.go` should be deleted outright once no comparison/debug use remains.
+
+### Phase 8.3 status snapshot
+
+- [x] Production primitive rasterization is back on the custom engine for rectangles, triangles, line families, circle families, shape outlines, and shape fills.
+- [x] Production image draw/scale/transform is back on custom sampling code; `agg_go` remains only for affine matrix helpers in this area.
+- [x] Custom primitive rasterization now blends over existing destination pixels instead of overwriting them, so semi-transparent primitives preserve prior content.
+- [x] No production render path in `internal/render` attaches AGG directly to `PixBuf.Data`.
+- [-] Production AGG usage still exists for text rendering. The default build no longer uses the Agg2D text engine surface for GSV fallback text, but a dedicated non-`Agg2D` TrueType adapter is still pending if the optional FreeType-backed path is enabled.
+- [x] Production AGG usage has been removed from image transform/blit rendering.
+
+### Phase 8.4 — Migration order
+
+- [x] Migrate primitive raster paths first where current `Agg2D` use was convenience-only rather than behavior-critical.
+- [ ] Revisit masks/shadows/color adjustment as the remaining AGG-heavy paths shrink.
+- [x] Revisit image draw/scale/transform next; production rendering now uses custom sampling instead of AGG image rendering.
+- [x] Revisit text last; keep it on AGG unless a clearly missing adapter forces local support work.
+
+### Phase 8.5 — Acceptance criteria
+
+- [-] `PixBufToNRGBA` can become a direct straight-alpha export path again, or any remaining conversion is narrowly justified and documented.
+- [ ] The renderer no longer depends on AGG-owned premultiplied semantics leaking into general `PixBuf` storage.
+- [ ] Java parity improves or at minimum becomes easier to reason about on semi-transparent image fixtures.
+- [ ] All remaining production AGG dependencies are explicit, justified, adapter-complete where needed, and covered by parity tests.

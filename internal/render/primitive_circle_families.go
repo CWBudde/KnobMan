@@ -4,7 +4,6 @@ import (
 	"image/color"
 	"math"
 
-	agg "github.com/cwbudde/agg_go"
 	"knobman/internal/model"
 )
 
@@ -18,10 +17,6 @@ func renderCircle(dst *PixBuf, p *model.Primitive, outline bool, textures []*Tex
 }
 
 func renderCircleOutline(dst *PixBuf, p *model.Primitive, textures []*Texture) {
-	if canRenderCircleOutlineAgg(p, textures) && renderCircleOutlineAgg(dst, p) {
-		return
-	}
-
 	base := primitiveColor(p)
 	rCX := float64(dst.Width) * 0.5
 	rCY := float64(dst.Height) * 0.5
@@ -114,41 +109,9 @@ func renderCircleOutline(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 			pix = applyTextureOverlay(pix, textures, p, x, y)
 			pix.A = uint8(clampInt(int(alpha), 0, 255))
-			dst.Set(x, y, pix)
+			dst.BlendOver(x, y, pix)
 		}
 	}
-}
-
-func canRenderCircleOutlineAgg(p *model.Primitive, textures []*Texture) bool {
-	return false
-}
-
-func renderCircleOutlineAgg(dst *PixBuf, p *model.Primitive) bool {
-	ctx := AggContextForPixBuf(dst)
-	if ctx == nil {
-		return false
-	}
-
-	cx, cy, rx, ry := circleShellRadii(dst, p)
-
-	strokeWidth := math.Min(float64(dst.Width)*0.5, float64(dst.Height)*0.5) * p.Width.Val * 0.01
-	if strokeWidth <= 0 {
-		return false
-	}
-
-	rx -= strokeWidth * 0.5
-
-	ry -= strokeWidth * 0.5
-	if rx <= 0 || ry <= 0 {
-		return false
-	}
-
-	base := primitiveColor(p)
-	ctx.SetColor(agg.Color{R: base.R, G: base.G, B: base.B, A: base.A})
-	ctx.SetLineWidth(strokeWidth)
-	ctx.DrawEllipse(cx, cy, rx, ry)
-
-	return true
 }
 
 type circleFillGeometry struct {
@@ -345,10 +308,6 @@ func applyCircleFillEmboss(base, pix color.RGBA, p *model.Primitive, s circleFil
 }
 
 func renderCircleFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
-	if canRenderCircleFillAgg(p, textures) && renderCircleFillAgg(dst, p) {
-		return
-	}
-
 	base := primitiveColor(p)
 	geom := newCircleFillGeometry(dst, p)
 	lighting := newCircleFillLighting(p)
@@ -371,48 +330,9 @@ func renderCircleFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			}
 
 			pix.A = uint8(clampInt(alpha, 0, 255))
-			dst.Set(x, y, pix)
+			dst.BlendOver(x, y, pix)
 		}
 	}
-}
-
-func canRenderCircleFillAgg(p *model.Primitive, textures []*Texture) bool {
-	return false
-}
-
-func renderCircleFillAgg(dst *PixBuf, p *model.Primitive) bool {
-	ctx := AggContextForPixBuf(dst)
-	if ctx == nil {
-		return false
-	}
-
-	cx, cy, rx, ry := circleShellRadii(dst, p)
-	if rx <= 0 || ry <= 0 {
-		return false
-	}
-
-	base := primitiveColor(p)
-	ctx.SetColor(agg.Color{R: base.R, G: base.G, B: base.B, A: base.A})
-	ctx.FillEllipse(cx, cy, rx, ry)
-
-	return true
-}
-
-func circleShellRadii(dst *PixBuf, p *model.Primitive) (cx, cy, rx, ry float64) {
-	cx = float64(dst.Width) * 0.5
-	cy = float64(dst.Height) * 0.5
-	rx = cx
-	ry = cy
-
-	if p.Aspect.Val > 0.0 {
-		rx = (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0 * cx
-	}
-
-	if p.Aspect.Val < 0.0 {
-		ry = (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0 * cy
-	}
-
-	return cx, cy, rx, ry
 }
 
 func renderMetalCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
@@ -496,7 +416,7 @@ func renderWaveCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			}
 
 			pix.A = uint8(clampInt(alpha, 0, 255))
-			dst.Set(x, y, pix)
+			dst.BlendOver(x, y, pix)
 		}
 	}
 }

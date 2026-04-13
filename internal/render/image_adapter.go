@@ -3,11 +3,14 @@ package render
 import (
 	"image"
 	"image/color"
+	"math"
 
 	agg "github.com/cwbudde/agg_go"
 )
 
 // AggImageForPixBuf exposes a PixBuf as an agg_go image without copying.
+// Phase 8 keeps this only as a narrowly-scoped legacy/test adapter; production
+// rendering paths should prefer explicit off-screen AGG boundaries instead.
 func AggImageForPixBuf(buf *PixBuf) *agg.Image {
 	if buf == nil || buf.Width <= 0 || buf.Height <= 0 || len(buf.Data) == 0 {
 		return nil
@@ -17,6 +20,8 @@ func AggImageForPixBuf(buf *PixBuf) *agg.Image {
 }
 
 // AggContextForPixBuf creates an agg_go context backed by the PixBuf memory.
+// Phase 8 keeps this only as a narrowly-scoped legacy/test adapter; production
+// rendering paths should prefer explicit off-screen AGG boundaries instead.
 func AggContextForPixBuf(buf *PixBuf) *agg.Context {
 	img := AggImageForPixBuf(buf)
 	if img == nil {
@@ -27,6 +32,8 @@ func AggContextForPixBuf(buf *PixBuf) *agg.Context {
 }
 
 // Agg2DForPixBuf creates a low-level agg_go renderer backed by the PixBuf memory.
+// Phase 8 keeps this only as a narrowly-scoped legacy/test adapter; production
+// rendering paths should prefer explicit off-screen AGG boundaries instead.
 func Agg2DForPixBuf(buf *PixBuf) *agg.Agg2D {
 	if buf == nil || buf.Width <= 0 || buf.Height <= 0 || len(buf.Data) == 0 {
 		return nil
@@ -36,6 +43,118 @@ func Agg2DForPixBuf(buf *PixBuf) *agg.Agg2D {
 	a.Attach(buf.Data, buf.Width, buf.Height, buf.Stride)
 
 	return a
+}
+
+func blendPremultipliedAggImageOverPixBuf(dst *PixBuf, src *agg.Image) {
+	blendPremultipliedAggImageRectOverPixBuf(dst, src, 0, 0, dst.Width, dst.Height)
+}
+
+func blendPremultipliedAggImageRectOverPixBuf(dst *PixBuf, src *agg.Image, x0, y0, x1, y1 int) {
+	if dst == nil || src == nil || dst.Width <= 0 || dst.Height <= 0 {
+		return
+	}
+
+	if x0 < 0 {
+		x0 = 0
+	}
+
+	if y0 < 0 {
+		y0 = 0
+	}
+
+	if x1 > dst.Width {
+		x1 = dst.Width
+	}
+
+	if y1 > dst.Height {
+		y1 = dst.Height
+	}
+
+	if x1 > src.Width() {
+		x1 = src.Width()
+	}
+
+	if y1 > src.Height() {
+		y1 = src.Height()
+	}
+
+	if x0 >= x1 || y0 >= y1 {
+		return
+	}
+
+	stride := src.Stride()
+	for y := y0; y < y1; y++ {
+		srcOff := y * stride
+		for x := x0; x < x1; x++ {
+			si := srcOff + x*4
+			a := uint32(src.Data[si+3])
+			if a == 0 {
+				continue
+			}
+
+			dst.BlendOver(x, y, color.RGBA{
+				R: demultiplyRGBAComponent(uint32(src.Data[si+0]), a),
+				G: demultiplyRGBAComponent(uint32(src.Data[si+1]), a),
+				B: demultiplyRGBAComponent(uint32(src.Data[si+2]), a),
+				A: uint8(a),
+			})
+		}
+	}
+}
+
+func samplePixBufNearest(src *PixBuf, x, y int) color.RGBA {
+	if src == nil || x < 0 || y < 0 || x >= src.Width || y >= src.Height {
+		return color.RGBA{}
+	}
+
+	return src.At(x, y)
+}
+
+func samplePixBufBilinear(src *PixBuf, fx, fy float64) color.RGBA {
+	if src == nil || src.Width <= 0 || src.Height <= 0 {
+		return color.RGBA{}
+	}
+
+	x0 := int(math.Floor(fx))
+	y0 := int(math.Floor(fy))
+	tx := fx - float64(x0)
+	ty := fy - float64(y0)
+
+	c00 := samplePixBufNearest(src, x0, y0)
+	c10 := samplePixBufNearest(src, x0+1, y0)
+	c01 := samplePixBufNearest(src, x0, y0+1)
+	c11 := samplePixBufNearest(src, x0+1, y0+1)
+
+	w00 := (1.0 - tx) * (1.0 - ty)
+	w10 := tx * (1.0 - ty)
+	w01 := (1.0 - tx) * ty
+	w11 := tx * ty
+
+	pr := float64(premultiplyRGBAComponent(uint32(c00.R), uint32(c00.A)))*w00 +
+		float64(premultiplyRGBAComponent(uint32(c10.R), uint32(c10.A)))*w10 +
+		float64(premultiplyRGBAComponent(uint32(c01.R), uint32(c01.A)))*w01 +
+		float64(premultiplyRGBAComponent(uint32(c11.R), uint32(c11.A)))*w11
+	pg := float64(premultiplyRGBAComponent(uint32(c00.G), uint32(c00.A)))*w00 +
+		float64(premultiplyRGBAComponent(uint32(c10.G), uint32(c10.A)))*w10 +
+		float64(premultiplyRGBAComponent(uint32(c01.G), uint32(c01.A)))*w01 +
+		float64(premultiplyRGBAComponent(uint32(c11.G), uint32(c11.A)))*w11
+	pb := float64(premultiplyRGBAComponent(uint32(c00.B), uint32(c00.A)))*w00 +
+		float64(premultiplyRGBAComponent(uint32(c10.B), uint32(c10.A)))*w10 +
+		float64(premultiplyRGBAComponent(uint32(c01.B), uint32(c01.A)))*w01 +
+		float64(premultiplyRGBAComponent(uint32(c11.B), uint32(c11.A)))*w11
+	pa := float64(c00.A)*w00 + float64(c10.A)*w10 + float64(c01.A)*w01 + float64(c11.A)*w11
+
+	a := clampInt(int(math.Round(pa)), 0, 255)
+	if a == 0 {
+		return color.RGBA{}
+	}
+
+	return color.RGBA{
+		R: demultiplyRGBAComponent(uint32(clampInt(int(math.Round(pr)), 0, 255)), uint32(a)),
+		G: demultiplyRGBAComponent(uint32(clampInt(int(math.Round(pg)), 0, 255)), uint32(a)),
+		B: demultiplyRGBAComponent(uint32(clampInt(int(math.Round(pb)), 0, 255)), uint32(a)),
+		A: uint8(a),
+	}
 }
 
 // ImageToPixBuf converts a Go image into straight-alpha PixBuf storage.
@@ -58,27 +177,7 @@ func PixBufToNRGBA(buf *PixBuf) *image.NRGBA {
 	for y := range buf.Height {
 		srcOff := y * buf.Stride
 		dstOff := y * out.Stride
-		for x := range buf.Width {
-			si := srcOff + x*4
-			di := dstOff + x*4
-			r := uint32(buf.Data[si+0])
-			g := uint32(buf.Data[si+1])
-			b := uint32(buf.Data[si+2])
-			a := uint32(buf.Data[si+3])
-
-			if a == 0 {
-				out.Pix[di+0] = 0
-				out.Pix[di+1] = 0
-				out.Pix[di+2] = 0
-				out.Pix[di+3] = 0
-				continue
-			}
-
-			out.Pix[di+0] = uint8((r*255 + a/2) / a)
-			out.Pix[di+1] = uint8((g*255 + a/2) / a)
-			out.Pix[di+2] = uint8((b*255 + a/2) / a)
-			out.Pix[di+3] = uint8(a)
-		}
+		copy(out.Pix[dstOff:dstOff+buf.Width*4], buf.Data[srcOff:srcOff+buf.Width*4])
 	}
 
 	return out
@@ -132,18 +231,9 @@ func ImageToRGBA(img image.Image) *image.RGBA {
 				a := uint32(src.Pix[srcOffset+3])
 				dstOffset := y*out.Stride + x*4
 
-				if a == 0 {
-					out.Pix[dstOffset+0] = 0
-					out.Pix[dstOffset+1] = 0
-					out.Pix[dstOffset+2] = 0
-					out.Pix[dstOffset+3] = 0
-
-					continue
-				}
-
-				out.Pix[dstOffset+0] = uint8((r*255 + a/2) / a)
-				out.Pix[dstOffset+1] = uint8((g*255 + a/2) / a)
-				out.Pix[dstOffset+2] = uint8((bl*255 + a/2) / a)
+				out.Pix[dstOffset+0] = demultiplyRGBAComponent(r, a)
+				out.Pix[dstOffset+1] = demultiplyRGBAComponent(g, a)
+				out.Pix[dstOffset+2] = demultiplyRGBAComponent(bl, a)
 				out.Pix[dstOffset+3] = uint8(a)
 			}
 		}
@@ -185,4 +275,36 @@ func pixBufFromRGBA(img *image.RGBA) *PixBuf {
 	}
 
 	return pb
+}
+
+func demultiplyRGBAComponent(c, a uint32) uint8 {
+	if a == 0 {
+		return 0
+	}
+
+	if a == 255 {
+		return uint8(c)
+	}
+
+	// AGG's image path operates on premultiplied buffers, but filtered samples
+	// can still produce RGB > A. Java's BufferedImage export path effectively
+	// clamps those back into straight-alpha range rather than wrapping.
+	if c >= a {
+		return 255
+	}
+
+	return uint8((c*255 + a/2) / a)
+}
+
+func premultiplyRGBAComponent(c, a uint32) uint8 {
+	if a == 0 {
+		return 0
+	}
+
+	if a == 255 {
+		return uint8(c)
+	}
+
+	t := c*a + 128
+	return uint8((t + (t >> 8)) >> 8)
 }

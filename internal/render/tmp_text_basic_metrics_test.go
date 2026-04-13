@@ -22,11 +22,16 @@ func TestTmpTextBasicMetrics(t *testing.T) {
 
 	size := p.FontSize.Val * 0.01 * float64(buf.Height)
 	backend, textSize := configureAggTextFont(ctx, &p, size)
-	a := ctx.GetAgg2D()
+	width := ctx.GetAgg2D().TextWidth("TX")
+	space := ctx.GetAgg2D().TextWidth(" ")
+	if backend == aggTextBackendGSV {
+		width = measureLocalGSVTextWidth("TX", textSize)
+		space = measureLocalGSVTextWidth(" ", textSize)
+	}
 	t.Logf("family=%q path=%q backend=%v inputSize=%v configuredSize=%v width=%v space=%v asc=%v desc=%v",
 		primitiveFontFamily(&p),
 		resolveFontPath(primitiveFontFamily(&p), false, false),
-		backend, size, textSize, a.TextWidth("TX"), a.TextWidth(" "),
+		backend, size, textSize, width, space,
 		ctx.GetAscender(), ctx.GetDescender(),
 	)
 }

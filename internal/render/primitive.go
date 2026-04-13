@@ -105,10 +105,6 @@ func drawPixBufToRect(dst, src *PixBuf, dx0, dy0, dw, dh int, p *model.Primitive
 		return
 	}
 
-	if p != nil && p.Transparent.Val == 0 && pixBufRegionTransparent(dst, dx0, dy0, dw, dh) && drawPixBufToRectAgg(dst, src, dx0, dy0, dw, dh) {
-		return
-	}
-
 	maxX := min(dst.Width, dx0+dw)
 
 	maxY := min(dst.Height, dy0+dh)
@@ -126,49 +122,6 @@ func drawPixBufToRect(dst, src *PixBuf, dx0, dy0, dw, dh int, p *model.Primitive
 			dst.BlendOver(x, y, px)
 		}
 	}
-}
-
-func drawPixBufToRectAgg(dst, src *PixBuf, dx0, dy0, dw, dh int) bool {
-	if dst == nil || src == nil || dw <= 0 || dh <= 0 {
-		return false
-	}
-
-	a := Agg2DForPixBuf(dst)
-
-	srcImg := AggImageForPixBuf(src)
-	if a == nil || srcImg == nil {
-		return false
-	}
-
-	a.ImageFilter(agg.FilterNoFilter)
-	a.ImageResample(agg.NoResample)
-
-	err := a.TransformImageSimple(srcImg, float64(dx0), float64(dy0), float64(dx0+dw), float64(dy0+dh))
-	if err != nil {
-		return false
-	}
-
-	return true
-}
-
-func pixBufRegionTransparent(buf *PixBuf, dx0, dy0, dw, dh int) bool {
-	if buf == nil || dw <= 0 || dh <= 0 {
-		return false
-	}
-
-	maxX := min(buf.Width, dx0+dw)
-
-	maxY := min(buf.Height, dy0+dh)
-	for y := max(0, dy0); y < maxY; y++ {
-		row := y * buf.Stride
-		for x := max(0, dx0); x < maxX; x++ {
-			if buf.Data[row+x*4+3] != 0 {
-				return false
-			}
-		}
-	}
-
-	return true
 }
 
 func applyImageTransparency(px, def color.RGBA, transparentMode, intelliAlpha int) color.RGBA {
@@ -241,56 +194,73 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 		size = 6
 	}
 
-	ctx := AggContextForPixBuf(dst)
+	ctx := agg.NewContext(dst.Width, dst.Height)
 	if ctx == nil {
 		return
 	}
 
-	ctx.SetColor(agg.Color{R: primitiveColor(p).R, G: primitiveColor(p).G, B: primitiveColor(p).B, A: primitiveColor(p).A})
-	ctx.TextHints(true)
+	col := primitiveColor(p)
+	ctx.SetColor(agg.Color{R: col.R, G: col.G, B: col.B, A: col.A})
+
 	backend, textSize := configureAggTextFont(ctx, p, size)
 
 	a := ctx.GetAgg2D()
-	textWidth := a.TextWidth(txt)
+	textWidth := 0.0
+	spaceWidth := 0.0
 
-	spaceWidth := a.TextWidth(" ")
-	if spaceWidth <= 0 {
-		spaceWidth = math.Max(1, textSize*0.25)
+	switch backend {
+	case aggTextBackendGSV:
+		textWidth = measureLocalGSVTextWidth(txt, textSize)
+		spaceWidth = measureLocalGSVTextWidth(" ", textSize)
+	default:
+		ctx.TextHints(true)
+		ctx.FlipText(true)
+		textWidth = a.TextWidth(txt)
+		spaceWidth = a.TextWidth(" ")
+	}
+
+	inset := spaceWidth * 0.5
+	if backend == aggTextBackendGSV {
+		inset = math.Max(1, textSize*0.05)
 	}
 
 	anchorX := (float64(dst.Width) - textWidth) * 0.5
 	switch p.TextAlign.Val {
 	case 1:
-		anchorX = spaceWidth * 0.5
+		anchorX = inset
 	case 2:
-		anchorX = float64(dst.Width) - textWidth - spaceWidth*0.5
+		anchorX = float64(dst.Width) - textWidth - inset
 	}
 
-	ascent := ctx.GetAscender()
-	descent := -ctx.GetDescender()
-	if backend == aggTextBackendGSV && ascent <= 0 && descent <= 0 {
-		// GSV has no font metrics; approximate Java's baseline formula.
-		ascent = textSize * 0.8
-		descent = textSize * 0.2
-	}
-	if ascent <= 0 && descent <= 0 {
-		ascent = size
-	}
+	anchorY := float64(dst.Height) * 0.5
+	alignY := agg.AlignCenter
 
-	anchorY := (float64(dst.Height) + ascent - descent) * 0.5
-
-	a.TextAlignment(agg.AlignLeft, agg.AlignBottom)
+	switch backend {
+	case aggTextBackendGSV:
+		alignY = agg.AlignBottom
+		anchorY += size * 0.35
+	default:
+		anchorY += 2
+	}
 
 	if backend == aggTextBackendGSV {
-		renderTextGSVStyled(ctx, a, p, anchorX, anchorY, txt)
+		renderTextGSVStyled(ctx, p, anchorX, anchorY, textSize, txt)
+		blendPremultipliedAggImageOverPixBuf(dst, ctx.GetImage())
 		return
 	}
 
+	a.TextAlignment(agg.AlignLeft, alignY)
 	a.Text(anchorX, anchorY, txt, true, 0, 0)
+	blendPremultipliedAggImageOverPixBuf(dst, ctx.GetImage())
 }
 
-func renderTextGSVStyled(ctx *agg.Context, a *agg.Agg2D, p *model.Primitive, x, y float64, txt string) {
-	if ctx == nil || a == nil {
+func renderTextGSVStyled(ctx *agg.Context, p *model.Primitive, x, y, size float64, txt string) {
+	if ctx == nil {
+		return
+	}
+
+	a := ctx.GetAgg2D()
+	if a == nil {
 		return
 	}
 
@@ -303,11 +273,27 @@ func renderTextGSVStyled(ctx *agg.Context, a *agg.Agg2D, p *model.Primitive, x, 
 		defer ctx.PopTransform()
 	}
 
-	a.Text(x, y, txt, true, 0, 0)
+	a.NoFill()
+	a.LineColor(agg.Color{
+		R: primitiveColor(p).R,
+		G: primitiveColor(p).G,
+		B: primitiveColor(p).B,
+		A: primitiveColor(p).A,
+	})
+	a.LineWidth(math.Max(1, size*0.08))
 
-	if p.Bold.Val != 0 {
-		a.Text(x, y, txt, true, 0.7, 0)
-		a.Text(x, y, txt, true, 1.4, 0)
+	if drawLocalGSVText(a, x, y, size, txt) {
+		a.DrawPath(agg.StrokeOnly)
+	}
+
+	if p.Bold.Val == 0 {
+		return
+	}
+
+	for _, dx := range []float64{0.7, 1.4} {
+		if drawLocalGSVText(a, x+dx, y, size, txt) {
+			a.DrawPath(agg.StrokeOnly)
+		}
 	}
 }
 
@@ -321,26 +307,8 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 	mask := NewPixBuf(dst.Width, dst.Height)
 	mask.Clear(color.RGBA{A: 255})
-
-	maskCtx := AggContextForPixBuf(mask)
-	if maskCtx == nil {
-		return
-	}
-
-	maskCtx.Clear(agg.Color{A: 255})
-	a := maskCtx.GetAgg2D()
-	a.FillEvenOdd(true)
-	maskCtx.BeginPath()
-
-	if !appendShapePath(maskCtx, s, dst.Width, dst.Height, p.Fill.Val != 0) {
-		return
-	}
-
-	blue := agg.Color{B: 255, A: 255}
 	if p.Fill.Val != 0 {
-		maskCtx.SetColor(blue)
-		a.NoLine()
-		maskCtx.Fill()
+		renderShapeFillMask(mask, s, dst.Width, dst.Height)
 	} else {
 		renderShapeOutlineMask(mask, s, dst.Width, dst.Height, p.Width.Val*float64(dst.Width)*0.004)
 	}
@@ -371,7 +339,52 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			col := base
 			col = changeBrightnessRGBA(col, int((rXN+rYN)*128.0*p.Specular.Val*0.01)+lumi)
 			col.A = uint8(clampInt(coverage*alpha/255, 0, 255))
-			dst.Set(x, y, col)
+			dst.BlendOver(x, y, col)
+		}
+	}
+}
+
+func renderShapeFillMask(mask *PixBuf, s string, w, h int) {
+	if mask == nil {
+		return
+	}
+
+	polys := parseKnobShapePolylines(s, w, h)
+	if len(polys) == 0 {
+		pts := parseSimpleShapePoints(s, w, h)
+		if len(pts) < 3 {
+			return
+		}
+
+		poly := make([]fpoint, len(pts))
+		for i := range pts {
+			poly[i] = fpoint{x: float64(pts[i].x), y: float64(pts[i].y)}
+		}
+
+		polys = [][]fpoint{poly}
+	}
+
+	const samples = 16
+	for y := range h {
+		for x := range w {
+			hits := 0
+
+			for sy := range samples {
+				py := float64(y) + (float64(sy)+0.5)/samples
+				for sx := range samples {
+					px := float64(x) + (float64(sx)+0.5)/samples
+					if pointInPolysEvenOdd(px, py, polys) {
+						hits++
+					}
+				}
+			}
+
+			if hits == 0 {
+				continue
+			}
+
+			cov := uint8(clampInt(int(float64(hits)*255.0/float64(samples*samples)+0.5), 0, 255))
+			mask.Set(x, y, color.RGBA{B: cov, A: 255})
 		}
 	}
 }
@@ -452,57 +465,6 @@ func pointInSquareCappedSegment(px, py float64, a, b fpoint, halfWidth float64) 
 	n := -vx*uy + vy*ux
 
 	return t >= -halfWidth && t <= l+halfWidth && math.Abs(n) <= halfWidth
-}
-
-func appendShapePath(ctx *agg.Context, s string, w, h int, closePath bool) bool {
-	if polys := parseKnobShapeKnots(s); len(polys) > 0 {
-		for _, knots := range polys {
-			if len(knots) < 2 {
-				continue
-			}
-
-			ctx.MoveTo(shapeScaleX(knots[0].pX, w), shapeScaleY(knots[0].pY, h))
-
-			for i := 1; i < len(knots); i++ {
-				prev := knots[i-1]
-				cur := knots[i]
-				ctx.GetAgg2D().CubicCurveTo(
-					shapeScaleX(prev.outX, w), shapeScaleY(prev.outY, h),
-					shapeScaleX(cur.inX, w), shapeScaleY(cur.inY, h),
-					shapeScaleX(cur.pX, w), shapeScaleY(cur.pY, h),
-				)
-			}
-
-			if closePath {
-				last := knots[len(knots)-1]
-				first := knots[0]
-				ctx.GetAgg2D().CubicCurveTo(
-					shapeScaleX(last.outX, w), shapeScaleY(last.outY, h),
-					shapeScaleX(first.inX, w), shapeScaleY(first.inY, h),
-					shapeScaleX(first.pX, w), shapeScaleY(first.pY, h),
-				)
-			}
-		}
-
-		return true
-	}
-
-	pts := parseSimpleShapePoints(s, w, h)
-	if len(pts) < 2 {
-		return false
-	}
-
-	ctx.MoveTo(float64(pts[0].x), float64(pts[0].y))
-
-	for i := 1; i < len(pts); i++ {
-		ctx.LineTo(float64(pts[i].x), float64(pts[i].y))
-	}
-
-	if closePath {
-		ctx.ClosePath()
-	}
-
-	return true
 }
 
 type svgPathCmd struct {

@@ -1,11 +1,8 @@
 package render
 
 import (
-	"math"
-	"strings"
-
-	agg "github.com/cwbudde/agg_go"
 	"knobman/internal/model"
+	"math"
 )
 
 func renderRect(dst *PixBuf, p *model.Primitive, outline bool, textures []*Texture) {
@@ -18,10 +15,6 @@ func renderRect(dst *PixBuf, p *model.Primitive, outline bool, textures []*Textu
 }
 
 func renderRectOutline(dst *PixBuf, p *model.Primitive) {
-	if canRenderRectOutlineAgg(p) && renderRectOutlineAgg(dst, p) {
-		return
-	}
-
 	base := primitiveColor(p)
 	rCX := float64(dst.Width) * 0.5
 	rCY := float64(dst.Height) * 0.5
@@ -114,69 +107,12 @@ func renderRectOutline(dst *PixBuf, p *model.Primitive) {
 			iSpec := int((1.0 - rSpec/rWidth2) * 255.0 * p.Specular.Val / 100.0)
 			pix := changeBrightnessRGBA(base, iSpec)
 			pix.A = uint8(alpha)
-			dst.Set(x, y, pix)
+			dst.BlendOver(x, y, pix)
 		}
 	}
 }
 
-func canRenderRectOutlineAgg(p *model.Primitive) bool {
-	if p == nil {
-		return false
-	}
-
-	if p.Diffuse.Val != 0 || p.Specular.Val != 0 || p.Round.Val != 0 {
-		return false
-	}
-
-	return true
-}
-
-func renderRectOutlineAgg(dst *PixBuf, p *model.Primitive) bool {
-	ctx := AggContextForPixBuf(dst)
-	if ctx == nil {
-		return false
-	}
-
-	base := primitiveColor(p)
-	rCX := float64(dst.Width) * 0.5
-	rCY := float64(dst.Height) * 0.5
-	rXRO := rCX + 0.5
-	rYRO := rCY + 0.5
-
-	if p.Aspect.Val > 0.0 {
-		rXRO = rXRO * (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0
-	}
-
-	if p.Aspect.Val < 0.0 {
-		rYRO = rYRO * (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0
-	}
-
-	strokeWidth := math.Min(rCX, rCY)*p.Width.Val/100.0 + 1.0
-	if strokeWidth <= 0 {
-		return false
-	}
-
-	x0 := rCX - rXRO + strokeWidth*0.5
-	y0 := rCY - rYRO + strokeWidth*0.5
-	w := rXRO*2.0 - strokeWidth
-
-	h := rYRO*2.0 - strokeWidth
-	if w <= 0 || h <= 0 {
-		return false
-	}
-
-	ctx.SetColor(agg.Color{R: base.R, G: base.G, B: base.B, A: base.A})
-	ctx.SetLineWidth(strokeWidth)
-	ctx.DrawRectangle(x0, y0, w, h)
-
-	return true
-}
-
 func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
-	if canRenderRectFillAgg(p, textures) && renderRectFillAgg(dst, p) {
-		return
-	}
-
 	base := primitiveColor(p)
 	rLY := math.Sqrt(1.0 / 3.0)
 	rLX := rLY
@@ -335,67 +271,12 @@ func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			}
 
 			pix.A = uint8(clampInt(alpha, 0, 255))
-			dst.Set(x, y, pix)
+			dst.BlendOver(x, y, pix)
 		}
 	}
 }
 
-func canRenderRectFillAgg(p *model.Primitive, textures []*Texture) bool {
-	if p == nil {
-		return false
-	}
-
-	if p.TextureDepth.Val != 0 || p.TextureFile.Val != 0 || strings.TrimSpace(p.TextureName) != "" || len(p.EmbeddedTexture) != 0 {
-		return false
-	}
-
-	if p.Diffuse.Val != 0 || p.Specular.Val != 0 || p.Emboss.Val != 0 || p.Round.Val != 0 {
-		return false
-	}
-
-	return true
-}
-
-func renderRectFillAgg(dst *PixBuf, p *model.Primitive) bool {
-	ctx := AggContextForPixBuf(dst)
-	if ctx == nil {
-		return false
-	}
-
-	base := primitiveColor(p)
-	rCX := float64(dst.Width) * 0.5
-	rCY := float64(dst.Height) * 0.5
-	rWidth := rCX
-	rHeight := rCY
-
-	if p.Aspect.Val > 0.0 {
-		rWidth = rWidth * (100.0 - math.Min(p.Aspect.Val, 99.0)) / 100.0
-	}
-
-	if p.Aspect.Val < 0.0 {
-		rHeight = rHeight * (100.0 + math.Max(p.Aspect.Val, -99.0)) / 100.0
-	}
-
-	x0 := rCX - rWidth
-	y0 := rCY - rHeight
-	w := rWidth * 2.0
-
-	h := rHeight * 2.0
-	if w <= 0 || h <= 0 {
-		return false
-	}
-
-	ctx.SetColor(agg.Color{R: base.R, G: base.G, B: base.B, A: base.A})
-	ctx.FillRectangle(x0, y0, w, h)
-
-	return true
-}
-
 func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
-	if canRenderTriangleAgg(p, textures) && renderTriangleAgg(dst, p) {
-		return
-	}
-
 	base := primitiveColor(p)
 	rCX := float64(dst.Width) * 0.5
 	rCY := float64(dst.Height) * 0.5
@@ -444,49 +325,7 @@ func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			}
 
 			pix.A = uint8(clampInt(alpha, 0, 255))
-			dst.Set(x, y, pix)
+			dst.BlendOver(x, y, pix)
 		}
 	}
-}
-
-func canRenderTriangleAgg(p *model.Primitive, textures []*Texture) bool {
-	if p == nil {
-		return false
-	}
-
-	if p.TextureDepth.Val != 0 || p.TextureFile.Val != 0 || strings.TrimSpace(p.TextureName) != "" || len(p.EmbeddedTexture) != 0 {
-		return false
-	}
-
-	if p.Diffuse.Val != 0 || p.Specular.Val != 0 {
-		return false
-	}
-
-	return true
-}
-
-func renderTriangleAgg(dst *PixBuf, p *model.Primitive) bool {
-	ctx := AggContextForPixBuf(dst)
-	if ctx == nil {
-		return false
-	}
-
-	base := primitiveColor(p)
-	rCX := float64(dst.Width) * 0.5
-	rYLen := float64(dst.Height) * p.Length.Val * 0.01
-
-	rWidth := float64(dst.Width) * p.Width.Val * 0.005
-	if rYLen <= 0 || rWidth <= 0 {
-		return false
-	}
-
-	ctx.BeginPath()
-	ctx.MoveTo(rCX, 0.0)
-	ctx.LineTo(rCX-rWidth, rYLen)
-	ctx.LineTo(rCX+rWidth, rYLen)
-	ctx.ClosePath()
-	ctx.SetColor(agg.Color{R: base.R, G: base.G, B: base.B, A: base.A})
-	ctx.Fill()
-
-	return true
 }

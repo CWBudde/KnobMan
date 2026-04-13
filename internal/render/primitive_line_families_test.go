@@ -146,3 +146,74 @@ func TestRenderRadiateLinesAggKeepsCornersTransparent(t *testing.T) {
 		t.Fatalf("expected bottom-right corner transparent, got %+v", got)
 	}
 }
+
+func TestRenderLineAggBlendsOverExistingPixels(t *testing.T) {
+	p := basePrim(model.PrimLine)
+	p.Color.Val = color.RGBA{R: 200, G: 20, B: 40, A: 128}
+	p.Width.Val = 40
+	p.Length.Val = 90
+
+	bg := color.RGBA{R: 10, G: 30, B: 160, A: 255}
+	src := renderPrimitiveTransparent(&p, 32, 32).At(16, 16)
+	want := blendOverColor(bg, src)
+
+	buf := NewPixBuf(32, 32)
+	buf.Clear(bg)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(16, 16); got != want {
+		t.Fatalf("blended line mismatch at center: got %+v want %+v", got, want)
+	}
+
+	if got := buf.At(0, 16); got != bg {
+		t.Fatalf("expected outside line to preserve background, got %+v want %+v", got, bg)
+	}
+}
+
+func TestRenderRadiateLinesAggBlendsOverExistingPixels(t *testing.T) {
+	p := basePrim(model.PrimRadiateLine)
+	p.Color.Val = color.RGBA{R: 200, G: 20, B: 40, A: 128}
+	p.Width.Val = 20
+	p.Length.Val = 90
+	p.AngleStep.Val = 90
+
+	bg := color.RGBA{R: 10, G: 30, B: 160, A: 255}
+	src := renderPrimitiveTransparent(&p, 32, 32).At(16, 3)
+	want := blendOverColor(bg, src)
+
+	buf := NewPixBuf(32, 32)
+	buf.Clear(bg)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(16, 3); got != want {
+		t.Fatalf("blended radiate line mismatch at top spoke: got %+v want %+v", got, want)
+	}
+
+	if got := buf.At(0, 0); got != bg {
+		t.Fatalf("expected corner to preserve background, got %+v want %+v", got, bg)
+	}
+}
+
+func TestRenderParallelLinesAggBlendsOverExistingPixels(t *testing.T) {
+	p := basePrim(model.PrimHLines)
+	p.Color.Val = color.RGBA{R: 200, G: 20, B: 40, A: 128}
+	p.Width.Val = 8
+	p.Length.Val = 50
+	p.Step.Val = 50
+
+	bg := color.RGBA{R: 10, G: 30, B: 160, A: 255}
+	src := renderPrimitiveTransparent(&p, 32, 32).At(16, 16)
+	want := blendOverColor(bg, src)
+
+	buf := NewPixBuf(32, 32)
+	buf.Clear(bg)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(16, 16); got != want {
+		t.Fatalf("blended parallel line mismatch at center: got %+v want %+v", got, want)
+	}
+
+	if got := buf.At(0, 9); got != bg {
+		t.Fatalf("expected outside parallel lines to preserve background, got %+v want %+v", got, bg)
+	}
+}

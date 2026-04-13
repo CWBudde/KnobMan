@@ -128,6 +128,45 @@ func TestRenderTextUsesAntialiasedAggPath(t *testing.T) {
 	}
 }
 
+func TestRenderTextBlendsOverExistingPixels(t *testing.T) {
+	buf := NewPixBuf(64, 64)
+	bg := color.RGBA{R: 12, G: 24, B: 160, A: 255}
+	buf.Clear(bg)
+
+	p := basePrim(model.PrimText)
+	p.Color.Val = color.RGBA{R: 220, G: 80, B: 40, A: 160}
+	p.Text.Val = "TX"
+	p.FontSize.Val = 62
+	p.TextAlign.Val = 0
+	p.FontName = "SansSerif"
+
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	foundTinted := false
+	for y := range buf.Height {
+		for x := range buf.Width {
+			got := buf.At(x, y)
+			if got != bg {
+				foundTinted = true
+				if got.A != 255 {
+					t.Fatalf("expected blended text over opaque background to stay opaque, got %+v at (%d,%d)", got, x, y)
+				}
+				if got.B >= bg.B && got.R <= bg.R {
+					t.Fatalf("expected text blend to tint background, got %+v at (%d,%d)", got, x, y)
+				}
+				break
+			}
+		}
+		if foundTinted {
+			break
+		}
+	}
+
+	if !foundTinted {
+		t.Fatal("expected text to modify at least one pixel")
+	}
+}
+
 func TestSphereNormalOutside(t *testing.T) {
 	if _, _, _, ok := SphereNormal(100, 100, 0, 0, 10, 10); ok {
 		t.Fatal("expected outside point to be rejected")
@@ -371,6 +410,69 @@ func TestRenderTriangleAggKeepsOutsideTransparent(t *testing.T) {
 	}
 }
 
+func TestRenderRectFillAggBlendsOverExistingPixels(t *testing.T) {
+	p := basePrim(model.PrimRectFill)
+	p.Color.Val = color.RGBA{R: 200, G: 20, B: 40, A: 128}
+
+	bg := color.RGBA{R: 10, G: 30, B: 160, A: 255}
+	src := renderPrimitiveTransparent(&p, 16, 16).At(8, 8)
+	want := blendOverColor(bg, src)
+
+	buf := NewPixBuf(16, 16)
+	buf.Clear(bg)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(8, 8); got != want {
+		t.Fatalf("blended rect fill mismatch at center: got %+v want %+v", got, want)
+	}
+}
+
+func TestRenderRectOutlineAggBlendsOverExistingPixels(t *testing.T) {
+	p := basePrim(model.PrimRect)
+	p.Color.Val = color.RGBA{R: 200, G: 20, B: 40, A: 128}
+	p.Width.Val = 12
+
+	bg := color.RGBA{R: 10, G: 30, B: 160, A: 255}
+	src := renderPrimitiveTransparent(&p, 32, 32).At(1, 16)
+	want := blendOverColor(bg, src)
+
+	buf := NewPixBuf(32, 32)
+	buf.Clear(bg)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(1, 16); got != want {
+		t.Fatalf("blended rect outline mismatch at border: got %+v want %+v", got, want)
+	}
+
+	if got := buf.At(16, 16); got != bg {
+		t.Fatalf("expected rect outline center to preserve background, got %+v want %+v", got, bg)
+	}
+}
+
+func TestRenderTriangleAggBlendsOverExistingPixels(t *testing.T) {
+	p := basePrim(model.PrimTriangle)
+	p.Color.Val = color.RGBA{R: 200, G: 20, B: 40, A: 128}
+	p.Length.Val = 80
+	p.Width.Val = 80
+	p.Fill.Val = 1
+
+	bg := color.RGBA{R: 10, G: 30, B: 160, A: 255}
+	src := renderPrimitiveTransparent(&p, 32, 32).At(16, 12)
+	want := blendOverColor(bg, src)
+
+	buf := NewPixBuf(32, 32)
+	buf.Clear(bg)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	if got := buf.At(16, 12); got != want {
+		t.Fatalf("blended triangle mismatch at center: got %+v want %+v", got, want)
+	}
+
+	if got := buf.At(0, 24); got != bg {
+		t.Fatalf("expected outside triangle to preserve background, got %+v want %+v", got, bg)
+	}
+}
+
 func TestSubstituteFrameCounters(t *testing.T) {
 	got := SubstituteFrameCounters("F(1:9)", 4, 9)
 	// 4/8 => midpoint => 5
@@ -412,6 +514,21 @@ func basePrim(t model.PrimitiveType) model.Primitive {
 	p.Color.Val = color.RGBA{R: 220, G: 140, B: 80, A: 255}
 
 	return p
+}
+
+func blendOverColor(dst, src color.RGBA) color.RGBA {
+	buf := NewPixBuf(1, 1)
+	buf.Set(0, 0, dst)
+	buf.BlendOver(0, 0, src)
+
+	return buf.At(0, 0)
+}
+
+func renderPrimitiveTransparent(p *model.Primitive, w, h int) *PixBuf {
+	buf := NewPixBuf(w, h)
+	RenderPrimitive(buf, p, nil, 0, 1)
+
+	return buf
 }
 
 func checkerTexture() *Texture {

@@ -21,6 +21,21 @@ func TestTransformBilinearTranslate(t *testing.T) {
 	}
 }
 
+func TestTransformBilinearIdentityKeepsSemiTransparentPixelWithinOneLSB(t *testing.T) {
+	src := NewPixBuf(4, 4)
+	src.Set(1, 1, color.RGBA{R: 200, G: 10, B: 20, A: 128})
+
+	dst := NewPixBuf(4, 4)
+	m := [6]float64{1, 0, 0, 1, 0, 0}
+	TransformBilinear(dst, src, m)
+
+	got := dst.At(1, 1)
+	want := src.At(1, 1)
+	if deltaRGBA(got, want) > 1 {
+		t.Fatalf("identity transform drift too large: got %+v want %+v", got, want)
+	}
+}
+
 func TestBuildMatrixRotationAroundEffectCenterKeepsCenterFixed(t *testing.T) {
 	const (
 		w       = 100
@@ -247,9 +262,23 @@ func TestDownsampleBoxPreservesUniformColorAndAveragesAlpha(t *testing.T) {
 	}
 }
 
-func applyAffine(m [6]float64, x, y float64) (float64, float64) {
-	return m[0]*x + m[2]*y + m[4], m[1]*x + m[3]*y + m[5]
+func deltaRGBA(a, b color.RGBA) int {
+	d := absInt(int(a.R) - int(b.R))
+	d = max(d, absInt(int(a.G)-int(b.G)))
+	d = max(d, absInt(int(a.B)-int(b.B)))
+	d = max(d, absInt(int(a.A)-int(b.A)))
+
+	return d
 }
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+
+	return v
+}
+
 
 func nearlyEqual(a, b, eps float64) bool {
 	return math.Abs(a-b) <= eps

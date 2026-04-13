@@ -24,8 +24,6 @@ func configureAggTextFont(ctx *agg.Context, p *model.Primitive, size float64) (a
 		gsvSize = 6
 	}
 
-	ctx.GetAgg2D().FontGSV(gsvSize)
-
 	return aggTextBackendGSV, gsvSize
 }
 

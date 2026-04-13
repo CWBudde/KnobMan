@@ -3,9 +3,9 @@ package render
 import (
 	"image/color"
 	"math"
-
-	agg "github.com/cwbudde/agg_go"
 )
+
+import agg "github.com/cwbudde/agg_go"
 
 // BuildMatrix builds a destination-to-source affine transform matrix:
 // sx = a*dx + c*dy + e
@@ -74,8 +74,8 @@ func scaleAround(sx, sy, x, y float64) *agg.Transformations {
 	return m
 }
 
-// TransformBilinear applies matrix m from src to dst with agg_go affine image
-// rendering configured for bilinear sampling.
+// TransformBilinear applies matrix m from dst pixel coordinates to src pixel
+// coordinates using straight-alpha storage with premultiplied bilinear math.
 func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 	if dst == nil || src == nil || dst.Width == 0 || dst.Height == 0 || src.Width == 0 || src.Height == 0 {
 		return
@@ -83,24 +83,19 @@ func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 
 	dst.Clear(color.RGBA{})
 
-	a := Agg2DForPixBuf(dst)
+	for y := 0; y < dst.Height; y++ {
+		for x := 0; x < dst.Width; x++ {
+			sx, sy := applyAffine(m, float64(x), float64(y))
+			c := samplePixBufBilinear(src, sx, sy)
+			if c.A == 0 {
+				continue
+			}
 
-	srcImg := AggImageForPixBuf(src)
-	if a == nil || srcImg == nil {
-		return
+			dst.Set(x, y, c)
+		}
 	}
+}
 
-	tr := agg.NewTransformationsFromValues(m[0], m[1], m[2], m[3], m[4], m[5])
-	if tr == nil {
-		return
-	}
-
-	if !tr.Invert() {
-		return
-	}
-
-	a.SetTransformations(tr)
-	a.ImageFilter(agg.Bilinear)
-	a.ImageResample(agg.NoResample)
-	_ = a.TransformImageSimple(srcImg, 0, 0, float64(src.Width), float64(src.Height))
+func applyAffine(m [6]float64, x, y float64) (float64, float64) {
+	return m[0]*x + m[2]*y + m[4], m[1]*x + m[3]*y + m[5]
 }
