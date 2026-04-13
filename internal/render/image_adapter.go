@@ -8,29 +8,6 @@ import (
 	agg "github.com/cwbudde/agg_go"
 )
 
-// AggImageForPixBuf exposes a PixBuf as an agg_go image without copying.
-// Phase 8 keeps this only as a narrowly-scoped legacy/test adapter; production
-// rendering paths should prefer explicit off-screen AGG boundaries instead.
-func AggImageForPixBuf(buf *PixBuf) *agg.Image {
-	if buf == nil || buf.Width <= 0 || buf.Height <= 0 || len(buf.Data) == 0 {
-		return nil
-	}
-
-	return agg.NewImage(buf.Data, buf.Width, buf.Height, buf.Stride)
-}
-
-// AggContextForPixBuf creates an agg_go context backed by the PixBuf memory.
-// Phase 8 keeps this only as a narrowly-scoped legacy/test adapter; production
-// rendering paths should prefer explicit off-screen AGG boundaries instead.
-func AggContextForPixBuf(buf *PixBuf) *agg.Context {
-	img := AggImageForPixBuf(buf)
-	if img == nil {
-		return nil
-	}
-
-	return agg.NewContextForImage(img)
-}
-
 func blendPremultipliedAggImageOverPixBuf(dst *PixBuf, src *agg.Image) {
 	blendPremultipliedAggImageRectOverPixBuf(dst, src, 0, 0, dst.Width, dst.Height)
 }

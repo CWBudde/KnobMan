@@ -4,8 +4,6 @@ import (
 	"image"
 	"image/color"
 	"testing"
-
-	agg "github.com/cwbudde/agg_go"
 )
 
 func TestImageToPixBufRoundTripPreservesStraightAlpha(t *testing.T) {
@@ -85,20 +83,5 @@ func TestPixBufToNRGBAClampsOverAlphaComponents(t *testing.T) {
 	want := color.NRGBA{R: 200, G: 64, B: 16, A: 128}
 	if px := got.NRGBAAt(0, 0); px != want {
 		t.Fatalf("unexpected exported pixel: got %+v want %+v", px, want)
-	}
-}
-
-func TestAggContextForPixBufSharesBackingBuffer(t *testing.T) {
-	pb := NewPixBuf(2, 2)
-
-	ctx := AggContextForPixBuf(pb)
-	if ctx == nil {
-		t.Fatal("AggContextForPixBuf returned nil")
-	}
-
-	ctx.Clear(agg.Color{R: 7, G: 8, B: 9, A: 10})
-
-	if got := pb.At(1, 1); got != (color.RGBA{R: 7, G: 8, B: 9, A: 10}) {
-		t.Fatalf("agg context did not update pixbuf backing store: %+v", got)
 	}
 }
