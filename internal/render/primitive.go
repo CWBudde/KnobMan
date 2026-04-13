@@ -236,7 +236,7 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	case aggTextBackendGSV:
 		anchorY += size * 0.35
 	default:
-		anchorY += 2
+		anchorY += (fontCfg.trueType.GetAscender() + fontCfg.trueType.GetDescender()) * 0.5
 	}
 
 	if fontCfg.backend == aggTextBackendGSV {
@@ -293,9 +293,8 @@ func renderTextTrueTypeOutline(ctx *agg.Context, face *agg.FreeTypeOutlineText, 
 		return
 	}
 
-	baselineY := y + face.GetAscender()*0.5
 	face.SetText(txt)
-	face.SetStartPoint(float64(int(x)), float64(int(baselineY)))
+	face.SetStartPoint(float64(int(x)), float64(int(y)))
 	if appendFreeTypeOutlineText(ctx, face) {
 		ctx.Fill()
 	}

@@ -51,7 +51,7 @@ func blendPremultipliedAggImageRectOverPixBuf(dst *PixBuf, src *agg.Image, x0, y
 		for x := x0; x < x1; x++ {
 			si := srcOff + x*4
 			a := uint32(src.Data[si+3])
-			if a == 0 {
+			if a <= 1 {
 				continue
 			}
 
