@@ -71,6 +71,14 @@ parity-primitives-test:
 parity-primitives-golden-test:
     go test -tags freetype ./internal/render -run TestParityGoldenPrimitiveFixturesFrame0 -count=1
 
+# Run the focused Phase 7 verification checkpoints.
+phase7-checkpoints:
+    go test -tags freetype ./internal/render -run 'Test(MaskLegacyCenterAndCombineSemantics|ShadowLegacyDirectionalSweepAndDiffuse|ColorAdjustKeepsLocalHueSaturationAlphaSemantics|EffectMaskPipelineAppliesCombinedMasks|SampleSweepDeltaCheckpoints)$' -count=1 -v
+
+# Run the lightweight Phase 7 transform-heavy performance checkpoint.
+phase7-bench BENCHTIME="100ms":
+    go test -tags freetype ./internal/render -run '^$' -bench 'BenchmarkRenderFrameVU3Frame0$' -benchmem -count=1 -benchtime={{BENCHTIME}}
+
 # Start the parity comparison viewer on a local web server.
 parity-viewer PORT="8090":
     PORT={{PORT}} go run -tags freetype ./cmd/parityviewer --port {{PORT}}

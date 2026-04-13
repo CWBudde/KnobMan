@@ -167,6 +167,43 @@ func TestBuildMaskWithCenterShiftsMask(t *testing.T) {
 	}
 }
 
+func TestMaskLegacyCenterAndCombineSemantics(t *testing.T) {
+	leftHalf := BuildMask(10, 10, 2, -100, 0, 0, 0)
+	shiftedRight := BuildMaskWithCenter(10, 10, 2, -100, 0, 0, 0, 50, 0)
+	rightHalf := BuildMask(10, 10, 2, 0, 100, 0, 0)
+
+	if got := leftHalf[5*10+1]; got < 0.99 {
+		t.Fatalf("left-half mask should fully cover the left side, got %.4f", got)
+	}
+
+	if got := leftHalf[5*10+8]; got != 0 {
+		t.Fatalf("left-half mask should clear the right side, got %.4f", got)
+	}
+
+	if got := shiftedRight[5*10+1]; got != 0 {
+		t.Fatalf("center shift should move coverage off the old left edge, got %.4f", got)
+	}
+
+	if got := shiftedRight[5*10+6]; got < 0.99 {
+		t.Fatalf("center shift should move coverage rightward, got %.4f", got)
+	}
+
+	andMask := CombineMasks(leftHalf, rightHalf, 0)
+	orMask := CombineMasks(leftHalf, rightHalf, 1)
+
+	if got := andMask[5*10+1]; got != 0 {
+		t.Fatalf("AND-combined mask should reject left-only coverage, got %.4f", got)
+	}
+
+	if got := orMask[5*10+1]; got < 0.99 {
+		t.Fatalf("OR-combined mask should keep left-half coverage, got %.4f", got)
+	}
+
+	if got := orMask[5*10+8]; got < 0.99 {
+		t.Fatalf("OR-combined mask should keep right-half coverage, got %.4f", got)
+	}
+}
+
 func TestMakeShadowOffset(t *testing.T) {
 	src := NewPixBuf(8, 8)
 	src.Set(2, 2, color.RGBA{255, 255, 255, 255})
@@ -174,6 +211,27 @@ func TestMakeShadowOffset(t *testing.T) {
 	shadow := MakeShadow(src, 2, 100, 0, 0, color.RGBA{0, 0, 0, 255})
 	if got := shadow.At(4, 2); got.A == 0 {
 		t.Fatalf("expected shifted shadow pixel, got %+v", got)
+	}
+}
+
+func TestShadowLegacyDirectionalSweepAndDiffuse(t *testing.T) {
+	src := NewPixBuf(40, 40)
+	src.Set(10, 20, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+
+	swept := MakeShadowLegacy(src, false, 1, 100, 4, 270, 100, 0, color.RGBA{A: 255})
+	for x := 11; x <= 14; x++ {
+		if got := swept.At(x, 20); got.A == 0 {
+			t.Fatalf("directional sweep should cover trail pixel (%d,20), got %+v", x, got)
+		}
+	}
+
+	if got := swept.At(12, 19); got.A != 0 {
+		t.Fatalf("non-diffused sweep should stay on-axis, got %+v", got)
+	}
+
+	diffused := MakeShadowLegacy(src, false, 1, 100, 4, 270, 100, 40, color.RGBA{A: 255})
+	if got := diffused.At(12, 19); got.A == 0 {
+		t.Fatalf("diffuse blur should spread alpha off-axis, got %+v", got)
 	}
 }
 
@@ -198,6 +256,59 @@ func TestApplyEffectFrameMaskBits(t *testing.T) {
 
 	if dst1.At(1, 1).A != 0 {
 		t.Fatal("frame 1 should be hidden for bitmask 10")
+	}
+}
+
+func TestColorAdjustKeepsLocalHueSaturationAlphaSemantics(t *testing.T) {
+	src := NewPixBuf(1, 1)
+	src.Set(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 200})
+
+	gray := NewPixBuf(1, 1)
+	ApplyColorAdjust(gray, src, 100, 0, 0, -100, 0)
+
+	gotGray := gray.At(0, 0)
+	if gotGray.R != gotGray.G || gotGray.G != gotGray.B {
+		t.Fatalf("desaturation should produce grayscale output, got %+v", gotGray)
+	}
+
+	rotated := NewPixBuf(1, 1)
+	ApplyColorAdjust(rotated, src, 100, 0, 0, 0, 120)
+
+	gotRotated := rotated.At(0, 0)
+	if gotRotated.A != 200 {
+		t.Fatalf("hue rotation should preserve alpha when alpha scale is 100, got %+v", gotRotated)
+	}
+
+	if gotRotated.G <= gotRotated.R || gotRotated.G <= gotRotated.B {
+		t.Fatalf("120-degree hue shift should move red toward green, got %+v", gotRotated)
+	}
+}
+
+func TestEffectMaskPipelineAppliesCombinedMasks(t *testing.T) {
+	prim := NewPixBuf(12, 12)
+	prim.Clear(color.RGBA{R: 40, G: 80, B: 120, A: 255})
+
+	eff := model.NewEffect()
+	eff.Mask1Ena.Val = 1
+	eff.Mask1Type.Val = 2
+	eff.Mask1StartF.Val = -100
+	eff.Mask1StopF.Val = 0
+	eff.Mask2Ena.Val = 1
+	eff.Mask2Type.Val = 2
+	eff.Mask2StartF.Val = 0
+	eff.Mask2StopF.Val = 100
+	eff.Mask2Op.Val = 0
+
+	dst := NewPixBuf(12, 12)
+	curves := [8]model.AnimCurve{}
+	ApplyEffect(dst, prim, &eff, &curves, 0, 1, nil)
+
+	if got := dst.At(2, 6); got.A != 0 {
+		t.Fatalf("non-overlapping AND masks should clear left side, got %+v", got)
+	}
+
+	if got := dst.At(9, 6); got.A != 0 {
+		t.Fatalf("non-overlapping AND masks should clear right side, got %+v", got)
 	}
 }
 
@@ -278,7 +389,6 @@ func absInt(v int) int {
 
 	return v
 }
-
 
 func nearlyEqual(a, b, eps float64) bool {
 	return math.Abs(a-b) <= eps
