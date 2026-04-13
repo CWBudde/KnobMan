@@ -17,6 +17,7 @@ const (
 type configuredAggTextFont struct {
 	backend  aggTextBackend
 	size     float64
+	italic   bool
 	trueType *agg.FreeTypeOutlineText
 }
 
@@ -27,11 +28,12 @@ func (f configuredAggTextFont) Close() {
 }
 
 func configureAggTextFont(_ *agg.Context, p *model.Primitive, size float64) configuredAggTextFont {
-	if tt := loadAggTrueTypeFont(p, size); tt != nil {
+	if tt := loadAggTrueTypeFont(p, size); tt.face != nil {
 		return configuredAggTextFont{
 			backend:  aggTextBackendTrueType,
 			size:     size,
-			trueType: tt,
+			italic:   tt.syntheticItalic,
+			trueType: tt.face,
 		}
 	}
 

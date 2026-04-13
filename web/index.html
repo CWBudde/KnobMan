@@ -14,6 +14,7 @@
         <span class="app-title">KnobMan</span>
         <button id="btnNew" title="New">New</button>
         <button id="btnOpen" title="Open .knob file">Open</button>
+        <button id="btnRecent" title="Open a recent project">Recent</button>
         <button id="btnSamples" title="Open sample project">Samples</button>
         <button id="btnSave" title="Save .knob file">Save</button>
         <span class="sep"></span>
@@ -292,6 +293,21 @@
           />
         </label>
         <div id="sampleList" class="samples-list"></div>
+      </div>
+    </div>
+
+    <div id="recentOverlay" class="samples-overlay" hidden>
+      <div
+        class="samples-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recentTitle"
+      >
+        <div class="samples-header">
+          <h2 id="recentTitle">Recent Projects</h2>
+          <button id="btnCloseRecent" type="button">Close</button>
+        </div>
+        <div id="recentList" class="samples-list"></div>
       </div>
     </div>
 

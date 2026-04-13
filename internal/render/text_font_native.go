@@ -16,33 +16,46 @@ import (
 
 var fontPathCache sync.Map
 
-func loadAggTrueTypeFont(p *model.Primitive, size float64) *agg.FreeTypeOutlineText {
+type resolvedFontFace struct {
+	path            string
+	syntheticItalic bool
+}
+
+type loadedTrueTypeFont struct {
+	face            *agg.FreeTypeOutlineText
+	syntheticItalic bool
+}
+
+func loadAggTrueTypeFont(p *model.Primitive, size float64) loadedTrueTypeFont {
 	if p == nil || size <= 0 {
-		return nil
+		return loadedTrueTypeFont{}
 	}
 
-	fontPath := resolveFontPath(primitiveFontFamily(p), p.Bold.Val != 0, p.Italic.Val != 0)
-	if fontPath == "" {
-		return nil
+	resolved := resolveFontPath(primitiveFontFamily(p), p.Bold.Val != 0, p.Italic.Val != 0)
+	if resolved.path == "" {
+		return loadedTrueTypeFont{}
 	}
 
 	txt, err := agg.NewFreeTypeOutlineText()
 	if err != nil {
-		return nil
+		return loadedTrueTypeFont{}
 	}
 
 	txt.SetHinting(true)
 	txt.SetFlip(true)
 	txt.SetSize(size, 0)
-	if err := txt.LoadFont(fontPath); err != nil {
+	if err := txt.LoadFont(resolved.path); err != nil {
 		_ = txt.Close()
-		return nil
+		return loadedTrueTypeFont{}
 	}
 
-	return txt
+	return loadedTrueTypeFont{
+		face:            txt,
+		syntheticItalic: resolved.syntheticItalic,
+	}
 }
 
-func resolveFontPath(family string, bold, italic bool) string {
+func resolveFontPath(family string, bold, italic bool) resolvedFontFace {
 	key := strings.ToLower(strings.TrimSpace(family))
 
 	key += "|"
@@ -55,16 +68,16 @@ func resolveFontPath(family string, bold, italic bool) string {
 	}
 
 	if cached, ok := fontPathCache.Load(key); ok {
-		return cached.(string)
+		return cached.(resolvedFontFace)
 	}
 
-	path := findFontPath(family, bold, italic)
-	fontPathCache.Store(key, path)
+	resolved := findFontPath(family, bold, italic)
+	fontPathCache.Store(key, resolved)
 
-	return path
+	return resolved
 }
 
-func findFontPath(family string, bold, italic bool) string {
+func findFontPath(family string, bold, italic bool) resolvedFontFace {
 	family = strings.TrimSpace(family)
 	if family == "" {
 		family = "SansSerif"
@@ -72,43 +85,52 @@ func findFontPath(family string, bold, italic bool) string {
 
 	if filepath.IsAbs(family) {
 		if _, err := os.Stat(family); err == nil {
-			return family
+			return resolvedFontFace{
+				path:            family,
+				syntheticItalic: italic,
+			}
 		}
 	}
 
 	if isJavaGenericFontFamily(family) {
 		for _, name := range candidateFontFamilies(family) {
-			if path := resolveFontWithFCMatchExact(name, name, bold, italic); path != "" {
-				return path
+			if resolved := resolveFontWithFCMatchExact(name, name, bold, italic); resolved.path != "" {
+				return resolved
 			}
 		}
 
 		for _, path := range fallbackFontPaths(family) {
 			if _, err := os.Stat(path); err == nil {
-				return path
+				return resolvedFontFace{
+					path:            path,
+					syntheticItalic: italic,
+				}
 			}
 		}
 
-		return ""
+		return resolvedFontFace{}
 	}
 
-	if path := resolveFontWithFCMatchExact(family, family, bold, italic); path != "" {
-		return path
+	if resolved := resolveFontWithFCMatchExact(family, family, bold, italic); resolved.path != "" {
+		return resolved
 	}
 
 	for _, name := range candidateFontFamilies("SansSerif") {
-		if path := resolveFontWithFCMatchExact(name, name, bold, italic); path != "" {
-			return path
+		if resolved := resolveFontWithFCMatchExact(name, name, bold, italic); resolved.path != "" {
+			return resolved
 		}
 	}
 
 	for _, path := range fallbackFontPaths("SansSerif") {
 		if _, err := os.Stat(path); err == nil {
-			return path
+			return resolvedFontFace{
+				path:            path,
+				syntheticItalic: italic,
+			}
 		}
 	}
 
-	return ""
+	return resolvedFontFace{}
 }
 
 func isJavaGenericFontFamily(family string) bool {
@@ -134,13 +156,13 @@ func candidateFontFamilies(family string) []string {
 	}
 }
 
-func resolveFontWithFCMatchExact(patternFamily, requestedFamily string, bold, italic bool) string {
+func resolveFontWithFCMatchExact(patternFamily, requestedFamily string, bold, italic bool) resolvedFontFace {
 	if _, err := exec.LookPath("fc-match"); err != nil {
-		return ""
+		return resolvedFontFace{}
 	}
 
 	for _, pattern := range fontconfigPatterns(patternFamily, bold, italic) {
-		out, err := exec.Command("fc-match", "-f", "%{family}\n%{file}\n", pattern).Output()
+		out, err := exec.Command("fc-match", "-f", "%{family}\n%{file}\n", pattern.value).Output()
 		if err != nil {
 			continue
 		}
@@ -155,11 +177,14 @@ func resolveFontWithFCMatchExact(patternFamily, requestedFamily string, bold, it
 		}
 
 		if _, err := os.Stat(path); err == nil {
-			return path
+			return resolvedFontFace{
+				path:            path,
+				syntheticItalic: italic && !pattern.realItalic,
+			}
 		}
 	}
 
-	return ""
+	return resolvedFontFace{}
 }
 
 func parseFCMatchOutput(out string) ([]string, string) {
@@ -200,23 +225,51 @@ func familyListMatchesRequested(families []string, requested string) bool {
 	return false
 }
 
-func fontconfigPatterns(family string, bold, italic bool) []string {
+type fontconfigPattern struct {
+	value      string
+	realItalic bool
+}
+
+func fontconfigPatterns(family string, bold, italic bool) []fontconfigPattern {
 	family = strings.TrimSpace(family)
 	if family == "" {
 		return nil
 	}
 
-	patterns := []string{family}
+	patterns := make([]fontconfigPattern, 0, 5)
 
 	switch {
 	case bold && italic:
-		patterns = append(patterns, family+":style=Bold Italic", family+":style=Bold Oblique")
+		patterns = append(patterns,
+			fontconfigPattern{value: family + ":style=Bold Italic", realItalic: true},
+			fontconfigPattern{value: family + ":style=Bold Oblique", realItalic: true},
+			fontconfigPattern{value: family + ":weight=bold:slant=italic", realItalic: true},
+			fontconfigPattern{value: family + ":weight=bold:slant=oblique", realItalic: true},
+		)
 	case bold:
-		patterns = append(patterns, family+":style=Bold", family+":style=Semibold")
+		patterns = append(patterns,
+			fontconfigPattern{value: family + ":style=Bold"},
+			fontconfigPattern{value: family + ":style=Semibold"},
+			fontconfigPattern{value: family + ":weight=bold"},
+		)
 	case italic:
-		patterns = append(patterns, family+":style=Italic", family+":style=Oblique")
+		patterns = append(patterns,
+			fontconfigPattern{value: family + ":style=Italic", realItalic: true},
+			fontconfigPattern{value: family + ":style=Oblique", realItalic: true},
+			fontconfigPattern{value: family + ":slant=italic", realItalic: true},
+			fontconfigPattern{value: family + ":slant=oblique", realItalic: true},
+		)
 	default:
-		patterns = append(patterns, family+":style=Regular", family+":style=Book", family+":style=Roman")
+		patterns = append(patterns, fontconfigPattern{value: family})
+		patterns = append(patterns,
+			fontconfigPattern{value: family + ":style=Regular"},
+			fontconfigPattern{value: family + ":style=Book"},
+			fontconfigPattern{value: family + ":style=Roman"},
+		)
+	}
+
+	if bold || italic {
+		patterns = append(patterns, fontconfigPattern{value: family})
 	}
 
 	return patterns

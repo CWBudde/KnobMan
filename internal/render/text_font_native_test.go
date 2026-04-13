@@ -29,6 +29,27 @@ func TestParseFCMatchOutput(t *testing.T) {
 	}
 }
 
+func TestFontconfigPatternsPreferRequestedStyles(t *testing.T) {
+	t.Parallel()
+
+	patterns := fontconfigPatterns("Georgia", true, true)
+	if len(patterns) < 2 {
+		t.Fatalf("expected multiple patterns, got %d", len(patterns))
+	}
+
+	if patterns[0].value != "Georgia:style=Bold Italic" {
+		t.Fatalf("first pattern = %q, want bold italic style first", patterns[0].value)
+	}
+
+	if !patterns[0].realItalic {
+		t.Fatal("first pattern should be marked as a real italic request")
+	}
+
+	if tail := patterns[len(patterns)-1].value; tail != "Georgia" {
+		t.Fatalf("fallback family pattern = %q, want bare family last", tail)
+	}
+}
+
 func TestIsJavaGenericFontFamily(t *testing.T) {
 	t.Parallel()
 

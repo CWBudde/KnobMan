@@ -760,6 +760,28 @@ button:active {
   font-size: 10px;
 }
 
+.sample-item[disabled] {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.sample-item .sample-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.sample-item .sample-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
 /* ── Welcome dialog ───────────────────────────────────────────── */
 
 .welcome-dialog {

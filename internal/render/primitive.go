@@ -245,7 +245,7 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 		return
 	}
 
-	renderTextTrueTypeOutline(ctx, fontCfg.trueType, anchorX, anchorY, txt)
+	renderTextTrueTypeOutline(ctx, fontCfg.trueType, anchorX, anchorY, txt, fontCfg.italic)
 	blendPremultipliedAggImageOverPixBuf(dst, ctx.GetImage())
 }
 
@@ -288,9 +288,17 @@ func renderTextGSVStyled(ctx *agg.Context, p *model.Primitive, x, y, size float6
 	}
 }
 
-func renderTextTrueTypeOutline(ctx *agg.Context, face *agg.FreeTypeOutlineText, x, y float64, txt string) {
+func renderTextTrueTypeOutline(ctx *agg.Context, face *agg.FreeTypeOutlineText, x, y float64, txt string, syntheticItalic bool) {
 	if ctx == nil || face == nil || txt == "" {
 		return
+	}
+
+	if syntheticItalic {
+		ctx.PushTransform()
+		ctx.Translate(x, y)
+		ctx.Skew(-12*math.Pi/180, 0)
+		ctx.Translate(-x, -y)
+		defer ctx.PopTransform()
 	}
 
 	face.SetText(txt)

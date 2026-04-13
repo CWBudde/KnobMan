@@ -120,6 +120,13 @@ const SAMPLE_PROJECT_FILES = [
   "vu3.knob",
 ];
 
+const SESSION_KEY = "knobman_session_v2";
+const LEGACY_SESSION_KEY = "knobman_session";
+const RECENT_DOCS_KEY = "knobman_recent_docs_v1";
+const RECENT_DOC_LIMIT = 8;
+const HANDLE_DB_NAME = "knobman_recent_handles";
+const HANDLE_STORE_NAME = "handles";
+
 const PRIM_TYPES = [
   { value: 0, label: "None" },
   { value: 1, label: "Image" },
@@ -1376,6 +1383,139 @@ function clampFloat(v, min, max) {
 function clampInt(v, min, max) {
   if (!Number.isFinite(v)) return min;
   return Math.max(min, Math.min(max, Math.round(v)));
+}
+
+function storageGet(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch (_err) {
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch (_err) {
+    return false;
+  }
+}
+
+function storageRemove(key) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch (_err) {}
+}
+
+function bytesToBase64(bytes) {
+  if (!bytes || !bytes.length) return "";
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const slice = bytes.subarray(i, Math.min(bytes.length, i + chunkSize));
+    binary += String.fromCharCode.apply(null, slice);
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64) {
+  const bin = atob(String(b64 || ""));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function supportsOpenPicker() {
+  return (
+    window.isSecureContext &&
+    typeof window.showOpenFilePicker === "function" &&
+    typeof window.FileSystemFileHandle === "function"
+  );
+}
+
+function supportsStoredHandles() {
+  return (
+    typeof window.indexedDB !== "undefined" &&
+    typeof window.FileSystemFileHandle === "function"
+  );
+}
+
+let recentHandlesDbPromise = null;
+
+function openRecentHandlesDb() {
+  if (!supportsStoredHandles()) return Promise.resolve(null);
+  if (recentHandlesDbPromise) return recentHandlesDbPromise;
+  recentHandlesDbPromise = new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(HANDLE_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(HANDLE_STORE_NAME)) {
+          db.createObjectStore(HANDLE_STORE_NAME);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch (_err) {
+      resolve(null);
+    }
+  });
+  return recentHandlesDbPromise;
+}
+
+async function idbPutHandle(key, handle) {
+  const db = await openRecentHandlesDb();
+  if (!db || !key || !handle) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(HANDLE_STORE_NAME, "readwrite");
+      tx.objectStore(HANDLE_STORE_NAME).put(handle, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
+    } catch (_err) {
+      resolve(false);
+    }
+  });
+}
+
+async function idbGetHandle(key) {
+  const db = await openRecentHandlesDb();
+  if (!db || !key) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(HANDLE_STORE_NAME, "readonly");
+      const req = tx.objectStore(HANDLE_STORE_NAME).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    } catch (_err) {
+      resolve(null);
+    }
+  });
+}
+
+async function idbDeleteHandle(key) {
+  const db = await openRecentHandlesDb();
+  if (!db || !key) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(HANDLE_STORE_NAME, "readwrite");
+      tx.objectStore(HANDLE_STORE_NAME).delete(key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
+    } catch (_err) {
+      resolve(false);
+    }
+  });
+}
+
+function uniqueId(prefix) {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return `${prefix}_${window.crypto.randomUUID()}`;
+  }
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function isCurveSelectorField(key) {
@@ -2865,12 +3005,149 @@ function sampleLabelFromFileName(fileName) {
   return stripFileExtension(fileName).replace(/[_-]+/g, " ").trim();
 }
 
+function recentDocsLoad() {
+  try {
+    const raw = storageGet(RECENT_DOCS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_err) {
+    return [];
+  }
+}
+
+function recentDocsSave(entries) {
+  storageSet(RECENT_DOCS_KEY, JSON.stringify(entries || []));
+}
+
+async function rememberRecentDoc(entry) {
+  if (!entry || !entry.kind || !entry.fileName) return;
+  const now = Date.now();
+  const removed = [];
+  const items = recentDocsLoad().filter((item) => {
+    let keep = true;
+    if (!item || item.kind !== entry.kind) return true;
+    if (entry.kind === "sample") {
+      keep = item.fileName !== entry.fileName;
+    } else {
+      keep = item.id !== entry.id && item.fileName !== entry.fileName;
+    }
+    if (!keep && item.handleKey) removed.push(item.handleKey);
+    return keep;
+  });
+
+  const next = {
+    id: entry.id || uniqueId(entry.kind),
+    kind: entry.kind,
+    fileName: entry.fileName,
+    label:
+      entry.label ||
+      (entry.kind === "sample"
+        ? sampleLabelFromFileName(entry.fileName)
+        : stripFileExtension(entry.fileName) || entry.fileName),
+    ts: now,
+    handleKey: entry.handleKey || null,
+    reopenable:
+      entry.reopenable !== false && (entry.kind === "sample" || !!entry.handleKey),
+  };
+
+  items.unshift(next);
+  recentDocsSave(items.slice(0, RECENT_DOC_LIMIT));
+  await Promise.all(removed.map((key) => idbDeleteHandle(key)));
+  if (entry.handleKey && entry.handle) {
+    await idbPutHandle(entry.handleKey, entry.handle);
+  }
+}
+
+async function pruneRecentDoc(entry) {
+  if (!entry) return;
+  const items = recentDocsLoad().filter((item) => item && item.id !== entry.id);
+  recentDocsSave(items);
+  if (entry.handleKey) {
+    await idbDeleteHandle(entry.handleKey);
+  }
+}
+
+function formatRecentTimestamp(ts) {
+  if (!Number.isFinite(ts) || ts <= 0) return "";
+  try {
+    return new Date(ts).toLocaleString();
+  } catch (_err) {
+    return "";
+  }
+}
+
+function closeRecentOverlay() {
+  const overlay = document.getElementById("recentOverlay");
+  if (overlay) overlay.hidden = true;
+}
+
+function isRecentOverlayOpen() {
+  const overlay = document.getElementById("recentOverlay");
+  return Boolean(overlay && !overlay.hidden);
+}
+
+function renderRecentList() {
+  const list = document.getElementById("recentList");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const entries = recentDocsLoad();
+  if (entries.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "placeholder";
+    empty.textContent = "No recent projects yet.";
+    list.appendChild(empty);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "sample-item";
+    btn.disabled = entry.reopenable === false;
+
+    const label = document.createElement("strong");
+    label.textContent = entry.label || entry.fileName || "Untitled";
+    btn.appendChild(label);
+
+    const meta = document.createElement("small");
+    meta.textContent = entry.fileName || "";
+    btn.appendChild(meta);
+
+    const metaRow = document.createElement("div");
+    metaRow.className = "sample-meta-row";
+    const tag = document.createElement("span");
+    tag.className = "sample-tag";
+    tag.textContent = entry.kind === "sample" ? "Sample" : "Local";
+    metaRow.appendChild(tag);
+    const stamp = document.createElement("small");
+    stamp.textContent =
+      formatRecentTimestamp(entry.ts) ||
+      (entry.reopenable === false ? "Reopen unavailable" : "");
+    metaRow.appendChild(stamp);
+    btn.appendChild(metaRow);
+
+    btn.addEventListener("click", () => {
+      void openRecentDoc(entry);
+    });
+    list.appendChild(btn);
+  });
+}
+
+function openRecentOverlay() {
+  const overlay = document.getElementById("recentOverlay");
+  if (!overlay) return;
+  renderRecentList();
+  overlay.hidden = false;
+}
+
 // ── Welcome screen ────────────────────────────────────────────────────────────
 
 const WELCOME_SUPPRESS_KEY = "knobman_welcome_suppress";
 
 function shouldShowWelcome() {
-  return localStorage.getItem(WELCOME_SUPPRESS_KEY) !== "1";
+  return storageGet(WELCOME_SUPPRESS_KEY) !== "1";
 }
 
 function closeWelcomeOverlay() {
@@ -2878,7 +3155,7 @@ function closeWelcomeOverlay() {
   if (!overlay) return;
   const check = document.getElementById("welcomeSuppressCheck");
   if (check && check.checked) {
-    localStorage.setItem(WELCOME_SUPPRESS_KEY, "1");
+    storageSet(WELCOME_SUPPRESS_KEY, "1");
   }
   overlay.hidden = true;
 }
@@ -3052,6 +3329,7 @@ function onWasmReady() {
   renderSampleList();
 
   window.knobman_init(64, 64, zoomFactor);
+  document.getElementById("zoomSelect").value = String(zoomFactor);
   initCurveEditor();
   initShapeEditor();
 
@@ -3137,24 +3415,33 @@ function renderFrame() {
   if (!wasmReady || !dirty) return;
   dirty = false;
 
-  syncCanvasSize();
-  const t0 = performance.now();
-  window.knobman_render(pixelBuf);
-  lastRenderMs = Math.round(performance.now() - t0);
-  imageData.data.set(pixelBuf);
+  try {
+    syncCanvasSize();
+    if (!window.knobman_render || !pixelBuf || !imageData) return;
+    const t0 = performance.now();
+    window.knobman_render(pixelBuf);
+    lastRenderMs = Math.round(performance.now() - t0);
+    imageData.data.set(pixelBuf);
 
-  const canvas = document.getElementById("knobCanvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  ctx.imageSmoothingEnabled = false;
-  ctx.putImageData(imageData, 0, 0);
+    const canvas = document.getElementById("knobCanvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.putImageData(imageData, 0, 0);
 
-  const layers = window.knobman_getLayerList
-    ? window.knobman_getLayerList() || []
-    : [];
-  const active = layers.find((l) => l.selected);
-  updateStatusMetrics(active ? active.name || `Layer ${active.index + 1}` : "");
-  saveSession();
+    const layers = window.knobman_getLayerList
+      ? window.knobman_getLayerList() || []
+      : [];
+    const active = layers.find((l) => l.selected);
+    updateStatusMetrics(
+      active ? active.name || `Layer ${active.index + 1}` : "",
+    );
+    saveSession();
+  } catch (err) {
+    dirty = true;
+    console.error("renderFrame failed:", err);
+    setStatus("Render failed");
+  }
 }
 
 function markDirty() {
@@ -3236,11 +3523,12 @@ function wireControls() {
 
   // Toolbar
   document.getElementById("btnNew").addEventListener("click", onNew);
+  document.getElementById("btnOpen").addEventListener("click", () => {
+    void openProjectWithPicker();
+  });
   document
-    .getElementById("btnOpen")
-    .addEventListener("click", () =>
-      document.getElementById("fileInput").click(),
-    );
+    .getElementById("btnRecent")
+    .addEventListener("click", openRecentOverlay);
   document
     .getElementById("btnSamples")
     .addEventListener("click", openSamplesOverlay);
@@ -3277,6 +3565,17 @@ function wireControls() {
   }
   if (closeSamples) {
     closeSamples.addEventListener("click", closeSamplesOverlay);
+  }
+
+  const recentOverlay = document.getElementById("recentOverlay");
+  const closeRecent = document.getElementById("btnCloseRecent");
+  if (recentOverlay) {
+    recentOverlay.addEventListener("click", (e) => {
+      if (e.target === recentOverlay) closeRecentOverlay();
+    });
+  }
+  if (closeRecent) {
+    closeRecent.addEventListener("click", closeRecentOverlay);
   }
 
   document.addEventListener("keydown", onKeyDown);
@@ -3918,7 +4217,8 @@ function onNew() {
   currentFrame = 0;
   refreshFromDoc();
   ensureBuiltinTextures().then(() => refreshParamPanel());
-  localStorage.removeItem(SESSION_KEY);
+  storageRemove(SESSION_KEY);
+  storageRemove(LEGACY_SESSION_KEY);
   setStatus("New document");
 }
 
@@ -3929,17 +4229,32 @@ async function onSave() {
     return;
   }
   const fileName = buildDownloadName("project", "knob");
-  const mode = await saveBytes(
+  const result = await saveBytes(
     data,
     fileName,
     "application/octet-stream",
     "knobman-save",
   );
-  if (mode === "canceled") {
+  if (result.mode === "canceled") {
     setStatus("Save canceled");
     return;
   }
-  setStatus(mode === "picker" ? `Saved ${fileName}` : `Downloaded ${fileName}`);
+  if (result.mode === "picker" && result.handle) {
+    const savedName = result.handle.name || fileName;
+    setProjectBaseNameFromFileName(savedName);
+    await rememberRecentDoc({
+      kind: "file",
+      fileName: savedName,
+      label: stripFileExtension(savedName),
+      handleKey: uniqueId("handle"),
+      handle: result.handle,
+    });
+  }
+  setStatus(
+    result.mode === "picker"
+      ? `Saved ${fileName}`
+      : `Downloaded ${fileName}`,
+  );
 }
 
 function downloadBytes(fileName, mimeType, bytes) {
@@ -4024,9 +4339,9 @@ async function saveBytes(bytes, fileName, mimeType, pickerId) {
       const writable = await handle.createWritable();
       await writable.write(bytes);
       await writable.close();
-      return "picker";
+      return { mode: "picker", handle };
     } catch (err) {
-      if (err && err.name === "AbortError") return "canceled";
+      if (err && err.name === "AbortError") return { mode: "canceled" };
       console.warn(
         "showSaveFilePicker failed, falling back to download link:",
         err,
@@ -4034,7 +4349,7 @@ async function saveBytes(bytes, fileName, mimeType, pickerId) {
     }
   }
   downloadBytes(fileName, mimeType, bytes);
-  return "download";
+  return { mode: "download" };
 }
 
 async function onExport() {
@@ -4052,18 +4367,20 @@ async function onExport() {
     }
     const suffix = horizontal ? "strip_h" : "strip_v";
     const fileName = buildDownloadName(suffix, "png");
-    const mode = await saveBytes(
+    const result = await saveBytes(
       out,
       fileName,
       "image/png",
       "knobman-export-png-strip",
     );
-    if (mode === "canceled") {
+    if (result.mode === "canceled") {
       setStatus("PNG strip export canceled");
       return;
     }
     setStatus(
-      mode === "picker" ? `Exported ${fileName}` : `Downloaded ${fileName}`,
+      result.mode === "picker"
+        ? `Exported ${fileName}`
+        : `Downloaded ${fileName}`,
     );
     return;
   }
@@ -4078,18 +4395,20 @@ async function onExport() {
       return;
     }
     const fileName = buildDownloadName("frames", "zip");
-    const mode = await saveBytes(
+    const result = await saveBytes(
       out,
       fileName,
       "application/zip",
       "knobman-export-frames-zip",
     );
-    if (mode === "canceled") {
+    if (result.mode === "canceled") {
       setStatus("PNG frames export canceled");
       return;
     }
     setStatus(
-      mode === "picker" ? `Exported ${fileName}` : `Downloaded ${fileName}`,
+      result.mode === "picker"
+        ? `Exported ${fileName}`
+        : `Downloaded ${fileName}`,
     );
     return;
   }
@@ -4104,18 +4423,20 @@ async function onExport() {
       return;
     }
     const fileName = buildDownloadName("anim", "gif");
-    const mode = await saveBytes(
+    const result = await saveBytes(
       out,
       fileName,
       "image/gif",
       "knobman-export-gif",
     );
-    if (mode === "canceled") {
+    if (result.mode === "canceled") {
       setStatus("GIF export canceled");
       return;
     }
     setStatus(
-      mode === "picker" ? `Exported ${fileName}` : `Downloaded ${fileName}`,
+      result.mode === "picker"
+        ? `Exported ${fileName}`
+        : `Downloaded ${fileName}`,
     );
     return;
   }
@@ -4130,18 +4451,20 @@ async function onExport() {
       return;
     }
     const fileName = buildDownloadName("anim", "apng");
-    const mode = await saveBytes(
+    const result = await saveBytes(
       out,
       fileName,
       "image/apng",
       "knobman-export-apng",
     );
-    if (mode === "canceled") {
+    if (result.mode === "canceled") {
       setStatus("APNG export canceled");
       return;
     }
     setStatus(
-      mode === "picker" ? `Exported ${fileName}` : `Downloaded ${fileName}`,
+      result.mode === "picker"
+        ? `Exported ${fileName}`
+        : `Downloaded ${fileName}`,
     );
     return;
   }
@@ -4236,7 +4559,85 @@ async function loadSampleProject(fileName) {
     setStatus("Failed to load sample " + fileName);
     return;
   }
+  await rememberRecentDoc({
+    kind: "sample",
+    fileName,
+    label: sampleLabelFromFileName(fileName),
+  });
   closeSamplesOverlay();
+  closeRecentOverlay();
+}
+
+async function loadProjectFromHandle(handle) {
+  if (!handle || typeof handle.getFile !== "function") return false;
+  const file = await handle.getFile();
+  const data = new Uint8Array(await file.arrayBuffer());
+  if (!applyLoadedProjectBytes(data, file.name, "Loaded")) return false;
+  const handleKey = uniqueId("handle");
+  await rememberRecentDoc({
+    id: handle.name || file.name,
+    kind: "file",
+    fileName: file.name,
+    label: stripFileExtension(file.name),
+    handleKey,
+    handle,
+  });
+  closeRecentOverlay();
+  return true;
+}
+
+async function openProjectWithPicker() {
+  if (!supportsOpenPicker()) {
+    document.getElementById("fileInput").click();
+    return;
+  }
+  try {
+    const handles = await window.showOpenFilePicker({
+      id: "knobman-open",
+      multiple: false,
+      types: [
+        {
+          description: "KnobMan Project",
+          accept: { "application/octet-stream": [".knob"] },
+        },
+      ],
+    });
+    const handle = handles && handles[0];
+    if (!handle) return;
+    const ok = await loadProjectFromHandle(handle);
+    if (!ok) setStatus("Failed to load selected file");
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    console.warn("showOpenFilePicker failed, falling back to file input:", err);
+    document.getElementById("fileInput").click();
+  }
+}
+
+async function openRecentDoc(entry) {
+  if (!entry) return;
+  try {
+    if (entry.kind === "sample") {
+      await loadSampleProject(entry.fileName);
+      return;
+    }
+    if (!entry.handleKey) {
+      setStatus("Reopen unavailable for this project");
+      return;
+    }
+    const handle = await idbGetHandle(entry.handleKey);
+    if (!handle) {
+      await pruneRecentDoc(entry);
+      renderRecentList();
+      setStatus("Recent file handle is no longer available");
+      return;
+    }
+    if (!(await loadProjectFromHandle(handle))) {
+      setStatus("Failed to reopen " + entry.fileName);
+    }
+  } catch (err) {
+    console.warn("Failed to reopen recent project:", err);
+    setStatus("Failed to reopen " + (entry.fileName || "recent project"));
+  }
 }
 
 function onFileOpen(e) {
@@ -4250,13 +4651,32 @@ function onFileOpen(e) {
       setStatus("Failed to load " + file.name);
       return;
     }
+    void rememberRecentDoc({
+      kind: "file",
+      fileName: file.name,
+      label: stripFileExtension(file.name),
+      reopenable: false,
+    });
+    closeRecentOverlay();
   };
   reader.readAsArrayBuffer(file);
   e.target.value = "";
 }
 
+function keyName(e) {
+  return String(e && e.key ? e.key : "").toLowerCase();
+}
+
+function isEditableTarget(target) {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  const tag = String(target.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select";
+}
+
 function onKeyDown(e) {
-  if (e.key === "Escape") {
+  const key = keyName(e);
+  if (key === "escape") {
     const welcomeOverlay = document.getElementById("welcomeOverlay");
     if (welcomeOverlay && !welcomeOverlay.hidden) {
       e.preventDefault();
@@ -4264,43 +4684,50 @@ function onKeyDown(e) {
       return;
     }
   }
-  if (e.key === "Escape" && isSamplesOverlayOpen()) {
+  if (key === "escape" && isSamplesOverlayOpen()) {
     e.preventDefault();
     closeSamplesOverlay();
     return;
   }
+  if (key === "escape" && isRecentOverlayOpen()) {
+    e.preventDefault();
+    closeRecentOverlay();
+    return;
+  }
   const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key === "z") {
+  const editing = isEditableTarget(e.target);
+  if (mod && key === "z") {
     e.preventDefault();
     onUndo();
     return;
   }
-  if (mod && (e.key === "y" || (e.shiftKey && e.key === "z"))) {
+  if (mod && (key === "y" || (e.shiftKey && key === "z"))) {
     e.preventDefault();
     onRedo();
     return;
   }
-  if (mod && e.key === "s") {
+  if (mod && key === "s") {
     e.preventDefault();
     onSave();
     return;
   }
-  if (mod && e.key === "o") {
+  if (mod && key === "o") {
     e.preventDefault();
-    document.getElementById("fileInput").click();
+    void openProjectWithPicker();
     return;
   }
-  if (mod && e.key === "e") {
+  if (mod && key === "e") {
     e.preventDefault();
     onExport();
     return;
   }
-  if (mod && e.key === "d") {
+  if (mod && key === "d") {
     e.preventDefault();
     onDuplicate();
     return;
   }
-  if (e.key === "Delete") {
+  if (editing) return;
+  if (key === "delete" || key === "backspace") {
     e.preventDefault();
     if (isShapeLayerSelected() && shapeSelectedHandle) {
       deleteShapeSelection();
@@ -4309,12 +4736,12 @@ function onKeyDown(e) {
     }
     return;
   }
-  if (e.key === "ArrowUp") {
+  if (key === "arrowup") {
     e.preventDefault();
     onMoveUp();
     return;
   }
-  if (e.key === "ArrowDown") {
+  if (key === "arrowdown") {
     e.preventDefault();
     onMoveDown();
     return;
@@ -4345,29 +4772,81 @@ function updateStatusMetrics(layerName) {
 
 // ── Session persistence (localStorage) ───────────────────────────────────────
 
-const SESSION_KEY = "knobman_session";
-
 function saveSession() {
   if (!window.knobman_saveFile) return;
   try {
     const bytes = window.knobman_saveFile();
     if (!bytes || !bytes.length) return;
-    const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
-    localStorage.setItem(SESSION_KEY, b64);
-  } catch (_) {}
+    const payload = {
+      version: 2,
+      ts: Date.now(),
+      data: bytesToBase64(new Uint8Array(bytes)),
+      currentFrame,
+      zoomFactor,
+      selectedLayer,
+      selectedCurve,
+      prefAspectLock,
+      projectBaseName,
+    };
+    storageSet(SESSION_KEY, JSON.stringify(payload));
+    storageRemove(LEGACY_SESSION_KEY);
+  } catch (_err) {}
+}
+
+function applyRestoredSessionState(state) {
+  if (!state || typeof state !== "object") return;
+  if (state.projectBaseName) {
+    projectBaseName = sanitizeFileBaseName(state.projectBaseName);
+  }
+  zoomFactor = clampInt(Number(state.zoomFactor) || zoomFactor, 1, 16);
+  const zoomSelect = document.getElementById("zoomSelect");
+  if (zoomSelect) zoomSelect.value = String(zoomFactor);
+  if (window.knobman_setZoom) window.knobman_setZoom(zoomFactor);
+
+  currentFrame = Math.max(0, Number(state.currentFrame) || 0);
+  selectedCurve = clampInt(Number(state.selectedCurve) || 1, 1, 8);
+  prefAspectLock = Boolean(state.prefAspectLock);
+  const lock = document.getElementById("prefLockAspect");
+  if (lock) lock.checked = prefAspectLock;
+  syncAspectRatioFromInputs();
+
+  if (window.knobman_selectLayer) {
+    selectedLayer = window.knobman_selectLayer(Number(state.selectedLayer) || 0);
+  }
+}
+
+function restoreSessionPayload() {
+  const raw = storageGet(SESSION_KEY);
+  if (raw) {
+    try {
+      const payload = JSON.parse(raw);
+      if (payload && payload.data) return payload;
+    } catch (_err) {
+      storageRemove(SESSION_KEY);
+    }
+  }
+
+  const legacy = storageGet(LEGACY_SESSION_KEY);
+  if (!legacy) return null;
+  return { version: 1, data: legacy };
 }
 
 function restoreSession() {
   if (!window.knobman_loadFile) return false;
   try {
-    const b64 = localStorage.getItem(SESSION_KEY);
-    if (!b64) return false;
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    window.knobman_loadFile(bytes);
+    const payload = restoreSessionPayload();
+    if (!payload || !payload.data) return false;
+    const bytes = base64ToBytes(payload.data);
+    if (!window.knobman_loadFile(bytes)) {
+      storageRemove(SESSION_KEY);
+      storageRemove(LEGACY_SESSION_KEY);
+      return false;
+    }
+    applyRestoredSessionState(payload);
     return true;
-  } catch (_) {
+  } catch (_err) {
+    storageRemove(SESSION_KEY);
+    storageRemove(LEGACY_SESSION_KEY);
     return false;
   }
 }
