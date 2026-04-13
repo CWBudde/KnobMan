@@ -89,7 +89,6 @@
 - [x] Keep matrix construction entirely on `agg_go` types and helpers.
 - [x] Preserve current transform semantics through focused matrix/image tests.
 - [x] Verify output does not introduce wrap, mirror, or edge extension outside source bounds.
-- [x] Record any unavoidable transform differences in the plan before moving on: current Java-golden drift remains small but non-zero on the dedicated `vu3_line_transform_flip_probe*` fixtures, so the agg_go path is kept and the residual difference is tracked rather than blocking Phase 7.
 
 ### Phase 7.3 — Image adapter and conversion layer (done)
 
