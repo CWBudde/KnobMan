@@ -31,20 +31,6 @@ func AggContextForPixBuf(buf *PixBuf) *agg.Context {
 	return agg.NewContextForImage(img)
 }
 
-// Agg2DForPixBuf creates a low-level agg_go renderer backed by the PixBuf memory.
-// Phase 8 keeps this only as a narrowly-scoped legacy/test adapter; production
-// rendering paths should prefer explicit off-screen AGG boundaries instead.
-func Agg2DForPixBuf(buf *PixBuf) *agg.Agg2D {
-	if buf == nil || buf.Width <= 0 || buf.Height <= 0 || len(buf.Data) == 0 {
-		return nil
-	}
-
-	a := agg.NewAgg2D()
-	a.Attach(buf.Data, buf.Width, buf.Height, buf.Stride)
-
-	return a
-}
-
 func blendPremultipliedAggImageOverPixBuf(dst *PixBuf, src *agg.Image) {
 	blendPremultipliedAggImageRectOverPixBuf(dst, src, 0, 0, dst.Width, dst.Height)
 }

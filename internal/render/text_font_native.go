@@ -16,19 +16,30 @@ import (
 
 var fontPathCache sync.Map
 
-func loadAggTrueTypeFont(ctx *agg.Context, p *model.Primitive, size float64) bool {
-	if ctx == nil || p == nil || size <= 0 {
-		return false
+func loadAggTrueTypeFont(p *model.Primitive, size float64) *agg.FreeTypeOutlineText {
+	if p == nil || size <= 0 {
+		return nil
 	}
 
 	fontPath := resolveFontPath(primitiveFontFamily(p), p.Bold.Val != 0, p.Italic.Val != 0)
 	if fontPath == "" {
-		return false
+		return nil
 	}
 
-	// We already resolve the concrete face file (for example Georgia_Bold_Italic.ttf),
-	// so keep agg_go in plain mode here instead of asking it to synthesize styles.
-	return ctx.Font(fontPath, size, false, false, agg.RasterFontCache, 0) == nil
+	txt, err := agg.NewFreeTypeOutlineText()
+	if err != nil {
+		return nil
+	}
+
+	txt.SetHinting(true)
+	txt.SetFlip(true)
+	txt.SetSize(size, 0)
+	if err := txt.LoadFont(fontPath); err != nil {
+		_ = txt.Close()
+		return nil
+	}
+
+	return txt
 }
 
 func resolveFontPath(family string, bold, italic bool) string {

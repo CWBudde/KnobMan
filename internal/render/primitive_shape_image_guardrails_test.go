@@ -43,6 +43,32 @@ func TestShapeFillAggCubicPathInteriorVisible(t *testing.T) {
 	}
 }
 
+func TestShapeOutlineKnobCurveUsesBezierControls(t *testing.T) {
+	p := basePrim(model.PrimShape)
+	p.Fill.Val = 0
+	p.Width.Val = 12
+	p.Shape.Val = "/192,256,192,256,192,256:192,208,224,208,256,208:256,304,288,304,320,304:320,256,320,256,320,256"
+	p.Color.Val = color.RGBA{R: 255, G: 48, B: 48, A: 255}
+
+	buf := NewPixBuf(64, 64)
+	RenderPrimitive(buf, &p, nil, 0, 1)
+
+	minY := buf.Height
+	for y := range buf.Height {
+		for x := 20; x <= 44; x++ {
+			if buf.At(x, y).A != 0 {
+				if y < minY {
+					minY = y
+				}
+			}
+		}
+	}
+
+	if minY >= 28 {
+		t.Fatalf("expected bezier outline to rise above anchor polyline, top pixel row=%d", minY)
+	}
+}
+
 func TestShapeFillBlendsOverExistingPixels(t *testing.T) {
 	p := basePrim(model.PrimShape)
 	p.Fill.Val = 1

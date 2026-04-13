@@ -14,9 +14,25 @@ const (
 	aggTextBackendGSV
 )
 
-func configureAggTextFont(ctx *agg.Context, p *model.Primitive, size float64) (aggTextBackend, float64) {
-	if loadAggTrueTypeFont(ctx, p, size) {
-		return aggTextBackendTrueType, size
+type configuredAggTextFont struct {
+	backend  aggTextBackend
+	size     float64
+	trueType *agg.FreeTypeOutlineText
+}
+
+func (f configuredAggTextFont) Close() {
+	if f.trueType != nil {
+		_ = f.trueType.Close()
+	}
+}
+
+func configureAggTextFont(_ *agg.Context, p *model.Primitive, size float64) configuredAggTextFont {
+	if tt := loadAggTrueTypeFont(p, size); tt != nil {
+		return configuredAggTextFont{
+			backend:  aggTextBackendTrueType,
+			size:     size,
+			trueType: tt,
+		}
 	}
 
 	gsvSize := size * 0.65
@@ -24,7 +40,10 @@ func configureAggTextFont(ctx *agg.Context, p *model.Primitive, size float64) (a
 		gsvSize = 6
 	}
 
-	return aggTextBackendGSV, gsvSize
+	return configuredAggTextFont{
+		backend: aggTextBackendGSV,
+		size:    gsvSize,
+	}
 }
 
 func primitiveFontFamily(p *model.Primitive) string {

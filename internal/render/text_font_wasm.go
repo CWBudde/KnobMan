@@ -7,6 +7,6 @@ import (
 	"knobman/internal/model"
 )
 
-func loadAggTrueTypeFont(_ *agg.Context, _ *model.Primitive, _ float64) bool {
-	return false
+func loadAggTrueTypeFont(_ *model.Primitive, _ float64) *agg.FreeTypeOutlineText {
+	return nil
 }

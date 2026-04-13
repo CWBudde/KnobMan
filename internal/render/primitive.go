@@ -202,26 +202,24 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	col := primitiveColor(p)
 	ctx.SetColor(agg.Color{R: col.R, G: col.G, B: col.B, A: col.A})
 
-	backend, textSize := configureAggTextFont(ctx, p, size)
+	fontCfg := configureAggTextFont(ctx, p, size)
+	defer fontCfg.Close()
 
-	a := ctx.GetAgg2D()
 	textWidth := 0.0
 	spaceWidth := 0.0
 
-	switch backend {
+	switch fontCfg.backend {
 	case aggTextBackendGSV:
-		textWidth = measureLocalGSVTextWidth(txt, textSize)
-		spaceWidth = measureLocalGSVTextWidth(" ", textSize)
+		textWidth = measureLocalGSVTextWidth(txt, fontCfg.size)
+		spaceWidth = measureLocalGSVTextWidth(" ", fontCfg.size)
 	default:
-		ctx.TextHints(true)
-		ctx.FlipText(true)
-		textWidth = a.TextWidth(txt)
-		spaceWidth = a.TextWidth(" ")
+		textWidth = fontCfg.trueType.MeasureText(txt)
+		spaceWidth = fontCfg.trueType.MeasureText(" ")
 	}
 
 	inset := spaceWidth * 0.5
-	if backend == aggTextBackendGSV {
-		inset = math.Max(1, textSize*0.05)
+	if fontCfg.backend == aggTextBackendGSV {
+		inset = math.Max(1, fontCfg.size*0.05)
 	}
 
 	anchorX := (float64(dst.Width) - textWidth) * 0.5
@@ -233,34 +231,26 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	}
 
 	anchorY := float64(dst.Height) * 0.5
-	alignY := agg.AlignCenter
 
-	switch backend {
+	switch fontCfg.backend {
 	case aggTextBackendGSV:
-		alignY = agg.AlignBottom
 		anchorY += size * 0.35
 	default:
 		anchorY += 2
 	}
 
-	if backend == aggTextBackendGSV {
-		renderTextGSVStyled(ctx, p, anchorX, anchorY, textSize, txt)
+	if fontCfg.backend == aggTextBackendGSV {
+		renderTextGSVStyled(ctx, p, anchorX, anchorY, fontCfg.size, txt)
 		blendPremultipliedAggImageOverPixBuf(dst, ctx.GetImage())
 		return
 	}
 
-	a.TextAlignment(agg.AlignLeft, alignY)
-	a.Text(anchorX, anchorY, txt, true, 0, 0)
+	renderTextTrueTypeOutline(ctx, fontCfg.trueType, anchorX, anchorY, txt)
 	blendPremultipliedAggImageOverPixBuf(dst, ctx.GetImage())
 }
 
 func renderTextGSVStyled(ctx *agg.Context, p *model.Primitive, x, y, size float64, txt string) {
 	if ctx == nil {
-		return
-	}
-
-	a := ctx.GetAgg2D()
-	if a == nil {
 		return
 	}
 
@@ -273,17 +263,18 @@ func renderTextGSVStyled(ctx *agg.Context, p *model.Primitive, x, y, size float6
 		defer ctx.PopTransform()
 	}
 
-	a.NoFill()
-	a.LineColor(agg.Color{
+	ctx.SetStrokeColor(agg.Color{
 		R: primitiveColor(p).R,
 		G: primitiveColor(p).G,
 		B: primitiveColor(p).B,
 		A: primitiveColor(p).A,
 	})
-	a.LineWidth(math.Max(1, size*0.08))
+	ctx.SetStrokeWidth(math.Max(1, size*0.08))
+	ctx.SetLineCap(agg.CapRound)
+	ctx.SetLineJoin(agg.JoinRound)
 
-	if drawLocalGSVText(a, x, y, size, txt) {
-		a.DrawPath(agg.StrokeOnly)
+	if appendLocalGSVText(ctx, x, y, size, txt) {
+		ctx.Stroke()
 	}
 
 	if p.Bold.Val == 0 {
@@ -291,9 +282,22 @@ func renderTextGSVStyled(ctx *agg.Context, p *model.Primitive, x, y, size float6
 	}
 
 	for _, dx := range []float64{0.7, 1.4} {
-		if drawLocalGSVText(a, x+dx, y, size, txt) {
-			a.DrawPath(agg.StrokeOnly)
+		if appendLocalGSVText(ctx, x+dx, y, size, txt) {
+			ctx.Stroke()
 		}
+	}
+}
+
+func renderTextTrueTypeOutline(ctx *agg.Context, face *agg.FreeTypeOutlineText, x, y float64, txt string) {
+	if ctx == nil || face == nil || txt == "" {
+		return
+	}
+
+	baselineY := y + face.GetAscender()*0.5
+	face.SetText(txt)
+	face.SetStartPoint(float64(int(x)), float64(int(baselineY)))
+	if appendFreeTypeOutlineText(ctx, face) {
+		ctx.Fill()
 	}
 }
 
@@ -310,7 +314,7 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	if p.Fill.Val != 0 {
 		renderShapeFillMask(mask, s, dst.Width, dst.Height)
 	} else {
-		renderShapeOutlineMask(mask, s, dst.Width, dst.Height, p.Width.Val*float64(dst.Width)*0.004)
+		renderShapeOutlineMask(mask, s, dst.Width, dst.Height, p.Width.Val*float64(dst.Width)*0.005)
 	}
 
 	rCX := float64(dst.Width) * 0.5
@@ -394,7 +398,7 @@ func renderShapeOutlineMask(mask *PixBuf, s string, w, h int, strokeWidth float6
 		return
 	}
 
-	polys := parseKnobShapeAnchorPolylines(s, w, h)
+	polys := parseKnobShapePolylinesOpen(s, w, h)
 	if len(polys) == 0 {
 		pts := parseSimpleShapePoints(s, w, h)
 		if len(pts) < 2 {

@@ -187,10 +187,10 @@ over custom geometry/math code.
 - [x] Replace filled-shape AGG mask generation with a custom supersampled even-odd fill mask in `primitive.go` and delete the now-unused AGG path-construction helper.
 - [x] Keep text on AGG intentionally, but isolate it behind an explicit off-screen render-to-temp-and-blend-back adapter instead of direct `PixBuf` attachment.
 - [x] Move the active GSV fallback off `Agg2D.Text` / `TextWidth` / `FontGSV` by exposing a public GSV path source in `agg_go` and rendering it through ordinary AGG path stroking.
-- [x] Audit `AggContextForPixBuf` / `Agg2DForPixBuf` call sites after the text move; no remaining production call sites are left, so keep the adapters fenced as legacy/test helpers only.
+- [x] Move the optional TrueType/FreeType path off `Agg2D.Text` / `TextWidth` by exposing a public `FreeTypeOutlineText` source in `agg_go` and rendering it through ordinary AGG path filling.
+- [x] Audit the old `Agg*ForPixBuf` shared-buffer adapters after the text move; no remaining production call sites are left, and the dead `Agg2DForPixBuf` helper has been removed.
 - [-] Treat text as an intentional AGG dependency; if a needed font/text adapter is missing, add it locally in KnobMan rather than forcing a non-AGG text rewrite.
-- [ ] Add a dedicated non-`Agg2D` TrueType/FreeType text adapter if the optional FreeType-backed path needs to stay active.
-- [ ] Decide whether the fenced legacy/test shared-buffer adapters in `image_adapter.go` should be deleted outright once no comparison/debug use remains.
+- [-] Keep only the minimal legacy/test shared-buffer helpers still in use (`AggImageForPixBuf`, `AggContextForPixBuf`) until their remaining comparison/debug coverage is no longer needed.
 
 ### Phase 8.3 status snapshot
 
@@ -198,7 +198,7 @@ over custom geometry/math code.
 - [x] Production image draw/scale/transform is back on custom sampling code; `agg_go` remains only for affine matrix helpers in this area.
 - [x] Custom primitive rasterization now blends over existing destination pixels instead of overwriting them, so semi-transparent primitives preserve prior content.
 - [x] No production render path in `internal/render` attaches AGG directly to `PixBuf.Data`.
-- [-] Production AGG usage still exists for text rendering. The default build no longer uses the Agg2D text engine surface for GSV fallback text, but a dedicated non-`Agg2D` TrueType adapter is still pending if the optional FreeType-backed path is enabled.
+- [x] `internal/render` no longer depends on the `Agg2D` text engine surface or any direct `Agg2D` adapter. Text still renders through AGG, but only via `agg.Context` plus public `agg_go` text-path adapters.
 - [x] Production AGG usage has been removed from image transform/blit rendering.
 
 ### Phase 8.4 — Migration order
