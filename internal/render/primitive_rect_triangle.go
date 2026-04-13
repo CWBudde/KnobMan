@@ -1,6 +1,7 @@
 package render
 
 import (
+	"image/color"
 	"knobman/internal/model"
 	"math"
 )
@@ -283,6 +284,14 @@ func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rYLen := float64(dst.Height) * p.Length.Val * 0.01
 	rWidth := float64(dst.Width) * p.Width.Val * 0.005
 	rD := 1.0 - p.Diffuse.Val*0.01
+	var mask *PixBuf
+	if p.Diffuse.Val == 0 {
+		mask = NewPixBuf(dst.Width, dst.Height)
+		mask.Clear(color.RGBA{A: 255})
+		if !renderTriangleAggMask(mask, dst.Width, dst.Height, p.Width.Val, p.Length.Val) {
+			mask = nil
+		}
+	}
 
 	for y := range dst.Height {
 		rPY := float64(y) - rCY + 0.5
@@ -295,7 +304,23 @@ func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 			pix := base
 
-			if float64(y) > rYLen {
+			if mask != nil {
+				coverage := int(mask.Data[y*mask.Stride+x*4+2])
+				if coverage == 0 {
+					continue
+				}
+
+				iA := 255
+				rX := math.Abs(float64(x) + 0.5 - rCX)
+				rXLine := rWidth*float64(y)/rYLen + 1.0
+				if rXLine != 0.0 {
+					iA = int((255.0 - rX/rXLine*255.0) * p.Specular.Val * 0.01)
+				}
+				iA += lumi
+				iA = clampInt(iA, 0, 254)
+				pix = changeBrightnessRGBA(pix, iA)
+				alpha = alpha * coverage / 255
+			} else if float64(y) > rYLen {
 				alpha = 0
 			} else {
 				rX := math.Abs(float64(x) + 0.5 - rCX)

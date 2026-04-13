@@ -83,6 +83,24 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
+		{Name: "circle_fill_greenab_ring", Build: func() *model.Document {
+			doc := newPrimitiveDoc("CircleFillGreenAbRing")
+			ly := &doc.Layers[0]
+			ly.Prim.Type.Val = int(model.PrimCircleFill)
+			ly.Prim.Color.Val = rgb(255, 0, 0)
+			ly.Prim.Emboss.Val = -12
+			ly.Prim.Specular.Val = 50
+			ly.Eff.BrightF.Val = -26
+			ly.Eff.BrightT.Val = -26
+			ly.Eff.ContrastF.Val = -55
+			ly.Eff.ContrastT.Val = -55
+			ly.Eff.SaturationF.Val = -69
+			ly.Eff.SaturationT.Val = -69
+			ly.Eff.HueF.Val = 141
+			ly.Eff.HueT.Val = 141
+
+			return doc
+		}},
 		{Name: "tier3_circle_fill_shell", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier3CircleFillShell")
 			ly := &doc.Layers[0]

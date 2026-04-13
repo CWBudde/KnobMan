@@ -2,7 +2,6 @@ package render
 
 import (
 	"image/color"
-	"math"
 )
 
 // ApplyColorAdjust applies layer-wide alpha and color adjustments.
@@ -17,9 +16,6 @@ func ApplyColorAdjust(dst, src *PixBuf, alpha, brightness, contrast, saturation,
 	h := min(dst.Height, src.Height)
 
 	alphaScale := clamp01(alpha / 100.0)
-	bright := brightness / 100.0
-	contrastFactor := 1.0 + contrast/100.0
-	satFactor := 1.0 + saturation/100.0
 
 	for y := range h {
 		for x := range w {
@@ -29,103 +25,115 @@ func ApplyColorAdjust(dst, src *PixBuf, alpha, brightness, contrast, saturation,
 				continue
 			}
 
-			r := float64(c.R) / 255.0
-			g := float64(c.G) / 255.0
-			b := float64(c.B) / 255.0
-
-			// Brightness and contrast in linear RGB.
-			r = (r+bright-0.5)*contrastFactor + 0.5
-			g = (g+bright-0.5)*contrastFactor + 0.5
-			b = (b+bright-0.5)*contrastFactor + 0.5
-
-			// Saturation via grayscale interpolation.
-			gray := 0.299*r + 0.587*g + 0.114*b
-			r = gray + (r-gray)*satFactor
-			g = gray + (g-gray)*satFactor
-			b = gray + (b-gray)*satFactor
-
-			if hue != 0 {
-				hh, ss, vv := rgbToHSV(clamp01(r), clamp01(g), clamp01(b))
-
-				hh += hue
-				for hh < 0 {
-					hh += 360
-				}
-
-				for hh >= 360 {
-					hh -= 360
-				}
-
-				r, g, b = hsvToRGB(hh, ss, vv)
-			}
-
+			r, g, b := applyLegacyHLSAdjust(c.R, c.G, c.B, brightness, contrast, saturation, hue)
 			a := clamp01(float64(c.A) / 255.0 * alphaScale)
-			dst.Set(x, y, rgbaFromFloat(r, g, b, a))
+			dst.Set(x, y, color.RGBA{
+				R: r,
+				G: g,
+				B: b,
+				A: uint8(a*255 + 0.5),
+			})
 		}
 	}
 }
 
-func rgbToHSV(r, g, b float64) (h, s, v float64) {
-	mx := math.Max(r, math.Max(g, b))
-	mn := math.Min(r, math.Min(g, b))
-	d := mx - mn
+func applyLegacyHLSAdjust(r, g, b uint8, brightness, contrast, saturation, hue float64) (uint8, uint8, uint8) {
+	h, l, s := rgbToLegacyHLS(int(r), int(g), int(b))
 
-	v = mx
-	if mx == 0 {
-		s = 0
+	l = int((float64(l-120)*(contrast+100.0))/100.0 + 120.0)
+	l = int(float64(l) + brightness*240.0/100.0)
+	if l >= 240 {
+		l = 239
+	}
+	if l < 0 {
+		l = 0
+	}
+
+	s = int(float64(s) * (saturation + 100.0) / 100.0)
+	h += int(hue * (2.0 / 3.0))
+
+	r8, g8, b8 := legacyHLSToRGB(h, l, s)
+	return uint8(r8), uint8(g8), uint8(b8)
+}
+
+func rgbToLegacyHLS(r, g, b int) (h, l, s int) {
+	cmax := max(r, max(g, b))
+	cmin := min(r, min(g, b))
+	l = ((cmax+cmin)*240 + 255) / 510
+	if cmax == cmin {
+		return 0, l, 0
+	}
+
+	if l < 120 {
+		s = ((cmax-cmin)*240 + (cmax+cmin)/2) / (cmax + cmin)
 	} else {
-		s = d / mx
+		s = ((cmax-cmin)*240 + (510-cmax-cmin)/2) / (510 - cmax - cmin)
 	}
 
-	if d == 0 {
-		h = 0
-		return h, s, v
-	}
-
-	switch mx {
-	case r:
-		h = 60 * math.Mod((g-b)/d, 6)
-	case g:
-		h = 60 * ((b-r)/d + 2)
-	default:
-		h = 60 * ((r-g)/d + 4)
-	}
-
-	if h < 0 {
-		h += 360
-	}
-
-	return h, s, v
-}
-
-func hsvToRGB(h, s, v float64) (r, g, b float64) {
-	c := v * s
-	x := c * (1 - math.Abs(math.Mod(h/60.0, 2)-1))
-	m := v - c
-
+	rr := ((cmax-r)*40 + (cmax-cmin)/2) / (cmax - cmin)
+	gg := ((cmax-g)*40 + (cmax-cmin)/2) / (cmax - cmin)
+	bb := ((cmax-b)*40 + (cmax-cmin)/2) / (cmax - cmin)
 	switch {
-	case h < 60:
-		r, g, b = c, x, 0
-	case h < 120:
-		r, g, b = x, c, 0
-	case h < 180:
-		r, g, b = 0, c, x
-	case h < 240:
-		r, g, b = 0, x, c
-	case h < 300:
-		r, g, b = x, 0, c
+	case r == cmax:
+		h = bb - gg
+	case g == cmax:
+		h = 80 + rr - bb
 	default:
-		r, g, b = c, 0, x
+		h = 160 + gg - rr
 	}
-
-	return r + m, g + m, b + m
+	if h < 0 {
+		h += 240
+	}
+	if h > 240 {
+		h -= 240
+	}
+	return h, l, s
 }
 
-func rgbaFromFloat(r, g, b, a float64) color.RGBA {
-	return color.RGBA{
-		R: uint8(clamp01(r)*255 + 0.5),
-		G: uint8(clamp01(g)*255 + 0.5),
-		B: uint8(clamp01(b)*255 + 0.5),
-		A: uint8(clamp01(a)*255 + 0.5),
+func legacyHLSToRGB(h, l, s int) (r, g, b int) {
+	if l > 240 {
+		l = 240
+	}
+	if l < 0 {
+		l = 0
+	}
+	if s > 240 {
+		s = 240
+	}
+	if s <= 0 {
+		v := l * 255 / 240
+		return v, v, v
+	}
+
+	tmp2 := 0
+	if l <= 120 {
+		tmp2 = (l*(240+s) + 120) / 240
+	} else {
+		tmp2 = l + s - (l*s+120)/240
+	}
+	tmp1 := 2*l - tmp2
+
+	r = (legacyHueToRGB(tmp1, tmp2, h+80)*255 + 120) / 240
+	g = (legacyHueToRGB(tmp1, tmp2, h)*255 + 120) / 240
+	b = (legacyHueToRGB(tmp1, tmp2, h-80)*255 + 120) / 240
+	return r, g, b
+}
+
+func legacyHueToRGB(n1, n2, h int) int {
+	for h < 0 {
+		h += 240
+	}
+	for h > 240 {
+		h -= 240
+	}
+	switch {
+	case h < 40:
+		return n1 + ((n2-n1)*h+20)/40
+	case h < 120:
+		return n2
+	case h < 160:
+		return n1 + ((n2-n1)*(160-h)+20)/40
+	default:
+		return n1
 	}
 }

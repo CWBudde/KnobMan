@@ -360,6 +360,10 @@ func renderShapeFillMask(mask *PixBuf, s string, w, h int) {
 		return
 	}
 
+	if renderShapeAggMask(mask, s, w, h, true, 0) {
+		return
+	}
+
 	polys := parseKnobShapePolylines(s, w, h)
 	if len(polys) == 0 {
 		pts := parseSimpleShapePoints(s, w, h)
@@ -405,6 +409,10 @@ func renderShapeOutlineMask(mask *PixBuf, s string, w, h int, strokeWidth float6
 		return
 	}
 
+	if renderShapeAggMask(mask, s, w, h, false, strokeWidth) {
+		return
+	}
+
 	polys := parseKnobShapePolylinesOpen(s, w, h)
 	if len(polys) == 0 {
 		pts := parseSimpleShapePoints(s, w, h)
@@ -443,6 +451,137 @@ func renderShapeOutlineMask(mask *PixBuf, s string, w, h int, strokeWidth float6
 
 			cov := uint8(clampInt(int(float64(hits)*255.0/float64(samples*samples)+0.5), 0, 255))
 			mask.Set(x, y, color.RGBA{B: cov, A: 255})
+		}
+	}
+}
+
+func renderShapeAggMask(mask *PixBuf, s string, w, h int, fill bool, strokeWidth float64) bool {
+	if mask == nil || strings.TrimSpace(s) == "" {
+		return false
+	}
+
+	ctx := agg.NewContext(w, h)
+	if ctx == nil {
+		return false
+	}
+
+	ctx.Clear(agg.Color{})
+	ctx.SetColor(agg.Color{B: 255, A: 255})
+	ctx.SetStrokeColor(agg.Color{B: 255, A: 255})
+	ctx.SetLineJoin(agg.JoinMiter)
+	ctx.SetLineCap(agg.CapSquare)
+	if !appendKnobShapeAggPath(ctx, s, w, h, fill) {
+		return false
+	}
+
+	if fill {
+		ctx.Fill()
+	} else {
+		ctx.SetStrokeWidth(strokeWidth)
+		ctx.Stroke()
+	}
+
+	copyAggAlphaToMask(mask, ctx.GetImage())
+	return true
+}
+
+func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool) bool {
+	if ctx == nil {
+		return false
+	}
+
+	knotPolys := parseKnobShapeKnots(s)
+	if len(knotPolys) > 0 {
+		ctx.BeginPath()
+		for _, knots := range knotPolys {
+			if len(knots) < 2 {
+				continue
+			}
+
+			start := knots[0]
+			ctx.MoveTo(shapeScaleX(start.pX, w), shapeScaleY(start.pY, h))
+			for i := 1; i < len(knots); i++ {
+				prev := knots[i-1]
+				cur := knots[i]
+				ctx.CubicCurveTo(
+					shapeScaleX(prev.outX, w), shapeScaleY(prev.outY, h),
+					shapeScaleX(cur.inX, w), shapeScaleY(cur.inY, h),
+					shapeScaleX(cur.pX, w), shapeScaleY(cur.pY, h),
+				)
+			}
+			if closePath {
+				last := knots[len(knots)-1]
+				ctx.CubicCurveTo(
+					shapeScaleX(last.outX, w), shapeScaleY(last.outY, h),
+					shapeScaleX(start.inX, w), shapeScaleY(start.inY, h),
+					shapeScaleX(start.pX, w), shapeScaleY(start.pY, h),
+				)
+				ctx.ClosePath()
+			}
+		}
+		return true
+	}
+
+	pts := parseSimpleShapePoints(s, w, h)
+	if len(pts) < 2 {
+		return false
+	}
+
+	ctx.BeginPath()
+	ctx.MoveTo(float64(pts[0].x), float64(pts[0].y))
+	for _, pt := range pts[1:] {
+		ctx.LineTo(float64(pt.x), float64(pt.y))
+	}
+	if closePath {
+		ctx.ClosePath()
+	}
+	return true
+}
+
+func renderTriangleAggMask(mask *PixBuf, w, h int, widthPct, lengthPct float64) bool {
+	if mask == nil || w <= 0 || h <= 0 {
+		return false
+	}
+
+	ctx := agg.NewContext(w, h)
+	if ctx == nil {
+		return false
+	}
+
+	rCX := float64(w) * 0.5
+	rYLen := float64(h) * lengthPct * 0.01
+	rWidth := float64(w) * widthPct * 0.005
+
+	ctx.Clear(agg.Color{})
+	ctx.SetColor(agg.Color{B: 255, A: 255})
+	ctx.BeginPath()
+	ctx.MoveTo(rCX, 0)
+	ctx.LineTo(rCX+rWidth, rYLen)
+	ctx.LineTo(rCX-rWidth, rYLen)
+	ctx.ClosePath()
+	ctx.Fill()
+	copyAggAlphaToMask(mask, ctx.GetImage())
+	return true
+}
+
+func copyAggAlphaToMask(mask *PixBuf, img *agg.Image) {
+	if mask == nil || img == nil {
+		return
+	}
+
+	w := min(mask.Width, img.Width())
+	h := min(mask.Height, img.Height())
+	stride := img.Stride()
+	for y := 0; y < h; y++ {
+		srcOff := y * stride
+		dstOff := y * mask.Stride
+		for x := 0; x < w; x++ {
+			a := img.Data[srcOff+x*4+3]
+			if a == 0 {
+				continue
+			}
+			mask.Data[dstOff+x*4+2] = a
+			mask.Data[dstOff+x*4+3] = 255
 		}
 	}
 }

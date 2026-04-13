@@ -284,6 +284,18 @@ func TestColorAdjustKeepsLocalHueSaturationAlphaSemantics(t *testing.T) {
 	}
 }
 
+func TestColorAdjustMatchesLegacyHLSForGreenAbStyleShift(t *testing.T) {
+	src := NewPixBuf(1, 1)
+	src.Set(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 255})
+
+	dst := NewPixBuf(1, 1)
+	ApplyColorAdjust(dst, src, 100, -26, -55, -69, 141)
+
+	if got := dst.At(0, 0); got != (color.RGBA{R: 41, G: 80, B: 55, A: 255}) {
+		t.Fatalf("legacy HLS shift mismatch, got %+v", got)
+	}
+}
+
 func TestEffectMaskPipelineAppliesCombinedMasks(t *testing.T) {
 	prim := NewPixBuf(12, 12)
 	prim.Clear(color.RGBA{R: 40, G: 80, B: 120, A: 255})
