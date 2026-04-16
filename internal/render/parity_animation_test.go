@@ -94,19 +94,23 @@ func runNamedAnimatedParitySuite(t *testing.T, root string, suite paritySuite, n
 				refPath := filepath.Join(refDir, sample+"__"+keyframe.name+".png")
 
 				t.Run(keyframe.name, func(t *testing.T) {
-					if _, err := os.Stat(refPath); err != nil {
+					_, err := os.Stat(refPath)
+					if err != nil {
 						t.Skipf("missing reference: %s", refPath)
 					}
 
 					out := NewPixBuf(doc.Prefs.PWidth.Val, doc.Prefs.PHeight.Val)
 					RenderFrame(out, doc, frame, textures)
 
-					if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+					err = os.MkdirAll(artifactsDir, 0o755)
+					if err != nil {
 						t.Fatalf("mkdir artifacts: %v", err)
 					}
 
 					actualPath := filepath.Join(artifactsDir, sample+"__"+keyframe.name+".png")
-					if err := WritePixBufPNG(actualPath, out); err != nil {
+
+					err = WritePixBufPNG(actualPath, out)
+					if err != nil {
 						t.Fatalf("write artifact: %v", err)
 					}
 
@@ -115,7 +119,8 @@ func runNamedAnimatedParitySuite(t *testing.T, root string, suite paritySuite, n
 						t.Fatalf("read reference: %v", err)
 					}
 
-					if err := comparePixBufWithRef(out, ref, parityTolerance); err != nil {
+					err = comparePixBufWithRef(out, ref, parityTolerance)
+					if err != nil {
 						t.Fatalf("frame %d parity mismatch: %v", frame, err)
 					}
 				})

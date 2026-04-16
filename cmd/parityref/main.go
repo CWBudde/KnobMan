@@ -126,7 +126,8 @@ func renderOne(root, samplePath, outputPath string, frame int, transparentBG boo
 
 	render.RenderFrame(out, doc, frame, textures)
 
-	if err := render.WritePixBufPNG(outputPath, out); err != nil {
+	err = render.WritePixBufPNG(outputPath, out)
+	if err != nil {
 		return fmt.Errorf("write png: %w", err)
 	}
 

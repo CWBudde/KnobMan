@@ -34,7 +34,8 @@ func main() {
 	for _, fixture := range fixtures {
 		path := filepath.Join(*outDir, fixture.Name+".knob")
 		if !*overwrite {
-			if _, err := os.Stat(path); err == nil {
+			_, err = os.Stat(path)
+			if err == nil {
 				continue
 			}
 		}
@@ -258,7 +259,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier0_shape_outline_plain", Build: func() *model.Document {
+		{Name: "shape_outline_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier0ShapeOutlinePlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimShape)
@@ -279,7 +280,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier2_line_plain", Build: func() *model.Document {
+		{Name: "line_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier2LinePlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimLine)
@@ -300,7 +301,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier2_radiate_line_plain", Build: func() *model.Document {
+		{Name: "radiate_line_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier2RadiateLinePlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimRadiateLine)
@@ -321,7 +322,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier2_hlines_plain", Build: func() *model.Document {
+		{Name: "hlines_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier2HLinesPlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimHLines)
@@ -342,7 +343,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier2_vlines_plain", Build: func() *model.Document {
+		{Name: "vlines_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier2VLinesPlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimVLines)

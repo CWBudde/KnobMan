@@ -160,7 +160,8 @@ func TestParityCaseSpec(t *testing.T) {
 		t.Fatalf("primitives frame mismatch: got %d want 0", frame)
 	}
 
-	if _, _, err := parityCaseSpec(root, "unknown", "x"); err == nil {
+	_, _, err = parityCaseSpec(root, "unknown", "x")
+	if err == nil {
 		t.Fatal("expected error for unsupported suite")
 	}
 }
@@ -199,7 +200,8 @@ func TestParityCaseSpecAnimatedKeyframes(t *testing.T) {
 		t.Fatalf("animated-samples frame mismatch: got %d want 4", frame)
 	}
 
-	if _, _, err := parityCaseSpec(root, "animated", "fixture"); err == nil {
+	_, _, err = parityCaseSpec(root, "animated", "fixture")
+	if err == nil {
 		t.Fatal("expected error for animated case without keyframe suffix")
 	}
 }
@@ -218,7 +220,8 @@ func solidImage(width, height int, c color.RGBA) *image.RGBA {
 func mustWritePNG(t *testing.T, path string, img image.Image) {
 	t.Helper()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
 		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 	}
 
@@ -228,7 +231,8 @@ func mustWritePNG(t *testing.T, path string, img image.Image) {
 	}
 	defer f.Close()
 
-	if err := png.Encode(f, img); err != nil {
+	err = png.Encode(f, img)
+	if err != nil {
 		t.Fatalf("encode %s: %v", path, err)
 	}
 }
@@ -241,11 +245,13 @@ func mustWriteKnob(t *testing.T, path string, doc *model.Document) {
 		t.Fatalf("save %s: %v", path, err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	err = os.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
 		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	err = os.WriteFile(path, data, 0o644)
+	if err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }

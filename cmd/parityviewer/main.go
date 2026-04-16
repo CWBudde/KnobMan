@@ -148,9 +148,13 @@ func loadCases(parityDir string) (loadResult, error) {
 				name := strings.TrimSuffix(filepath.Base(baselinePath), filepath.Ext(baselinePath))
 
 				artifactPath := filepath.Join(artifactDir, baselineName, name+".png")
-				if _, err := os.Stat(artifactPath); err != nil {
+
+				_, err := os.Stat(artifactPath)
+				if err != nil {
 					artifactPath = filepath.Join(artifactDir, name+".png")
-					if _, err := os.Stat(artifactPath); err != nil {
+
+					_, err = os.Stat(artifactPath)
+					if err != nil {
 						result.MissingArtifactCnt++
 						continue
 					}
@@ -433,7 +437,8 @@ func detectRepoRoot() (string, error) {
 	}
 
 	for range 8 {
-		if _, err := os.Stat(filepath.Join(wd, "go.mod")); err == nil {
+		_, err := os.Stat(filepath.Join(wd, "go.mod"))
+		if err == nil {
 			return wd, nil
 		}
 
@@ -475,7 +480,9 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	outputPaths := []string{filepath.Join(artifactDir, name+".png")}
 	for _, baselineName := range []string{"baseline-go", "baseline-java"} {
 		basePath := filepath.Join(artifactDir, baselineName, name+".png")
-		if _, err := os.Stat(filepath.Dir(basePath)); err == nil {
+
+		_, err := os.Stat(filepath.Dir(basePath))
+		if err == nil {
 			outputPaths = append(outputPaths, basePath)
 		}
 	}
@@ -500,7 +507,8 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	}
 	defer os.Remove(outputFile.Name())
 
-	if err := outputFile.Close(); err != nil {
+	err = outputFile.Close()
+	if err != nil {
 		return fmt.Errorf("close temp output: %w", err)
 	}
 
@@ -526,7 +534,8 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 		return fmt.Errorf("rerender failed: %s", msg)
 	}
 
-	if _, err := os.Stat(outputPath); err != nil {
+	_, err = os.Stat(outputPath)
+	if err != nil {
 		return fmt.Errorf("rerender did not produce %s: %w", outputPath, err)
 	}
 

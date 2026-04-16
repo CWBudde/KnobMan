@@ -45,7 +45,8 @@ func loadAggTrueTypeFont(p *model.Primitive, size float64) loadedTrueTypeFont {
 	txt.SetFlip(true)
 	txt.SetSize(size, 0)
 
-	if err := txt.LoadFont(resolved.path); err != nil {
+	err = txt.LoadFont(resolved.path)
+	if err != nil {
 		_ = txt.Close()
 		return loadedTrueTypeFont{}
 	}
@@ -85,7 +86,8 @@ func findFontPath(family string, bold, italic bool) resolvedFontFace {
 	}
 
 	if filepath.IsAbs(family) {
-		if _, err := os.Stat(family); err == nil {
+		_, err := os.Stat(family)
+		if err == nil {
 			return resolvedFontFace{
 				path:            family,
 				syntheticItalic: italic,
@@ -101,7 +103,8 @@ func findFontPath(family string, bold, italic bool) resolvedFontFace {
 		}
 
 		for _, path := range fallbackFontPaths(family) {
-			if _, err := os.Stat(path); err == nil {
+			_, err := os.Stat(path)
+			if err == nil {
 				return resolvedFontFace{
 					path:            path,
 					syntheticItalic: italic,
@@ -123,7 +126,8 @@ func findFontPath(family string, bold, italic bool) resolvedFontFace {
 	}
 
 	for _, path := range fallbackFontPaths("SansSerif") {
-		if _, err := os.Stat(path); err == nil {
+		_, err := os.Stat(path)
+		if err == nil {
 			return resolvedFontFace{
 				path:            path,
 				syntheticItalic: italic,
@@ -158,7 +162,8 @@ func candidateFontFamilies(family string) []string {
 }
 
 func resolveFontWithFCMatchExact(patternFamily, requestedFamily string, bold, italic bool) resolvedFontFace {
-	if _, err := exec.LookPath("fc-match"); err != nil {
+	_, err := exec.LookPath("fc-match")
+	if err != nil {
 		return resolvedFontFace{}
 	}
 
@@ -177,7 +182,8 @@ func resolveFontWithFCMatchExact(patternFamily, requestedFamily string, bold, it
 			continue
 		}
 
-		if _, err := os.Stat(path); err == nil {
+		_, err = os.Stat(path)
+		if err == nil {
 			return resolvedFontFace{
 				path:            path,
 				syntheticItalic: italic && !pattern.realItalic,

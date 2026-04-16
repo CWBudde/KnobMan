@@ -246,7 +246,9 @@ func collectStrictMismatchCounts(t *testing.T, root string, suite paritySuite, b
 		}
 
 		refPath := filepath.Join(refDir, name+".png")
-		if _, err := os.Stat(refPath); err != nil {
+
+		_, err := os.Stat(refPath)
+		if err != nil {
 			continue
 		}
 
@@ -431,7 +433,8 @@ func runParitySuite(t *testing.T, root string, suite paritySuite, baseline strin
 				t.Fatalf("load sample: %v", err)
 			}
 
-			if _, err := os.Stat(refPath); err != nil {
+			_, err = os.Stat(refPath)
+			if err != nil {
 				t.Skipf("missing reference: %s", refPath)
 			}
 
@@ -442,12 +445,15 @@ func runParitySuite(t *testing.T, root string, suite paritySuite, baseline strin
 
 			RenderFrame(out, doc, 0, textures)
 
-			if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+			err = os.MkdirAll(artifactsDir, 0o755)
+			if err != nil {
 				t.Fatalf("mkdir artifacts: %v", err)
 			}
 
 			actualPath := filepath.Join(artifactsDir, name+".png")
-			if err := WritePixBufPNG(actualPath, out); err != nil {
+
+			err = WritePixBufPNG(actualPath, out)
+			if err != nil {
 				t.Fatalf("write artifact: %v", err)
 			}
 
@@ -456,7 +462,8 @@ func runParitySuite(t *testing.T, root string, suite paritySuite, baseline strin
 				t.Fatalf("read reference: %v", err)
 			}
 
-			if err := comparePixBufWithRef(out, ref, parityTolerance); err != nil {
+			err = comparePixBufWithRef(out, ref, parityTolerance)
+			if err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -485,7 +492,8 @@ func runNamedParitySuite(t *testing.T, root string, suite paritySuite, names []s
 				t.Fatalf("load sample: %v", err)
 			}
 
-			if _, err := os.Stat(refPath); err != nil {
+			_, err = os.Stat(refPath)
+			if err != nil {
 				t.Skipf("missing reference: %s", refPath)
 			}
 
@@ -496,12 +504,15 @@ func runNamedParitySuite(t *testing.T, root string, suite paritySuite, names []s
 
 			RenderFrame(out, doc, 0, textures)
 
-			if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+			err = os.MkdirAll(artifactsDir, 0o755)
+			if err != nil {
 				t.Fatalf("mkdir artifacts: %v", err)
 			}
 
 			actualPath := filepath.Join(artifactsDir, sample+".png")
-			if err := WritePixBufPNG(actualPath, out); err != nil {
+
+			err = WritePixBufPNG(actualPath, out)
+			if err != nil {
 				t.Fatalf("write artifact: %v", err)
 			}
 
@@ -510,7 +521,8 @@ func runNamedParitySuite(t *testing.T, root string, suite paritySuite, names []s
 				t.Fatalf("read reference: %v", err)
 			}
 
-			if err := comparePixBufWithRef(out, ref, parityTolerance); err != nil {
+			err = comparePixBufWithRef(out, ref, parityTolerance)
+			if err != nil {
 				t.Fatal(err)
 			}
 		})

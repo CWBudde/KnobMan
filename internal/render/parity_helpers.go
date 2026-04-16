@@ -95,7 +95,8 @@ func ResolveTexturesForParity(doc *model.Document, repoRoot string) ([]*Texture,
 						p = filepath.Join(base, name)
 					}
 
-					if file, err := os.ReadFile(p); err == nil {
+					file, err := os.ReadFile(p)
+					if err == nil {
 						data = file
 						break
 					}
@@ -161,7 +162,8 @@ func WritePixBufPNG(path string, buf *PixBuf) error {
 		return errors.New("invalid pixbuf image conversion")
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
 		return err
 	}
 
