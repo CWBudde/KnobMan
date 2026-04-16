@@ -170,6 +170,7 @@ func exportStripPNG(colors ...color.NRGBA) []byte {
 	}
 
 	var buf bytes.Buffer
+
 	err := png.Encode(&buf, img)
 	if err != nil {
 		panic(err)

@@ -5,13 +5,13 @@ import (
 	"testing"
 )
 
-// TestResolveTexturesForParityAnonymousEmbedded exercises the tier3 fixture
+// TestResolveTexturesForParityAnonymousEmbedded exercises the circle_fill_texture fixture
 // where PrimTextureFile is empty but TexBmp0 carries embedded PNG bytes. The
 // loader must still decode the embedded texture and wire TextureFile.Val so
 // the renderer can sample it.
 func TestResolveTexturesForParityAnonymousEmbedded(t *testing.T) {
 	root := testRepoRoot(t)
-	samplePath := filepath.Join(root, "tests", "parity", "primitives", "inputs", "tier3_circle_fill_texture.knob")
+	samplePath := filepath.Join(root, "tests", "parity", "primitives", "inputs", "circle_fill_texture.knob")
 
 	doc, textures, err := LoadParityDocument(samplePath, root)
 	if err != nil {

@@ -83,7 +83,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier3_circle_outline_shell", Build: func() *model.Document {
+		{Name: "circle_outline_shell", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier3CircleOutlineShell")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimCircle)
@@ -119,7 +119,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier3_circle_fill_shell", Build: func() *model.Document {
+		{Name: "circle_fill_shell", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier3CircleFillShell")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimCircleFill)
@@ -127,7 +127,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier3_circle_fill_lit", Build: func() *model.Document {
+		{Name: "circle_fill_lit", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier3CircleFillLit")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimCircleFill)
@@ -138,7 +138,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier3_circle_fill_texture", Build: func() *model.Document {
+		{Name: "circle_fill_texture", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier3CircleFillTexture")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimCircleFill)
@@ -202,7 +202,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier1_rect_fill_plain", Build: func() *model.Document {
+		{Name: "rect_fill_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier1RectFillPlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimRectFill)
@@ -210,7 +210,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier1_rect_fill_aspect", Build: func() *model.Document {
+		{Name: "rect_fill_aspect", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier1RectFillAspect")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimRectFill)
@@ -219,7 +219,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier1_rect_outline_plain", Build: func() *model.Document {
+		{Name: "rect_outline_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier1RectOutlinePlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimRect)
@@ -238,7 +238,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier1_triangle_plain", Build: func() *model.Document {
+		{Name: "triangle_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier1TrianglePlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimTriangle)
@@ -248,7 +248,7 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "tier0_shape_fill_plain", Build: func() *model.Document {
+		{Name: "shape_fill_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier0ShapeFillPlain")
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimShape)
