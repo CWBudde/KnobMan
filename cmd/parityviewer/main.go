@@ -18,8 +18,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
+	"knobman/internal/fileio"
 	"knobman/internal/render"
 )
 
@@ -463,7 +465,7 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 		return fmt.Errorf("invalid case name %q", name)
 	}
 
-	inputPath, err := parityInputPath(repoRoot, suite, name)
+	inputPath, frame, err := parityCaseSpec(repoRoot, suite, name)
 	if err != nil {
 		return err
 	}
@@ -508,7 +510,7 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 		"go", "run", "-tags", "freetype", "./cmd/parityref",
 		"--input", inputPath,
 		"--output", outputPath,
-		"--frame", "0",
+		"--frame", strconv.Itoa(frame),
 	)
 	cmd.Dir = repoRoot
 
@@ -560,14 +562,74 @@ func isSafePathPart(s string) bool {
 	return !strings.Contains(s, "..")
 }
 
-func parityInputPath(repoRoot, suite, name string) (string, error) {
+func parityCaseSpec(repoRoot, suite, name string) (string, int, error) {
 	switch suite {
 	case "samples":
-		return filepath.Join(repoRoot, "assets", "samples", name+".knob"), nil
+		return filepath.Join(repoRoot, "assets", "samples", name+".knob"), 0, nil
 	case "primitives":
-		return filepath.Join(repoRoot, "tests", "parity", "primitives", "inputs", name+".knob"), nil
+		return filepath.Join(repoRoot, "tests", "parity", "primitives", "inputs", name+".knob"), 0, nil
+	case "animated":
+		return animatedCaseSpec(filepath.Join(repoRoot, "tests", "parity", "animated", "inputs"), name)
+	case "animated-samples":
+		return animatedCaseSpec(filepath.Join(repoRoot, "assets", "samples"), name)
 	default:
-		return "", fmt.Errorf("unsupported suite %q", suite)
+		return "", 0, fmt.Errorf("unsupported suite %q", suite)
+	}
+}
+
+func animatedCaseSpec(inputDir, name string) (string, int, error) {
+	baseName, keyframe, ok := strings.Cut(name, "__")
+	if !ok || strings.TrimSpace(baseName) == "" || strings.TrimSpace(keyframe) == "" {
+		return "", 0, fmt.Errorf("animated case %q must use name__keyframe form", name)
+	}
+
+	inputPath := filepath.Join(inputDir, baseName+".knob")
+
+	totalFrames, err := renderFrameCount(inputPath)
+	if err != nil {
+		return "", 0, err
+	}
+
+	frame, err := keyframeFrameIndex(keyframe, totalFrames)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return inputPath, frame, nil
+}
+
+func renderFrameCount(inputPath string) (int, error) {
+	data, err := os.ReadFile(inputPath)
+	if err != nil {
+		return 0, fmt.Errorf("read input %s: %w", inputPath, err)
+	}
+
+	doc, err := fileio.Load(data)
+	if err != nil {
+		return 0, fmt.Errorf("load input %s: %w", inputPath, err)
+	}
+
+	if doc.Prefs.RenderFrames.Val <= 1 {
+		return 1, nil
+	}
+
+	return doc.Prefs.RenderFrames.Val, nil
+}
+
+func keyframeFrameIndex(keyframe string, totalFrames int) (int, error) {
+	if totalFrames <= 1 {
+		return 0, nil
+	}
+
+	switch keyframe {
+	case "first":
+		return 0, nil
+	case "mid":
+		return totalFrames / 2, nil
+	case "last":
+		return totalFrames - 1, nil
+	default:
+		return 0, fmt.Errorf("unsupported keyframe %q", keyframe)
 	}
 }
 
@@ -825,6 +887,8 @@ code { color: #f4f7fb; }
       <option value="">Suite: all</option>
       <option value="samples">Suite: samples</option>
       <option value="primitives">Suite: primitives</option>
+      <option value="animated">Suite: animated</option>
+      <option value="animated-samples">Suite: animated-samples</option>
     </select>
     <select id="baseline-filter" onchange="filterCards()">
       <option value="">Baseline: all</option>

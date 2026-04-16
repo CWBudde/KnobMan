@@ -36,6 +36,7 @@ func newDynamicText(s string) dynamicText {
 		fmt: "%d",
 	}
 	dt.total = dt.count()
+
 	return dt
 }
 
@@ -43,6 +44,7 @@ func (dt *dynamicText) get(frame, totalFrames int) string {
 	if totalFrames <= 1 {
 		return dt.getItem(0)
 	}
+
 	return dt.getItem(dt.total * frame / (totalFrames - 1))
 }
 
@@ -50,14 +52,17 @@ func (dt *dynamicText) getItem(n int) string {
 	p := 0
 	dt.pi = 0
 	item := ""
+
 	if n >= dt.total {
 		n = dt.total - 1
 	}
+
 	for n >= 0 {
 		item = dt.getNext(p)
 		p = dt.p
 		n--
 	}
+
 	return item
 }
 
@@ -72,15 +77,19 @@ func (dt *dynamicText) getNext(pStart int) string {
 				if dt.pn2 < dt.pn1 {
 					val = dt.pn1 - float64(dt.pi)*dt.pn3
 				}
+
 				out.WriteString(dt.wsprintf(val))
 				dt.pi++
+
 				dt.p++
 				for dt.p < len(dt.str) && dt.str[dt.p] != ',' {
 					out.WriteByte(dt.str[dt.p])
 					dt.p++
 				}
+
 				if dt.pi > i {
 					dt.pi = 0
+
 					dt.p = dt.skip(dt.p)
 					if dt.p < len(dt.str) && dt.str[dt.p] == ',' {
 						dt.p++
@@ -88,6 +97,7 @@ func (dt *dynamicText) getNext(pStart int) string {
 				} else {
 					dt.p = pStart
 				}
+
 				return out.String()
 			}
 		}
@@ -95,20 +105,24 @@ func (dt *dynamicText) getNext(pStart int) string {
 		if p >= len(dt.str) {
 			break
 		}
+
 		if dt.str[p] == ',' {
 			p++
 			break
 		}
+
 		out.WriteByte(dt.str[p])
 		p++
 	}
 
 	dt.p = p
+
 	return out.String()
 }
 
 func (dt *dynamicText) count() int {
 	total := 1
+
 	for p := 0; p < len(dt.str); p++ {
 		switch dt.getChar(p) {
 		case ',':
@@ -120,6 +134,7 @@ func (dt *dynamicText) count() int {
 			}
 		}
 	}
+
 	return total
 }
 
@@ -135,6 +150,7 @@ func (dt *dynamicText) checkNum(p int) int {
 
 	r2 := dt.getANum(dt.p + 1)
 	r3 := 1.0
+
 	if dt.getChar(dt.p) == ':' {
 		c := dt.getChar(dt.p + 1)
 		if dt.isDigit(c) || c == '.' {
@@ -143,28 +159,34 @@ func (dt *dynamicText) checkNum(p int) int {
 				r3 = 1
 			}
 		}
+
 		if dt.getChar(dt.p) == ':' {
 			dt.p++
+
 			dt.fmt = ""
 			for dt.getChar(dt.p) != ')' && dt.getChar(dt.p) != ':' && dt.p < len(dt.str) {
 				dt.fmt += string(dt.getChar(dt.p))
 				dt.p++
 			}
 		}
+
 		if dt.getChar(dt.p) == ':' {
 			dt.p++
 			dt.fx = dt.p
 			iParen = 0
+
 			for dt.p < len(dt.str) && dt.getChar(dt.p) != ':' {
 				if dt.getChar(dt.p) == '(' {
 					iParen++
 				}
+
 				if dt.getChar(dt.p) == ')' {
 					iParen--
 					if iParen < 0 {
 						break
 					}
 				}
+
 				dt.p++
 			}
 		}
@@ -177,6 +199,7 @@ func (dt *dynamicText) checkNum(p int) int {
 	dt.pn1 = r1
 	dt.pn2 = r2
 	dt.pn3 = r3
+
 	return int(math.Abs(r1-r2) / r3)
 }
 
@@ -204,6 +227,7 @@ func (dt *dynamicText) wsprintf(val float64) string {
 
 		if dt.fmt[i] == '+' {
 			showPlus = val >= 0
+
 			i++
 			if i >= len(dt.fmt) {
 				break
@@ -212,6 +236,7 @@ func (dt *dynamicText) wsprintf(val float64) string {
 
 		if dt.fmt[i] == '0' {
 			zeroPad = true
+
 			i++
 			if i >= len(dt.fmt) {
 				break
@@ -220,6 +245,7 @@ func (dt *dynamicText) wsprintf(val float64) string {
 
 		if dt.isDigit(byte(dt.fmt[i])) {
 			width = int(dt.fmt[i] - '0')
+
 			i++
 			if i >= len(dt.fmt) {
 				break
@@ -231,9 +257,11 @@ func (dt *dynamicText) wsprintf(val float64) string {
 			if i >= len(dt.fmt) {
 				break
 			}
+
 			pcs = 0
 			if dt.isDigit(byte(dt.fmt[i])) {
 				pcs = int(dt.fmt[i] - '0')
+
 				i++
 				if i >= len(dt.fmt) {
 					break
@@ -242,6 +270,7 @@ func (dt *dynamicText) wsprintf(val float64) string {
 		}
 
 		var strv string
+
 		switch dt.fmt[i] {
 		case 'd':
 			strv = strconv.Itoa(int(val))
@@ -258,12 +287,15 @@ func (dt *dynamicText) wsprintf(val float64) string {
 			if zeroPad {
 				pad = "00000000"
 			}
+
 			strv = pad + strv
 			strv = strv[len(strv)-width:]
 		}
+
 		if showPlus {
 			strv = "+" + strv
 		}
+
 		out.WriteString(strv)
 	}
 
@@ -314,34 +346,40 @@ func (dt *dynamicText) eval1(p int, val float64) float64 {
 		if dt.getChar(dt.p) == ',' {
 			dt.p++
 		}
+
 		d = math.Pow(d, dt.eval(dt.p, val))
 		if dt.getChar(dt.p) == ')' {
 			dt.p++
 		}
+
 		return d
 	case strings.HasPrefix(dt.str[p:], "exp("):
 		d := dt.eval(p+4, val)
 		if dt.getChar(dt.p) == ')' {
 			dt.p++
 		}
+
 		return math.Exp(d)
 	case strings.HasPrefix(dt.str[p:], "log("):
 		d := dt.eval(p+4, val)
 		if dt.getChar(dt.p) == ')' {
 			dt.p++
 		}
+
 		return math.Log(d)
 	case strings.HasPrefix(dt.str[p:], "log10("):
 		d := dt.eval(p+6, val)
 		if dt.getChar(dt.p) == ')' {
 			dt.p++
 		}
+
 		return math.Log10(d)
 	case strings.HasPrefix(dt.str[p:], "sqrt("):
 		d := dt.eval(p+5, val)
 		if dt.getChar(dt.p) == ')' {
 			dt.p++
 		}
+
 		return math.Sqrt(d)
 	default:
 		return dt.eval0(p, val)
@@ -358,6 +396,7 @@ func (dt *dynamicText) eval0(p int, val float64) float64 {
 		if dt.getChar(dt.p) == ')' {
 			dt.p++
 		}
+
 		return d
 	case '-':
 		return -dt.eval0(p+1, val)
@@ -395,6 +434,7 @@ func (dt *dynamicText) getANum(p int) float64 {
 
 	dt.p = dt.skip(p)
 	dt.pn3 = sign * (float64(n1) + frac)
+
 	return dt.pn3
 }
 
@@ -402,6 +442,7 @@ func (dt *dynamicText) getChar(p int) byte {
 	if p >= len(dt.str) || p < 0 {
 		return 0
 	}
+
 	return dt.str[p]
 }
 
@@ -409,6 +450,7 @@ func (dt *dynamicText) skip(p int) int {
 	for dt.getChar(p) == ' ' {
 		p++
 	}
+
 	return p
 }
 

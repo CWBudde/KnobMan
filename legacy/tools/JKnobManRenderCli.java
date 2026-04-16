@@ -30,6 +30,10 @@ public class JKnobManRenderCli
             {
                 renderSamples(ctl, opts);
             }
+            else if (opts.keyframes != null && opts.keyframes.length > 0)
+            {
+                renderKeyframes(ctl, opts.inputFile, opts.outputFile, opts);
+            }
             else
             {
                 renderOne(ctl, opts.inputFile, opts.outputFile, opts.frame, opts.useRenderFrames, opts.flattenBackground);
@@ -70,6 +74,17 @@ public class JKnobManRenderCli
                 name = name.substring(0, dot);
             }
 
+            if (!opts.wantsSample(name))
+            {
+                continue;
+            }
+
+            if (opts.keyframes != null && opts.keyframes.length > 0)
+            {
+                renderKeyframes(ctl, sample, opts.outputDir, name, opts);
+                continue;
+            }
+
             File out = new File(opts.outputDir, name + ".png");
             if (out.exists() && !opts.overwrite)
             {
@@ -91,25 +106,12 @@ public class JKnobManRenderCli
     )
         throws IOException
     {
-        if (inputFile == null)
-        {
-            throw new IOException("missing input file");
-        }
-        if (!inputFile.isFile())
-        {
-            throw new IOException("input file not found: " + inputFile);
-        }
         if (outputFile == null)
         {
             throw new IOException("missing output file");
         }
 
-        loadKnob(ctl, inputFile, useRenderFrames);
-        ctl.renderreq.WaitBreak();
-
-        resolveExternalAssets(ctl);
-
-        Bitmap strip = renderStrip(ctl, flattenBackground);
+        Bitmap strip = renderStripForInput(ctl, inputFile, useRenderFrames, flattenBackground);
         Bitmap out = extractFrame(strip, ctl, frame);
 
         File parent = outputFile.getParentFile();
@@ -119,6 +121,63 @@ public class JKnobManRenderCli
         }
 
         out.Write(outputFile.getAbsolutePath(), "png");
+    }
+
+    private static void renderKeyframes(Control ctl, File inputFile, File outputFile, Options opts) throws IOException
+    {
+        Bitmap strip = renderStripForInput(ctl, inputFile, opts.useRenderFrames, opts.flattenBackground);
+        for (String keyframe : opts.keyframes)
+        {
+            File out = keyframeOutputFile(outputFile, keyframe);
+            Bitmap frame = extractFrame(strip, ctl, keyframeFrameIndex(keyframe, ctl.prefs.frames));
+            File parent = out.getParentFile();
+            if (parent != null && !parent.exists() && !parent.mkdirs())
+            {
+                throw new IOException("failed to create output directory " + parent);
+            }
+            frame.Write(out.getAbsolutePath(), "png");
+        }
+    }
+
+    private static void renderKeyframes(Control ctl, File inputFile, File outputDir, String stem, Options opts) throws IOException
+    {
+        Bitmap strip = renderStripForInput(ctl, inputFile, opts.useRenderFrames, opts.flattenBackground);
+        for (String keyframe : opts.keyframes)
+        {
+            File out = new File(outputDir, stem + "__" + keyframe + ".png");
+            if (out.exists() && !opts.overwrite)
+            {
+                continue;
+            }
+
+            Bitmap frame = extractFrame(strip, ctl, keyframeFrameIndex(keyframe, ctl.prefs.frames));
+            frame.Write(out.getAbsolutePath(), "png");
+            System.out.println(out.getPath());
+        }
+    }
+
+    private static Bitmap renderStripForInput(
+        Control ctl,
+        File inputFile,
+        boolean useRenderFrames,
+        boolean flattenBackground
+    )
+        throws IOException
+    {
+        if (inputFile == null)
+        {
+            throw new IOException("missing input file");
+        }
+        if (!inputFile.isFile())
+        {
+            throw new IOException("input file not found: " + inputFile);
+        }
+        loadKnob(ctl, inputFile, useRenderFrames);
+        ctl.renderreq.WaitBreak();
+
+        resolveExternalAssets(ctl);
+
+        return renderStrip(ctl, flattenBackground);
     }
 
     private static void loadKnob(Control ctl, File inputFile, boolean useRenderFrames) throws IOException
@@ -428,7 +487,41 @@ public class JKnobManRenderCli
     {
         System.err.println("Usage:");
         System.err.println("  JKnobManRenderCli --input <file.knob> --output <file.png> [--frame <n>] [--preview-frames] [--flatten-bg]");
-        System.err.println("  JKnobManRenderCli --samples <dir> --output-dir <dir> [--frame <n>] [--overwrite] [--preview-frames] [--flatten-bg]");
+        System.err.println(
+            "  JKnobManRenderCli --input <file.knob> --output <file.png> [--keyframes first,mid,last] [--preview-frames] [--flatten-bg]"
+        );
+        System.err.println(
+            "  JKnobManRenderCli --samples <dir> --output-dir <dir> [--frame <n>] [--keyframes first,mid,last] [--names a,b] [--overwrite] [--preview-frames] [--flatten-bg]"
+        );
+    }
+
+    private static File keyframeOutputFile(File baseOutput, String keyframe)
+    {
+        String name = baseOutput.getName();
+        int dot = name.lastIndexOf('.');
+        String renderedName = dot >= 0 ? name.substring(0, dot) + "__" + keyframe + name.substring(dot) : name + "__" + keyframe + ".png";
+        File parent = baseOutput.getParentFile();
+        return parent == null ? new File(renderedName) : new File(parent, renderedName);
+    }
+
+    private static int keyframeFrameIndex(String keyframe, int totalFrames)
+    {
+        if (totalFrames <= 1)
+        {
+            return 0;
+        }
+
+        switch (keyframe)
+        {
+            case "first":
+                return 0;
+            case "mid":
+                return totalFrames / 2;
+            case "last":
+                return totalFrames - 1;
+            default:
+                throw new IllegalArgumentException("unsupported keyframe: " + keyframe);
+        }
     }
 
     private static final class Options
@@ -437,6 +530,8 @@ public class JKnobManRenderCli
         File outputFile;
         File samplesDir;
         File outputDir;
+        String[] names;
+        String[] keyframes;
         int frame = 0;
         boolean overwrite;
         boolean useRenderFrames = true;
@@ -463,6 +558,14 @@ public class JKnobManRenderCli
                 else if ("--output-dir".equals(arg) && i + 1 < args.length)
                 {
                     opts.outputDir = new File(args[++i]);
+                }
+                else if ("--names".equals(arg) && i + 1 < args.length)
+                {
+                    opts.names = splitList(args[++i]);
+                }
+                else if ("--keyframes".equals(arg) && i + 1 < args.length)
+                {
+                    opts.keyframes = splitList(args[++i]);
                 }
                 else if ("--frame".equals(arg) && i + 1 < args.length)
                 {
@@ -500,6 +603,37 @@ public class JKnobManRenderCli
                 return null;
             }
             return opts;
+        }
+
+        boolean wantsSample(String name)
+        {
+            if (this.names == null || this.names.length == 0)
+            {
+                return true;
+            }
+
+            for (String candidate : this.names)
+            {
+                if (candidate.equals(name))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static String[] splitList(String raw)
+        {
+            if (raw == null || raw.trim().length() == 0)
+            {
+                return new String[0];
+            }
+
+            return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(s -> s.length() > 0)
+                .toArray(String[]::new);
         }
     }
 }

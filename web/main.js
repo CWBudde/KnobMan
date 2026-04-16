@@ -27,6 +27,7 @@ let canvasH = 64;
 let zoomFactor = 8;
 let currentFrame = 0;
 let dirty = true;
+let modifiedSinceSave = false;
 let rafPending = false;
 let pixelBuf = null;
 let imageData = null;
@@ -1523,7 +1524,11 @@ function isCurveSelectorField(key) {
 }
 
 function isDetachedPreviewOpen() {
-  return Boolean(detachedPreviewWindow && !detachedPreviewWindow.closed);
+  try {
+    return Boolean(detachedPreviewWindow && !detachedPreviewWindow.closed);
+  } catch (_) {
+    return false;
+  }
 }
 
 function detachedPreviewRenderFrames() {
@@ -3048,10 +3053,15 @@ async function rememberRecentDoc(entry) {
     ts: now,
     handleKey: entry.handleKey || null,
     reopenable:
-      entry.reopenable !== false && (entry.kind === "sample" || !!entry.handleKey),
+      entry.reopenable !== false &&
+      (entry.kind === "sample" || !!entry.handleKey),
   };
 
   items.unshift(next);
+  const truncated = items.slice(RECENT_DOC_LIMIT);
+  for (const t of truncated) {
+    if (t && t.handleKey) removed.push(t.handleKey);
+  }
   recentDocsSave(items.slice(0, RECENT_DOC_LIMIT));
   await Promise.all(removed.map((key) => idbDeleteHandle(key)));
   if (entry.handleKey && entry.handle) {
@@ -3446,6 +3456,7 @@ function renderFrame() {
 
 function markDirty() {
   dirty = true;
+  modifiedSinceSave = true;
   scheduleRender();
   if (isDetachedPreviewOpen() && !detachedPreviewPlaying) {
     refreshDetachedPreviewNow();
@@ -3579,6 +3590,9 @@ function wireControls() {
   }
 
   document.addEventListener("keydown", onKeyDown);
+  window.addEventListener("beforeunload", (e) => {
+    if (modifiedSinceSave) e.preventDefault();
+  });
   window.addEventListener("resize", () => {
     syncCanvasSize();
     refreshCurveEditor();
@@ -4213,6 +4227,7 @@ function refreshParamPanel() {
 function onNew() {
   window.knobman_newDocument();
   projectBaseName = "project";
+  modifiedSinceSave = false;
   invalidateLayerPreviews();
   currentFrame = 0;
   refreshFromDoc();
@@ -4250,10 +4265,9 @@ async function onSave() {
       handle: result.handle,
     });
   }
+  modifiedSinceSave = false;
   setStatus(
-    result.mode === "picker"
-      ? `Saved ${fileName}`
-      : `Downloaded ${fileName}`,
+    result.mode === "picker" ? `Saved ${fileName}` : `Downloaded ${fileName}`,
   );
 }
 
@@ -4539,6 +4553,7 @@ function applyLoadedProjectBytes(bytes, fileName, statusPrefix) {
   const ok = window.knobman_loadFile(bytes);
   if (!ok) return false;
   setProjectBaseNameFromFileName(fileName);
+  modifiedSinceSave = false;
   invalidateLayerPreviews();
   currentFrame = 0;
   refreshFromDoc();
@@ -4811,7 +4826,9 @@ function applyRestoredSessionState(state) {
   syncAspectRatioFromInputs();
 
   if (window.knobman_selectLayer) {
-    selectedLayer = window.knobman_selectLayer(Number(state.selectedLayer) || 0);
+    selectedLayer = window.knobman_selectLayer(
+      Number(state.selectedLayer) || 0,
+    );
   }
 }
 
@@ -4820,8 +4837,16 @@ function restoreSessionPayload() {
   if (raw) {
     try {
       const payload = JSON.parse(raw);
-      if (payload && payload.data) return payload;
+      if (
+        payload &&
+        typeof payload.data === "string" &&
+        payload.data.length > 0
+      )
+        return payload;
+      console.warn("Session payload missing or has invalid data field");
+      storageRemove(SESSION_KEY);
     } catch (_err) {
+      console.warn("Corrupt session removed from storage");
       storageRemove(SESSION_KEY);
     }
   }

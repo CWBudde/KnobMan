@@ -41,10 +41,12 @@ func applyLegacyHLSAdjust(r, g, b uint8, brightness, contrast, saturation, hue f
 	h, l, s := rgbToLegacyHLS(int(r), int(g), int(b))
 
 	l = int((float64(l-120)*(contrast+100.0))/100.0 + 120.0)
+
 	l = int(float64(l) + brightness*240.0/100.0)
 	if l >= 240 {
 		l = 239
 	}
+
 	if l < 0 {
 		l = 0
 	}
@@ -53,12 +55,14 @@ func applyLegacyHLSAdjust(r, g, b uint8, brightness, contrast, saturation, hue f
 	h += int(hue * (2.0 / 3.0))
 
 	r8, g8, b8 := legacyHLSToRGB(h, l, s)
+
 	return uint8(r8), uint8(g8), uint8(b8)
 }
 
 func rgbToLegacyHLS(r, g, b int) (h, l, s int) {
 	cmax := max(r, max(g, b))
 	cmin := min(r, min(g, b))
+
 	l = ((cmax+cmin)*240 + 255) / 510
 	if cmax == cmin {
 		return 0, l, 0
@@ -72,6 +76,7 @@ func rgbToLegacyHLS(r, g, b int) (h, l, s int) {
 
 	rr := ((cmax-r)*40 + (cmax-cmin)/2) / (cmax - cmin)
 	gg := ((cmax-g)*40 + (cmax-cmin)/2) / (cmax - cmin)
+
 	bb := ((cmax-b)*40 + (cmax-cmin)/2) / (cmax - cmin)
 	switch {
 	case r == cmax:
@@ -81,12 +86,15 @@ func rgbToLegacyHLS(r, g, b int) (h, l, s int) {
 	default:
 		h = 160 + gg - rr
 	}
+
 	if h < 0 {
 		h += 240
 	}
+
 	if h > 240 {
 		h -= 240
 	}
+
 	return h, l, s
 }
 
@@ -94,12 +102,15 @@ func legacyHLSToRGB(h, l, s int) (r, g, b int) {
 	if l > 240 {
 		l = 240
 	}
+
 	if l < 0 {
 		l = 0
 	}
+
 	if s > 240 {
 		s = 240
 	}
+
 	if s <= 0 {
 		v := l * 255 / 240
 		return v, v, v
@@ -111,11 +122,13 @@ func legacyHLSToRGB(h, l, s int) (r, g, b int) {
 	} else {
 		tmp2 = l + s - (l*s+120)/240
 	}
+
 	tmp1 := 2*l - tmp2
 
 	r = (legacyHueToRGB(tmp1, tmp2, h+80)*255 + 120) / 240
 	g = (legacyHueToRGB(tmp1, tmp2, h)*255 + 120) / 240
 	b = (legacyHueToRGB(tmp1, tmp2, h-80)*255 + 120) / 240
+
 	return r, g, b
 }
 
@@ -123,9 +136,11 @@ func legacyHueToRGB(n1, n2, h int) int {
 	for h < 0 {
 		h += 240
 	}
+
 	for h > 240 {
 		h -= 240
 	}
+
 	switch {
 	case h < 40:
 		return n1 + ((n2-n1)*h+20)/40

@@ -30,6 +30,7 @@ func TestTransformBilinearIdentityKeepsSemiTransparentPixelWithinOneLSB(t *testi
 	TransformBilinear(dst, src, m)
 
 	got := dst.At(1, 1)
+
 	want := src.At(1, 1)
 	if deltaRGBA(got, want) > 1 {
 		t.Fatalf("identity transform drift too large: got %+v want %+v", got, want)

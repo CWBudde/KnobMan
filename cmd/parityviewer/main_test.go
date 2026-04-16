@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"knobman/internal/fileio"
+	"knobman/internal/model"
 )
 
 func TestLoadCasesSortsByRMSEDescending(t *testing.T) {
@@ -117,29 +120,87 @@ func TestPageFooterInitializesResampleMode(t *testing.T) {
 	}
 }
 
-func TestParityInputPath(t *testing.T) {
+func TestPageHeaderIncludesAnimatedSuiteFilters(t *testing.T) {
+	for _, want := range []string{
+		`<option value="animated">Suite: animated</option>`,
+		`<option value="animated-samples">Suite: animated-samples</option>`,
+	} {
+		if !strings.Contains(pageHeader, want) {
+			t.Fatalf("pageHeader missing %q", want)
+		}
+	}
+}
+
+func TestParityCaseSpec(t *testing.T) {
 	root := "/repo"
 
-	got, err := parityInputPath(root, "samples", "Aqua")
+	got, frame, err := parityCaseSpec(root, "samples", "Aqua")
 	if err != nil {
-		t.Fatalf("samples parityInputPath: %v", err)
+		t.Fatalf("samples parityCaseSpec: %v", err)
 	}
 
 	if want := filepath.Join(root, "assets", "samples", "Aqua.knob"); got != want {
 		t.Fatalf("samples path mismatch: got %q want %q", got, want)
 	}
 
-	got, err = parityInputPath(root, "primitives", "triangle_basic")
+	if frame != 0 {
+		t.Fatalf("samples frame mismatch: got %d want 0", frame)
+	}
+
+	got, frame, err = parityCaseSpec(root, "primitives", "triangle_basic")
 	if err != nil {
-		t.Fatalf("primitives parityInputPath: %v", err)
+		t.Fatalf("primitives parityCaseSpec: %v", err)
 	}
 
 	if want := filepath.Join(root, "tests", "parity", "primitives", "inputs", "triangle_basic.knob"); got != want {
 		t.Fatalf("primitives path mismatch: got %q want %q", got, want)
 	}
 
-	if _, err := parityInputPath(root, "unknown", "x"); err == nil {
+	if frame != 0 {
+		t.Fatalf("primitives frame mismatch: got %d want 0", frame)
+	}
+
+	if _, _, err := parityCaseSpec(root, "unknown", "x"); err == nil {
 		t.Fatal("expected error for unsupported suite")
+	}
+}
+
+func TestParityCaseSpecAnimatedKeyframes(t *testing.T) {
+	root := t.TempDir()
+	doc := model.NewDocument()
+	doc.Prefs.RenderFrames.Val = 5
+
+	mustWriteKnob(t, filepath.Join(root, "tests", "parity", "animated", "inputs", "fixture.knob"), doc)
+	mustWriteKnob(t, filepath.Join(root, "assets", "samples", "sample.knob"), doc)
+
+	got, frame, err := parityCaseSpec(root, "animated", "fixture__mid")
+	if err != nil {
+		t.Fatalf("animated parityCaseSpec: %v", err)
+	}
+
+	if want := filepath.Join(root, "tests", "parity", "animated", "inputs", "fixture.knob"); got != want {
+		t.Fatalf("animated path mismatch: got %q want %q", got, want)
+	}
+
+	if frame != 2 {
+		t.Fatalf("animated frame mismatch: got %d want 2", frame)
+	}
+
+	got, frame, err = parityCaseSpec(root, "animated-samples", "sample__last")
+	if err != nil {
+		t.Fatalf("animated-samples parityCaseSpec: %v", err)
+	}
+
+	if want := filepath.Join(root, "assets", "samples", "sample.knob"); got != want {
+		t.Fatalf("animated-samples path mismatch: got %q want %q", got, want)
+	}
+
+	if frame != 4 {
+		t.Fatalf("animated-samples frame mismatch: got %d want 4", frame)
+	}
+
+	if _, _, err := parityCaseSpec(root, "animated", "fixture"); err == nil {
+		t.Fatal("expected error for animated case without keyframe suffix")
 	}
 }
 
@@ -169,5 +230,22 @@ func mustWritePNG(t *testing.T, path string, img image.Image) {
 
 	if err := png.Encode(f, img); err != nil {
 		t.Fatalf("encode %s: %v", path, err)
+	}
+}
+
+func mustWriteKnob(t *testing.T, path string, doc *model.Document) {
+	t.Helper()
+
+	data, err := fileio.Save(doc)
+	if err != nil {
+		t.Fatalf("save %s: %v", path, err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
 	}
 }

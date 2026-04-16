@@ -16,10 +16,21 @@ import (
 const parityTolerance uint8 = 2
 
 type paritySuite struct {
+	name            string
 	sampleDir       string
 	baselineGoDir   string
 	baselineJavaDir string
 	artifactsDir    string
+}
+
+// parityAllowlist skips individual samples in runParitySuite / runNamedParitySuite.
+// Key format: "<suite>/<baseline>/<sample>" (e.g. "samples/baseline-java/Green_Radar").
+// Value: human reason shown via t.Skip. Empty today — adding an entry requires a
+// PR linking the tracking issue. See tests/parity/README.md "Pass Policy".
+var parityAllowlist = map[string]string{}
+
+func parityAllowlistKey(suite, baseline, sample string) string {
+	return suite + "/" + baseline + "/" + sample
 }
 
 type parityCheckpointSummary struct {
@@ -51,7 +62,51 @@ func TestParityRegressionPrimitiveFixturesFrame0(t *testing.T) {
 
 func TestParityGoldenPrimitiveFixturesFrame0(t *testing.T) {
 	root := testRepoRoot(t)
-	runParitySuite(t, root, primitiveParitySuite(root), "baseline-java")
+	runNamedParitySuite(t, root, primitiveParitySuite(root), primitiveGoldenFixtureNames(), "baseline-java")
+}
+
+func TestPrimitiveFixtureJavaCheckpoints(t *testing.T) {
+	root := testRepoRoot(t)
+	summary := collectParityCheckpointSummary(t, root, primitiveParitySuite(root), "baseline-java")
+
+	diffRate := 0.0
+	if summary.TotalPixels > 0 {
+		diffRate = float64(summary.TotalDiffPixels) / float64(summary.TotalPixels)
+	}
+
+	t.Logf(
+		"primitive fixture checkpoint baseline=%s compared=%d diffCases=%d meanRMSE=%.4f maxRMSE=%.4f diffRate=%.4f worst=%s",
+		"baseline-java",
+		summary.Compared,
+		summary.DiffCases,
+		summary.MeanRMSE,
+		summary.MaxRMSE,
+		diffRate,
+		summary.WorstCase,
+	)
+
+	budget := parityCheckpointBudget{
+		ComparedCases:    36,
+		ComparedMaxRMSE:  27,
+		ComparedMeanRMSE: 2.6,
+		ComparedDiffRate: 0.42,
+	}
+
+	if summary.Compared != budget.ComparedCases {
+		t.Fatalf("compared cases = %d, want %d", summary.Compared, budget.ComparedCases)
+	}
+
+	if summary.MaxRMSE > budget.ComparedMaxRMSE {
+		t.Fatalf("max RMSE %.4f exceeded checkpoint %.4f", summary.MaxRMSE, budget.ComparedMaxRMSE)
+	}
+
+	if summary.MeanRMSE > budget.ComparedMeanRMSE {
+		t.Fatalf("mean RMSE %.4f exceeded checkpoint %.4f", summary.MeanRMSE, budget.ComparedMeanRMSE)
+	}
+
+	if diffRate > budget.ComparedDiffRate {
+		t.Fatalf("diff rate %.4f exceeded checkpoint %.4f", diffRate, budget.ComparedDiffRate)
+	}
 }
 
 func TestSampleSweepDeltaCheckpoints(t *testing.T) {
@@ -87,9 +142,9 @@ func TestSampleSweepDeltaCheckpoints(t *testing.T) {
 	}
 
 	for _, check := range checks {
-		check := check
 		t.Run(check.name, func(t *testing.T) {
 			summary := collectParityCheckpointSummary(t, root, check.suite, check.baseline)
+
 			diffRate := 0.0
 			if summary.TotalPixels > 0 {
 				diffRate = float64(summary.TotalDiffPixels) / float64(summary.TotalPixels)
@@ -125,6 +180,175 @@ func TestSampleSweepDeltaCheckpoints(t *testing.T) {
 	}
 }
 
+func TestParityStrictZeroMismatchBaselineGo(t *testing.T) {
+	root := testRepoRoot(t)
+
+	suites := []struct {
+		name  string
+		suite paritySuite
+	}{
+		{"samples", sampleParitySuite(root)},
+		{"primitives", primitiveParitySuite(root)},
+	}
+
+	for _, s := range suites {
+		t.Run(s.name, func(t *testing.T) {
+			compared, diffCases, diffPixels, worst := collectStrictMismatchCounts(t, root, s.suite, "baseline-go", parityTolerance)
+
+			t.Logf(
+				"strict zero-mismatch gate suite=%s tolerance=%d compared=%d diffCases=%d diffPixels=%d worst=%s",
+				s.name,
+				parityTolerance,
+				compared,
+				diffCases,
+				diffPixels,
+				worst,
+			)
+
+			if compared == 0 {
+				t.Fatalf("no samples compared for suite %s", s.name)
+			}
+
+			if diffCases != 0 {
+				t.Fatalf("strict gate: %d of %d cases differ from baseline-go at tolerance=%d (worst=%s). Regenerate via just parity-generate / just parity-primitives-generate if the drift is intentional, or add an entry to parityAllowlist with a reason.",
+					diffCases, compared, parityTolerance, worst)
+			}
+
+			if diffPixels != 0 {
+				t.Fatalf("strict gate: %d pixels exceed tolerance=%d vs baseline-go across suite %s",
+					diffPixels, parityTolerance, s.name)
+			}
+		})
+	}
+}
+
+// collectStrictMismatchCounts tallies how many samples and pixels exceed
+// parityTolerance when compared to a baseline. Used by the strict 0x gate.
+// Skipped samples listed in parityAllowlist do not count toward diffCases.
+func collectStrictMismatchCounts(t *testing.T, root string, suite paritySuite, baseline string, tol uint8) (compared, diffCases, diffPixels int, worst string) {
+	t.Helper()
+
+	paths, err := filepath.Glob(filepath.Join(suite.sampleDir, "*.knob"))
+	if err != nil {
+		t.Fatalf("glob samples: %v", err)
+	}
+
+	sort.Strings(paths)
+
+	refDir := suite.baselineDir(t, baseline)
+	worstPixels := 0
+
+	for _, samplePath := range paths {
+		name := strings.TrimSuffix(filepath.Base(samplePath), filepath.Ext(samplePath))
+
+		if _, skipped := parityAllowlist[parityAllowlistKey(suite.name, baseline, name)]; skipped {
+			continue
+		}
+
+		refPath := filepath.Join(refDir, name+".png")
+		if _, err := os.Stat(refPath); err != nil {
+			continue
+		}
+
+		doc, textures, err := LoadParityDocument(samplePath, root)
+		if err != nil {
+			t.Fatalf("load sample %s: %v", samplePath, err)
+		}
+
+		ref, err := ReadPNGAsRGBA(refPath)
+		if err != nil {
+			t.Fatalf("read reference %s: %v", refPath, err)
+		}
+
+		out := NewPixBuf(doc.Prefs.PWidth.Val, doc.Prefs.PHeight.Val)
+		RenderFrame(out, doc, 0, textures)
+
+		pixels := countPixelsExceedingTolerance(out, ref, tol)
+		compared++
+
+		if pixels > 0 {
+			diffCases++
+			diffPixels += pixels
+
+			if pixels > worstPixels {
+				worstPixels = pixels
+				worst = fmt.Sprintf("%s (diffPixels=%d)", name, pixels)
+			}
+		}
+	}
+
+	return compared, diffCases, diffPixels, worst
+}
+
+func countPixelsExceedingTolerance(actual *PixBuf, want *image.RGBA, tol uint8) int {
+	if actual == nil || want == nil {
+		return 0
+	}
+
+	if actual.Width != want.Bounds().Dx() || actual.Height != want.Bounds().Dy() {
+		return actual.Width * actual.Height
+	}
+
+	bad := 0
+
+	for y := range actual.Height {
+		for x := range actual.Width {
+			i := y*actual.Stride + x*4
+			wi := y*want.Stride + x*4
+
+			r := delta(actual.Data[i+0], want.Pix[wi+0], tol)
+			g := delta(actual.Data[i+1], want.Pix[wi+1], tol)
+			b := delta(actual.Data[i+2], want.Pix[wi+2], tol)
+			a := delta(actual.Data[i+3], want.Pix[wi+3], tol)
+
+			if r != 0 || g != 0 || b != 0 || a != 0 {
+				bad++
+			}
+		}
+	}
+
+	return bad
+}
+
+func TestParityAllowlistDefaultsEmpty(t *testing.T) {
+	if n := len(parityAllowlist); n != 0 {
+		t.Fatalf("parity allowlist has %d entries, want 0 by default (see tests/parity/README.md)", n)
+	}
+}
+
+func TestParityAllowlistSkipsNamedSample(t *testing.T) {
+	const (
+		suiteName = "unit-test-suite"
+		baseline  = "baseline-unit"
+		sample    = "fake_sample"
+		reason    = "unit-test entry: verifies allowlist wiring"
+	)
+
+	key := parityAllowlistKey(suiteName, baseline, sample)
+	if want := "unit-test-suite/baseline-unit/fake_sample"; key != want {
+		t.Fatalf("allowlist key = %q, want %q", key, want)
+	}
+
+	if _, exists := parityAllowlist[key]; exists {
+		t.Fatalf("precondition: allowlist already contains %q", key)
+	}
+
+	parityAllowlist[key] = reason
+
+	t.Cleanup(func() { delete(parityAllowlist, key) })
+
+	if got, ok := parityAllowlist[key]; !ok {
+		t.Fatalf("expected allowlist to contain %q after insert", key)
+	} else if got != reason {
+		t.Fatalf("allowlist[%q] = %q, want %q", key, got, reason)
+	}
+
+	missKey := parityAllowlistKey(suiteName, baseline, "not_listed_sample")
+	if _, ok := parityAllowlist[missKey]; ok {
+		t.Fatalf("expected allowlist miss for unknown key %q", missKey)
+	}
+}
+
 func TestNumberHSwitchUnfoldRendersAllFourSlots(t *testing.T) {
 	root := testRepoRoot(t)
 	samplePath := filepath.Join(root, "assets", "samples", "Number_HSwitch.knob")
@@ -155,6 +379,7 @@ func TestNumberHSwitchUnfoldRendersAllFourSlots(t *testing.T) {
 
 func sampleParitySuite(root string) paritySuite {
 	return paritySuite{
+		name:            "samples",
 		sampleDir:       filepath.Join(root, "assets", "samples"),
 		baselineGoDir:   filepath.Join(root, "tests", "parity", "samples", "baseline-go"),
 		baselineJavaDir: filepath.Join(root, "tests", "parity", "samples", "baseline-java"),
@@ -164,6 +389,7 @@ func sampleParitySuite(root string) paritySuite {
 
 func primitiveParitySuite(root string) paritySuite {
 	return paritySuite{
+		name:            "primitives",
 		sampleDir:       filepath.Join(root, "tests", "parity", "primitives", "inputs"),
 		baselineGoDir:   filepath.Join(root, "tests", "parity", "primitives", "baseline-go"),
 		baselineJavaDir: filepath.Join(root, "tests", "parity", "primitives", "baseline-java"),
@@ -195,6 +421,10 @@ func runParitySuite(t *testing.T, root string, suite paritySuite, baseline strin
 
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
+			if reason, ok := parityAllowlist[parityAllowlistKey(suite.name, baseline, name)]; ok {
+				t.Skipf("parity allowlist: %s", reason)
+			}
 
 			doc, textures, err := LoadParityDocument(samplePath, root)
 			if err != nil {
@@ -230,6 +460,93 @@ func runParitySuite(t *testing.T, root string, suite paritySuite, baseline strin
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func runNamedParitySuite(t *testing.T, root string, suite paritySuite, names []string, baseline string) {
+	t.Helper()
+
+	refDir := suite.baselineDir(t, baseline)
+	artifactsDir := filepath.Join(suite.artifactsDir, baseline)
+
+	for _, sample := range names {
+		samplePath := filepath.Join(suite.sampleDir, sample+".knob")
+		refPath := filepath.Join(refDir, sample+".png")
+
+		t.Run(sample, func(t *testing.T) {
+			t.Parallel()
+
+			if reason, ok := parityAllowlist[parityAllowlistKey(suite.name, baseline, sample)]; ok {
+				t.Skipf("parity allowlist: %s", reason)
+			}
+
+			doc, textures, err := LoadParityDocument(samplePath, root)
+			if err != nil {
+				t.Fatalf("load sample: %v", err)
+			}
+
+			if _, err := os.Stat(refPath); err != nil {
+				t.Skipf("missing reference: %s", refPath)
+			}
+
+			out := NewPixBuf(doc.Prefs.PWidth.Val, doc.Prefs.PHeight.Val)
+			if out == nil {
+				t.Fatal("failed to allocate output buffer")
+			}
+
+			RenderFrame(out, doc, 0, textures)
+
+			if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+				t.Fatalf("mkdir artifacts: %v", err)
+			}
+
+			actualPath := filepath.Join(artifactsDir, sample+".png")
+			if err := WritePixBufPNG(actualPath, out); err != nil {
+				t.Fatalf("write artifact: %v", err)
+			}
+
+			ref, err := ReadPNGAsRGBA(refPath)
+			if err != nil {
+				t.Fatalf("read reference: %v", err)
+			}
+
+			if err := comparePixBufWithRef(out, ref, parityTolerance); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func primitiveGoldenFixtureNames() []string {
+	return []string{
+		"circle_fill_basic",
+		"circle_fill_texture_basic",
+		"circle_outline_basic",
+		"hlines_basic",
+		"line_basic",
+		"metal_circle_basic",
+		"radiate_line_basic",
+		"rect_fill_basic",
+		"rect_fill_texture_basic",
+		"rect_outline_basic",
+		"shape_fill_basic",
+		"texture_tiling_seam_circle_fill",
+		"texture_wrap_rect_fill",
+		"texture_zoom_in_rect_fill",
+		"texture_zoom_out_rect_fill",
+		"tier0_shape_fill_plain",
+		"tier1_rect_fill_aspect",
+		"tier1_rect_fill_plain",
+		"tier1_rect_outline_plain",
+		"tier2_hlines_plain",
+		"tier2_line_plain",
+		"tier2_radiate_line_plain",
+		"tier2_vlines_plain",
+		"tier3_circle_fill_shell",
+		"tier3_circle_fill_texture",
+		"tier3_circle_outline_shell",
+		"vlines_basic",
+		"wave_circle_basic",
 	}
 }
 
@@ -453,8 +770,8 @@ func comparePixBufMetrics(actual *PixBuf, want *image.RGBA) (rmse float64, diffP
 
 	var sumSq float64
 
-	for y := 0; y < actual.Height; y++ {
-		for x := 0; x < actual.Width; x++ {
+	for y := range actual.Height {
+		for x := range actual.Width {
 			i := y*actual.Stride + x*4
 			wi := y*want.Stride + x*4
 

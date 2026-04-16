@@ -42,7 +42,7 @@ func restorePrimitiveFixtureTransparency(samplePath string, doc *model.Document)
 	}
 
 	clean := filepath.ToSlash(samplePath)
-	if !strings.Contains(clean, "/tests/parity/primitives/inputs/") {
+	if !strings.Contains(clean, "/tests/parity/primitives/inputs/") && !strings.HasPrefix(clean, "tests/parity/primitives/inputs/") {
 		return
 	}
 
@@ -67,14 +67,21 @@ func ResolveTexturesForParity(doc *model.Document, repoRoot string) ([]*Texture,
 		ly := &doc.Layers[i]
 
 		name := strings.TrimSpace(ly.Prim.TextureName)
-		if name == "" || ly.Prim.TextureDepth.Val == 0 {
+		if ly.Prim.TextureDepth.Val == 0 {
 			ly.Prim.TextureFile.Val = 0
 			continue
 		}
 
-		if existing, ok := byName[name]; ok {
-			ly.Prim.TextureFile.Val = existing
+		if name == "" && len(ly.Prim.EmbeddedTexture) == 0 {
+			ly.Prim.TextureFile.Val = 0
 			continue
+		}
+
+		if name != "" {
+			if existing, ok := byName[name]; ok {
+				ly.Prim.TextureFile.Val = existing
+				continue
+			}
 		}
 
 		var data []byte
@@ -101,17 +108,27 @@ func ResolveTexturesForParity(doc *model.Document, repoRoot string) ([]*Texture,
 		}
 
 		if len(data) == 0 {
+			ly.Prim.TextureFile.Val = 0
 			continue
+		}
+
+		label := name
+		if label == "" {
+			label = fmt.Sprintf("embedded-%d", i)
 		}
 
 		tex, err := DecodeTexture(data)
 		if err != nil {
-			return nil, fmt.Errorf("texture %q: %w", name, err)
+			return nil, fmt.Errorf("texture %q: %w", label, err)
 		}
 
 		textures = append(textures, tex)
+
 		idx := len(textures)
-		byName[name] = idx
+		if name != "" {
+			byName[name] = idx
+		}
+
 		ly.Prim.TextureFile.Val = idx
 	}
 

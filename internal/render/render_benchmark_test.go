@@ -23,13 +23,14 @@ func BenchmarkRenderFrameVU3Frame0(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		RenderFrame(out, doc, 0, textures)
 	}
 }
 
 func benchmarkRepoRoot(b *testing.B) string {
 	b.Helper()
+
 	_, f, _, ok := runtime.Caller(0)
 	if !ok {
 		b.Fatal("runtime.Caller failed")

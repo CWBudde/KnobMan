@@ -143,20 +143,25 @@ func TestRenderTextBlendsOverExistingPixels(t *testing.T) {
 	RenderPrimitive(buf, &p, nil, 0, 1)
 
 	foundTinted := false
+
 	for y := range buf.Height {
 		for x := range buf.Width {
 			got := buf.At(x, y)
 			if got != bg {
 				foundTinted = true
+
 				if got.A != 255 {
 					t.Fatalf("expected blended text over opaque background to stay opaque, got %+v at (%d,%d)", got, x, y)
 				}
+
 				if got.B >= bg.B && got.R <= bg.R {
 					t.Fatalf("expected text blend to tint background, got %+v at (%d,%d)", got, x, y)
 				}
+
 				break
 			}
 		}
+
 		if foundTinted {
 			break
 		}

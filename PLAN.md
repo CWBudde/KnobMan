@@ -7,11 +7,11 @@
 
 ## Status
 
-- Current date: April 13, 2026
+- Current date: April 14, 2026
 - Architecture: Go/WASM + parser + renderer + JS shell
-- Current milestone: `Phase 1.1 Task A-2 / Phase 2 prep` in progress
+- Current milestone: `Phase 5 complete / Phase 6 prep`
 
-## Phase 1 — Baseline Parity (in progress)
+## Phase 1 — Baseline Parity (done)
 
 - [x] Scaffold parity harness and sample fixture iteration.
 - [x] Implement frame-0 test loop over `assets/samples`.
@@ -19,43 +19,43 @@
 - [x] Keep texture loading compatible with legacy BMP textures.
 - [x] Normalize PNG readback (`ReadPNGAsRGBA`) to unpremultiplied RGBA for all decoders.
 - [x] Regenerate `tests/parity/*/baseline-go` from the Go renderer.
-- [ ] Record and enforce baseline mismatches:
-  - [ ] 0x mismatch count check with current tolerance.
-  - [ ] Add per-sample allowlist only if intentional.
+- [x] Record and enforce baseline mismatches:
+  - [x] 0x mismatch count check with current tolerance. _(enforced by `TestParityStrictZeroMismatchBaselineGo` at `parityTolerance=2`.)_
+  - [x] Add per-sample allowlist only if intentional. _(empty `parityAllowlist` wired in `internal/render/parity_test.go` with unit tests.)_
 
 ### Phase 1.1 task split
 
 - [x] Task A-1: make failing samples pass at frame 0.
-- [ ] Task A-2: document any remaining known-failing classes (lighting, texture, effects).
-- [ ] Task A-3: decide strict vs tolerance-based pass policy.
+- [x] Task A-2: document any remaining known-failing classes (lighting, texture, effects). _(see `tests/parity/README.md` Known Deltas.)_
+- [x] Task A-3: decide strict vs tolerance-based pass policy. _(two-track split documented in `tests/parity/README.md` Pass Policy.)_
 
 ## Phase 2 — Primitive + Layer Effects (next)
 
-- [ ] Create isolated fixture tests for primitive raster math edge cases.
-- [ ] Verify primitive families:
-  - [ ] Geometry shape rasterization
-  - [ ] Texture mapping + tiling + wrap
-  - [ ] Opacity/composite behavior on semi-transparent pixels
-- [ ] Add small fixture groups before running the full sample sweep.
+- [x] Create isolated fixture tests for primitive raster math edge cases.
+- [x] Verify primitive families:
+  - [x] Geometry shape rasterization
+  - [x] Texture mapping + tiling + wrap
+  - [x] Opacity/composite behavior on semi-transparent pixels
+- [x] Add small fixture groups before running the full sample sweep.
 
 ## Phase 3 — Effect Stack (next)
 
-- [ ] Add focused tests for transform, shadow, mask, color, and bloom/blur chains.
-- [ ] Add combined-stack fixtures representing real sample order.
-- [ ] Extend comparison to multiple frames for samples with animation.
+- [x] Add focused tests for transform, shadow, mask, color, and bloom/blur chains.
+- [x] Add combined-stack fixtures representing real sample order.
+- [x] Extend comparison to multiple frames for samples with animation.
 
-## Phase 4 — Export + Animation Parity (next)
+## Phase 4 — Export + Animation Parity (in progress)
 
-- [ ] Confirm frame export strip and GIF/APNG timing alignment.
-- [ ] Confirm animated layer/prim/effect interpolation matches frame boundaries.
-- [ ] Add animated parity fixtures for first/mid/last frame.
+- [x] Confirm frame export strip and GIF/APNG timing alignment.
+- [x] Confirm animated layer/prim/effect interpolation matches frame boundaries.
+- [x] Add animated parity fixtures for first/mid/last frame.
 
-## Phase 5 — App Completion (next)
+## Phase 5 — App Completion (done)
 
-- [ ] Finalize undo/redo mutation coverage.
-- [ ] Finish keyboard and history recovery paths.
-- [ ] Persist session/state recovery and recent docs.
-- [ ] Harden JS/WASM integration edge cases.
+- [x] Finalize undo/redo mutation coverage.
+- [x] Finish keyboard and history recovery paths.
+- [x] Persist session/state recovery and recent docs.
+- [x] Harden JS/WASM integration edge cases.
 
 ## Phase 6 — CI / Release (next)
 

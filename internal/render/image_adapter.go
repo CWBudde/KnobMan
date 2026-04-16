@@ -50,6 +50,7 @@ func blendPremultipliedAggImageRectOverPixBuf(dst *PixBuf, src *agg.Image, x0, y
 		srcOff := y * stride
 		for x := x0; x < x1; x++ {
 			si := srcOff + x*4
+
 			a := uint32(src.Data[si+3])
 			if a <= 1 {
 				continue
@@ -269,5 +270,6 @@ func premultiplyRGBAComponent(c, a uint32) uint8 {
 	}
 
 	t := c*a + 128
+
 	return uint8((t + (t >> 8)) >> 8)
 }

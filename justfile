@@ -55,6 +55,10 @@ java-parity-generate FLAGS="":
 primitive-fixtures-generate FLAGS="":
     go run ./cmd/primitivefixtures {{FLAGS}}
 
+# Generate focused animated/effect-stack parity fixtures as .knob files.
+animated-fixtures-generate FLAGS="":
+    go run ./cmd/primitivefixtures --suite animated {{FLAGS}}
+
 # Render frame-0 Go regression baselines for the primitive fixtures.
 parity-primitives-generate FLAGS="":
     go run -tags freetype ./cmd/parityref --samples tests/parity/primitives/inputs --refs tests/parity/primitives/baseline-go --frame 0 --overwrite {{FLAGS}}
@@ -63,6 +67,22 @@ parity-primitives-generate FLAGS="":
 java-parity-primitives-generate FLAGS="":
     ./legacy/run-render-cli.sh --samples tests/parity/primitives/inputs --output-dir tests/parity/primitives/baseline-java --frame 0 --overwrite {{FLAGS}}
 
+# Render Go regression baselines for animated/effect-stack fixture keyframes.
+parity-animated-generate FLAGS="":
+    go run -tags freetype ./cmd/parityref --samples tests/parity/animated/inputs --refs tests/parity/animated/baseline-go --keyframes first,mid,last --overwrite {{FLAGS}}
+
+# Render authoritative Java baselines for animated/effect-stack fixture keyframes.
+java-parity-animated-generate FLAGS="":
+    ./legacy/run-render-cli.sh --samples tests/parity/animated/inputs --output-dir tests/parity/animated/baseline-java --keyframes first,mid,last --overwrite {{FLAGS}}
+
+# Render Go regression baselines for selected animated sample keyframes.
+parity-animated-samples-generate FLAGS="":
+    go run -tags freetype ./cmd/parityref --samples assets/samples --refs tests/parity/animated-samples/baseline-go --names Green_Radar,LineShadow,White_Vol --keyframes first,mid,last --overwrite {{FLAGS}}
+
+# Render authoritative Java baselines for selected animated sample keyframes.
+java-parity-animated-samples-generate FLAGS="":
+    ./legacy/run-render-cli.sh --samples assets/samples --output-dir tests/parity/animated-samples/baseline-java --names Green_Radar,LineShadow,White_Vol --keyframes first,mid,last --overwrite {{FLAGS}}
+
 # Run the primitive regression suite against Go baselines.
 parity-primitives-test:
     go test -tags freetype ./internal/render -run TestParityRegressionPrimitiveFixturesFrame0 -count=1
@@ -70,6 +90,26 @@ parity-primitives-test:
 # Run the primitive parity suite against authoritative Java baselines.
 parity-primitives-golden-test:
     go test -tags freetype ./internal/render -run TestParityGoldenPrimitiveFixturesFrame0 -count=1
+
+# Run the full Phase 2 primitive parity slice.
+phase2-parity-test:
+    go test -tags freetype ./internal/render -run 'Test(ParityRegressionPrimitiveFixturesFrame0|ParityGoldenPrimitiveFixturesFrame0|PrimitiveFixtureJavaCheckpoints)$' -count=1
+
+# Run animated/effect-stack fixture keyframe parity against Go baselines.
+parity-animated-test:
+    go test -tags freetype ./internal/render -run TestParityRegressionAnimatedFixturesKeyframes -count=1
+
+# Run animated/effect-stack fixture keyframe parity against Java baselines.
+parity-animated-golden-test:
+    go test -tags freetype ./internal/render -run TestParityGoldenAnimatedFixturesKeyframes -count=1
+
+# Run animated sample keyframe regression and Java checkpoint tests.
+parity-animated-samples-test:
+    go test -tags freetype ./internal/render -run 'Test(ParityRegressionAnimatedSamplesKeyframes|AnimatedSampleKeyframeCheckpoints)$' -count=1
+
+# Run the Phase 3 effect-stack/keyframe parity slice.
+phase3-parity-test:
+    go test -tags freetype ./internal/render -run 'Test(ParityRegressionAnimatedFixturesKeyframes|ParityGoldenAnimatedFixturesKeyframes|AnimatedEffectFixtureCheckpoints|ParityRegressionAnimatedSamplesKeyframes|AnimatedSampleKeyframeCheckpoints)$' -count=1
 
 # Run the focused Phase 7 verification checkpoints.
 phase7-checkpoints:

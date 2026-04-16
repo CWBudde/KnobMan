@@ -295,30 +295,30 @@ func jsDuplicateLayer(this js.Value, args []js.Value) any {
 }
 
 func jsSetLayerVisible(this js.Value, args []js.Value) any {
-	pushHistory()
 	if doc == nil || len(args) < 2 {
 		return false
 	}
+	pushHistory()
 	idx := clampLayer(args[0].Int())
 	doc.Layers[idx].Visible.Val = boolToInt(args[1].Bool())
 	return true
 }
 
 func jsSetLayerSolo(this js.Value, args []js.Value) any {
-	pushHistory()
 	if doc == nil || len(args) < 2 {
 		return false
 	}
+	pushHistory()
 	idx := clampLayer(args[0].Int())
 	doc.Layers[idx].Solo.Val = boolToInt(args[1].Bool())
 	return true
 }
 
 func jsSetPrefs(this js.Value, args []js.Value) any {
-	pushHistory()
 	if doc == nil || len(args) < 1 || args[0].Type() != js.TypeObject {
 		return false
 	}
+	pushHistory()
 	obj := args[0]
 	if v := obj.Get("width"); v.Type() != js.TypeUndefined && v.Type() != js.TypeNull {
 		logicalW = maxInt(1, v.Int())

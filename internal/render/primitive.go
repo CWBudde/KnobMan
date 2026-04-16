@@ -189,6 +189,7 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	}
 
 	size := p.FontSize.Val * 0.01 * float64(dst.Height)
+
 	size = math.Floor(size)
 	if size < 6 {
 		size = 6
@@ -223,6 +224,7 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	}
 
 	anchorX := (float64(dst.Width) - textWidth) * 0.5
+
 	switch p.TextAlign.Val {
 	case 1:
 		anchorX = inset
@@ -242,6 +244,7 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	if fontCfg.backend == aggTextBackendGSV {
 		renderTextGSVStyled(ctx, p, anchorX, anchorY, fontCfg.size, txt)
 		blendPremultipliedAggImageOverPixBuf(dst, ctx.GetImage())
+
 		return
 	}
 
@@ -297,12 +300,14 @@ func renderTextTrueTypeOutline(ctx *agg.Context, face *agg.FreeTypeOutlineText, 
 		ctx.PushTransform()
 		ctx.Translate(x, y)
 		ctx.Skew(-12*math.Pi/180, 0)
+
 		ctx.Translate(-x, -y)
 		defer ctx.PopTransform()
 	}
 
 	face.SetText(txt)
 	face.SetStartPoint(float64(int(x)), float64(int(y)))
+
 	if appendFreeTypeOutlineText(ctx, face) {
 		ctx.Fill()
 	}
@@ -318,6 +323,7 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 	mask := NewPixBuf(dst.Width, dst.Height)
 	mask.Clear(color.RGBA{A: 255})
+
 	if p.Fill.Val != 0 {
 		renderShapeFillMask(mask, s, dst.Width, dst.Height)
 	} else {
@@ -380,6 +386,7 @@ func renderShapeFillMask(mask *PixBuf, s string, w, h int) {
 	}
 
 	const samples = 16
+
 	for y := range h {
 		for x := range w {
 			hits := 0
@@ -470,6 +477,7 @@ func renderShapeAggMask(mask *PixBuf, s string, w, h int, fill bool, strokeWidth
 	ctx.SetStrokeColor(agg.Color{B: 255, A: 255})
 	ctx.SetLineJoin(agg.JoinMiter)
 	ctx.SetLineCap(agg.CapSquare)
+
 	if !appendKnobShapeAggPath(ctx, s, w, h, fill) {
 		return false
 	}
@@ -482,6 +490,7 @@ func renderShapeAggMask(mask *PixBuf, s string, w, h int, fill bool, strokeWidth
 	}
 
 	copyAggAlphaToMask(mask, ctx.GetImage())
+
 	return true
 }
 
@@ -493,6 +502,7 @@ func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool
 	knotPolys := parseKnobShapeKnots(s)
 	if len(knotPolys) > 0 {
 		ctx.BeginPath()
+
 		for _, knots := range knotPolys {
 			if len(knots) < 2 {
 				continue
@@ -500,6 +510,7 @@ func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool
 
 			start := knots[0]
 			ctx.MoveTo(shapeScaleX(start.pX, w), shapeScaleY(start.pY, h))
+
 			for i := 1; i < len(knots); i++ {
 				prev := knots[i-1]
 				cur := knots[i]
@@ -509,6 +520,7 @@ func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool
 					shapeScaleX(cur.pX, w), shapeScaleY(cur.pY, h),
 				)
 			}
+
 			if closePath {
 				last := knots[len(knots)-1]
 				ctx.CubicCurveTo(
@@ -519,6 +531,7 @@ func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool
 				ctx.ClosePath()
 			}
 		}
+
 		return true
 	}
 
@@ -529,12 +542,15 @@ func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool
 
 	ctx.BeginPath()
 	ctx.MoveTo(float64(pts[0].x), float64(pts[0].y))
+
 	for _, pt := range pts[1:] {
 		ctx.LineTo(float64(pt.x), float64(pt.y))
 	}
+
 	if closePath {
 		ctx.ClosePath()
 	}
+
 	return true
 }
 
@@ -561,6 +577,7 @@ func renderTriangleAggMask(mask *PixBuf, w, h int, widthPct, lengthPct float64) 
 	ctx.ClosePath()
 	ctx.Fill()
 	copyAggAlphaToMask(mask, ctx.GetImage())
+
 	return true
 }
 
@@ -571,15 +588,18 @@ func copyAggAlphaToMask(mask *PixBuf, img *agg.Image) {
 
 	w := min(mask.Width, img.Width())
 	h := min(mask.Height, img.Height())
+
 	stride := img.Stride()
-	for y := 0; y < h; y++ {
+	for y := range h {
 		srcOff := y * stride
 		dstOff := y * mask.Stride
-		for x := 0; x < w; x++ {
+
+		for x := range w {
 			a := img.Data[srcOff+x*4+3]
 			if a == 0 {
 				continue
 			}
+
 			mask.Data[dstOff+x*4+2] = a
 			mask.Data[dstOff+x*4+3] = 255
 		}

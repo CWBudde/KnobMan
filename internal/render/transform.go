@@ -3,9 +3,9 @@ package render
 import (
 	"image/color"
 	"math"
-)
 
-import agg "github.com/cwbudde/agg_go"
+	agg "github.com/cwbudde/agg_go"
+)
 
 // BuildMatrix builds a destination-to-source affine transform matrix:
 // sx = a*dx + c*dy + e
@@ -83,9 +83,10 @@ func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 
 	dst.Clear(color.RGBA{})
 
-	for y := 0; y < dst.Height; y++ {
-		for x := 0; x < dst.Width; x++ {
+	for y := range dst.Height {
+		for x := range dst.Width {
 			sx, sy := applyAffine(m, float64(x), float64(y))
+
 			c := samplePixBufBilinear(src, sx, sy)
 			if c.A == 0 {
 				continue

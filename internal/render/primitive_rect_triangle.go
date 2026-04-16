@@ -2,8 +2,9 @@ package render
 
 import (
 	"image/color"
-	"knobman/internal/model"
 	"math"
+
+	"knobman/internal/model"
 )
 
 func renderRect(dst *PixBuf, p *model.Primitive, outline bool, textures []*Texture) {
@@ -284,10 +285,12 @@ func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rYLen := float64(dst.Height) * p.Length.Val * 0.01
 	rWidth := float64(dst.Width) * p.Width.Val * 0.005
 	rD := 1.0 - p.Diffuse.Val*0.01
+
 	var mask *PixBuf
 	if p.Diffuse.Val == 0 {
 		mask = NewPixBuf(dst.Width, dst.Height)
 		mask.Clear(color.RGBA{A: 255})
+
 		if !renderTriangleAggMask(mask, dst.Width, dst.Height, p.Width.Val, p.Length.Val) {
 			mask = nil
 		}
@@ -312,10 +315,12 @@ func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 				iA := 255
 				rX := math.Abs(float64(x) + 0.5 - rCX)
+
 				rXLine := rWidth*float64(y)/rYLen + 1.0
 				if rXLine != 0.0 {
 					iA = int((255.0 - rX/rXLine*255.0) * p.Specular.Val * 0.01)
 				}
+
 				iA += lumi
 				iA = clampInt(iA, 0, 254)
 				pix = changeBrightnessRGBA(pix, iA)

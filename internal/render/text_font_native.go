@@ -44,6 +44,7 @@ func loadAggTrueTypeFont(p *model.Primitive, size float64) loadedTrueTypeFont {
 	txt.SetHinting(true)
 	txt.SetFlip(true)
 	txt.SetSize(size, 0)
+
 	if err := txt.LoadFont(resolved.path); err != nil {
 		_ = txt.Close()
 		return loadedTrueTypeFont{}

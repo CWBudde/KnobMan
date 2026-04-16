@@ -21,6 +21,7 @@ func TestConfiguredTextFontProducesPositiveMetrics(t *testing.T) {
 	p.FontName = ""
 
 	size := p.FontSize.Val * 0.01 * float64(ctx.Height())
+
 	fontCfg := configureAggTextFont(ctx, &p, size)
 	defer fontCfg.Close()
 
@@ -29,6 +30,7 @@ func TestConfiguredTextFontProducesPositiveMetrics(t *testing.T) {
 	}
 
 	var width, space float64
+
 	switch fontCfg.backend {
 	case aggTextBackendGSV:
 		width = measureLocalGSVTextWidth("TX", fontCfg.size)
@@ -37,11 +39,14 @@ func TestConfiguredTextFontProducesPositiveMetrics(t *testing.T) {
 		if fontCfg.trueType == nil {
 			t.Fatal("truetype backend selected without configured font source")
 		}
+
 		width = fontCfg.trueType.MeasureText("TX")
+
 		space = fontCfg.trueType.MeasureText(" ")
 		if asc := fontCfg.trueType.GetAscender(); asc <= 0 {
 			t.Fatalf("expected positive ascender for truetype backend, got %v", asc)
 		}
+
 		if desc := fontCfg.trueType.GetDescender(); desc >= 0 {
 			t.Fatalf("expected negative descender for truetype backend, got %v", desc)
 		}
