@@ -207,7 +207,11 @@ func ImageToRGBA(img image.Image) *image.RGBA {
 
 	for y := 0; y < b.Dy(); y++ {
 		for x := 0; x < b.Dx(); x++ {
-			n := color.NRGBAModel.Convert(img.At(b.Min.X+x, b.Min.Y+y)).(color.NRGBA)
+			n, ok := color.NRGBAModel.Convert(img.At(b.Min.X+x, b.Min.Y+y)).(color.NRGBA)
+			if !ok {
+				continue
+			}
+
 			dstOffset := y*out.Stride + x*4
 			out.Pix[dstOffset+0] = n.R
 			out.Pix[dstOffset+1] = n.G

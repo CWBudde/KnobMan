@@ -116,7 +116,7 @@ func legacyHLSToRGB(h, l, s int) (r, g, b int) {
 		return v, v, v
 	}
 
-	tmp2 := 0
+	var tmp2 int
 	if l <= 120 {
 		tmp2 = (l*(240+s) + 120) / 240
 	} else {

@@ -317,9 +317,7 @@ func renderCircleFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			s := geom.sample(x, y)
 
 			pix := base
-			alpha := 255
-			lumi := 0
-			lumi, alpha = sampleTextureLumiAlpha(textures, p, s.px, s.py)
+			lumi, alpha := sampleTextureLumiAlpha(textures, p, s.px, s.py)
 
 			pix = shadeCircleFillInterior(pix, p, s, lumi, lighting)
 			pix = applyCircleFillEmboss(base, pix, p, s, lighting)
@@ -367,7 +365,7 @@ func renderMetalCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 func renderWaveCircle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	base := primitiveColor(p)
-	lumi := 0.0
+	var lumi float64
 	rStep := 180.0 / p.AngleStep.Val
 	rDepth := p.Width.Val * 0.01
 	rCX := float64(dst.Width) * 0.5

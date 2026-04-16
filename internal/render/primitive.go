@@ -206,8 +206,7 @@ func renderText(dst *PixBuf, p *model.Primitive, frame, total int) {
 	fontCfg := configureAggTextFont(ctx, p, size)
 	defer fontCfg.Close()
 
-	textWidth := 0.0
-	spaceWidth := 0.0
+	var textWidth, spaceWidth float64
 
 	switch fontCfg.backend {
 	case aggTextBackendGSV:
@@ -346,12 +345,10 @@ func renderShape(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 				continue
 			}
 
-			lumi := 0
-			alpha := 255
 			rPX := float64(x) - rCX + 0.5
 			rX := -((float64(x) + 0.5) - rCX)
 			rXN := rX / rCX
-			lumi, alpha = sampleTextureLumiAlpha(textures, p, rPX, rPY)
+			lumi, alpha := sampleTextureLumiAlpha(textures, p, rPX, rPY)
 
 			col := base
 			col = changeBrightnessRGBA(col, int((rXN+rYN)*128.0*p.Specular.Val*0.01)+lumi)
@@ -749,7 +746,7 @@ func parseSVGPathCommands(s string) []svgPathCmd {
 	for i := 0; i < len(tokens); {
 		tk := tokens[i]
 		if len(tk) == 1 && isAlphaASCII(tk[0]) {
-			cur = byte(strings.ToUpper(tk)[0])
+			cur = strings.ToUpper(tk)[0]
 			i++
 
 			if cur == 'Z' {

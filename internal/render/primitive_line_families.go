@@ -167,7 +167,7 @@ func renderParallelLines(dst *PixBuf, p *model.Primitive, horizontal bool) {
 
 					yy := 0.0
 					for yy <= 100.0 {
-						r := 0.0
+						var r float64
 						if rXA < rLen {
 							r = yy * (rYArea - rWidth) / 100.0
 							r = math.Abs(r - rYA)
@@ -233,7 +233,7 @@ func renderParallelLines(dst *PixBuf, p *model.Primitive, horizontal bool) {
 
 				xx := 0.0
 				for xx <= 100.0 {
-					r := 0.0
+					var r float64
 					if rYA < rLen {
 						r = xx * (rXArea - rWidth) / 100.0
 						r = math.Abs(r - rXA)

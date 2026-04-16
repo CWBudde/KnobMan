@@ -26,7 +26,7 @@ func LoadParityDocument(samplePath, repoRoot string) (*model.Document, []*Textur
 		return nil, nil, err
 	}
 
-	restorePrimitiveFixtureTransparency(samplePath, doc)
+	restoreFixtureTransparency(samplePath, doc)
 
 	textures, err := ResolveTexturesForParity(doc, repoRoot)
 	if err != nil {
@@ -36,17 +36,23 @@ func LoadParityDocument(samplePath, repoRoot string) (*model.Document, []*Textur
 	return doc, textures, nil
 }
 
-func restorePrimitiveFixtureTransparency(samplePath string, doc *model.Document) {
+func restoreFixtureTransparency(samplePath string, doc *model.Document) {
 	if doc == nil {
 		return
 	}
 
 	clean := filepath.ToSlash(samplePath)
-	if !strings.Contains(clean, "/tests/parity/primitives/inputs/") && !strings.HasPrefix(clean, "tests/parity/primitives/inputs/") {
-		return
+	fixtureDirs := []string{
+		"tests/parity/primitives/inputs/",
+		"tests/parity/animated/inputs/",
 	}
 
-	doc.Prefs.BkColor.Val.A = 0
+	for _, dir := range fixtureDirs {
+		if strings.Contains(clean, "/"+dir) || strings.HasPrefix(clean, dir) {
+			doc.Prefs.BkColor.Val.A = 0
+			return
+		}
+	}
 }
 
 // ResolveTexturesForParity resolves embedded and file-backed textures for parity tests/generation.

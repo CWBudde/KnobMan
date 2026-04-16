@@ -51,7 +51,7 @@ func renderRectOutline(dst *PixBuf, p *model.Primitive) {
 			rX := -((float64(x) + 0.5) - rCX)
 			rXA := math.Abs(rX)
 			rAlpha := 1.0
-			rSpec := rWidth
+			var rSpec float64
 
 			if rXA > rXRO {
 				rAlpha = 0.0
@@ -152,9 +152,7 @@ func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 		for x := range dst.Width {
 			rPX := float64(x) - rCX + 0.5
-			alpha := 255
-			lumi := 0
-			lumi, alpha = sampleTextureLumiAlpha(textures, p, rPX, rPY)
+			lumi, alpha := sampleTextureLumiAlpha(textures, p, rPX, rPY)
 
 			rX := -((float64(x) + 0.5) - rCX)
 			rXN := rX / rCX
@@ -240,7 +238,7 @@ func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 			if iEmbossMode != 0 {
 				rTZ := 1.0 / root2
 
-				r := 0.0
+				var r float64
 				if p.Emboss.Val > 0.0 {
 					r = rXR*rLX + rYR*rLY + rTZ*rLZ
 				} else {
@@ -301,9 +299,7 @@ func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 
 		for x := range dst.Width {
 			rPX := float64(x) - rCX + 0.5
-			alpha := 255
-			lumi := 0
-			lumi, alpha = sampleTextureLumiAlpha(textures, p, rPX, rPY)
+			lumi, alpha := sampleTextureLumiAlpha(textures, p, rPX, rPY)
 
 			pix := base
 

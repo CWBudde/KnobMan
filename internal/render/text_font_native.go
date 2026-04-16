@@ -70,7 +70,9 @@ func resolveFontPath(family string, bold, italic bool) resolvedFontFace {
 	}
 
 	if cached, ok := fontPathCache.Load(key); ok {
-		return cached.(resolvedFontFace)
+		if v, ok := cached.(resolvedFontFace); ok {
+			return v
+		}
 	}
 
 	resolved := findFontPath(family, bold, italic)

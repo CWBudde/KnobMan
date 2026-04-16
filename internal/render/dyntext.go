@@ -139,7 +139,7 @@ func (dt *dynamicText) count() int {
 }
 
 func (dt *dynamicText) checkNum(p int) int {
-	iParen := 0
+	var iParen int
 	dt.fx = 0
 	dt.fmt = "%d"
 
@@ -243,7 +243,7 @@ func (dt *dynamicText) wsprintf(val float64) string {
 			}
 		}
 
-		if dt.isDigit(byte(dt.fmt[i])) {
+		if dt.isDigit(dt.fmt[i]) {
 			width = int(dt.fmt[i] - '0')
 
 			i++
@@ -259,7 +259,7 @@ func (dt *dynamicText) wsprintf(val float64) string {
 			}
 
 			pcs = 0
-			if dt.isDigit(byte(dt.fmt[i])) {
+			if dt.isDigit(dt.fmt[i]) {
 				pcs = int(dt.fmt[i] - '0')
 
 				i++
