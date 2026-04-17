@@ -85,9 +85,9 @@ func TransformBilinear(dst, src *PixBuf, m [6]float64) {
 
 	for y := range dst.Height {
 		for x := range dst.Width {
-			sx, sy := applyAffine(m, float64(x), float64(y))
+			sx, sy := applyAffine(m, float64(x)+0.5, float64(y)+0.5)
 
-			c := samplePixBufBilinear(src, sx, sy)
+			c := samplePixBufBilinear(src, sx-0.5, sy-0.5)
 			if c.A == 0 {
 				continue
 			}
