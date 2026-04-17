@@ -68,3 +68,32 @@ func TestIsJavaGenericFontFamily(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyFamilyFallback(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"":                "SansSerif",
+		"   ":             "SansSerif",
+		"Arial":           "SansSerif",
+		"Helvetica":       "SansSerif",
+		"Verdana":         "SansSerif",
+		"WST_Engl":        "Serif",
+		"wst_germ":        "Serif",
+		"Times New Roman": "Serif",
+		"Georgia":         "Serif",
+		"Palatino Linotype": "Serif",
+		"Garamond":        "Serif",
+		"Century Schoolbook": "Serif",
+		"Courier New":     "Monospaced",
+		"Consolas":        "Monospaced",
+		"DejaVu Sans Mono": "Monospaced",
+		"Source Code Pro": "Monospaced",
+	}
+
+	for family, want := range cases {
+		if got := classifyFamilyFallback(family); got != want {
+			t.Fatalf("classifyFamilyFallback(%q) = %q, want %q", family, got, want)
+		}
+	}
+}

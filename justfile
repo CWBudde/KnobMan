@@ -150,3 +150,7 @@ ci: check-formatted test lint check-tidy
 # Clean build artifacts
 clean:
     rm -f web/knobman.wasm coverage.out coverage.html
+
+fix:
+    just lint-fix
+    just fmt

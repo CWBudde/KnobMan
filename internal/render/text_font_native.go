@@ -125,13 +125,15 @@ func findFontPath(family string, bold, italic bool) resolvedFontFace {
 		return resolved
 	}
 
-	for _, name := range candidateFontFamilies("SansSerif") {
+	fallbackFamily := classifyFamilyFallback(family)
+
+	for _, name := range candidateFontFamilies(fallbackFamily) {
 		if resolved := resolveFontWithFCMatchExact(name, name, bold, italic); resolved.path != "" {
 			return resolved
 		}
 	}
 
-	for _, path := range fallbackFontPaths("SansSerif") {
+	for _, path := range fallbackFontPaths(fallbackFamily) {
 		_, err := os.Stat(path)
 		if err == nil {
 			return resolvedFontFace{
@@ -142,6 +144,41 @@ func findFontPath(family string, bold, italic bool) resolvedFontFace {
 	}
 
 	return resolvedFontFace{}
+}
+
+// classifyFamilyFallback picks a Java logical font family ("Serif",
+// "Monospaced", or "SansSerif") to substitute for an unknown requested family.
+// Mirrors what OpenJDK's AWT does on Linux: rather than always falling back to
+// sans-serif the way fontconfig does, pick a family consistent with the
+// requested name so baselines rendered by Java and Go agree in character.
+func classifyFamilyFallback(family string) string {
+	normalized := strings.ToLower(strings.TrimSpace(family))
+	if normalized == "" {
+		return "SansSerif"
+	}
+
+	monoTokens := []string{
+		"mono", "courier", "consolas", "consola", "menlo", "typewriter",
+		"fixedsys", "terminal", "inconsolata", "source code",
+	}
+	for _, token := range monoTokens {
+		if strings.Contains(normalized, token) {
+			return "Monospaced"
+		}
+	}
+
+	serifTokens := []string{
+		"serif", "roman", "times", "georgia", "bookman", "palatino",
+		"garamond", "cambria", "caslon", "baskerville", "didot", "elephant",
+		"minion", "century", "wst_",
+	}
+	for _, token := range serifTokens {
+		if strings.Contains(normalized, token) {
+			return "Serif"
+		}
+	}
+
+	return "SansSerif"
 }
 
 func isJavaGenericFontFamily(family string) bool {
