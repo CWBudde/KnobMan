@@ -43,9 +43,13 @@ test-coverage:
     go test -v -tags freetype -coverprofile=coverage.out ./...
     go tool cover -html=coverage.out -o coverage.html
 
-# Render frame-0 Go regression baselines from sample .knob files.
+# Render frame-0 Go artifacts from sample .knob files.
 parity-generate FLAGS="":
     go run -tags freetype ./cmd/parityref {{FLAGS}}
+
+# Regenerate frame-0 Go regression baselines from sample .knob files.
+parity-baseline-go-generate FLAGS="":
+    go run -tags freetype ./cmd/parityref --refs tests/parity/samples/baseline-go --overwrite {{FLAGS}}
 
 # Render frame-0 authoritative Java baselines from sample .knob files.
 java-parity-generate FLAGS="":
@@ -59,24 +63,36 @@ primitive-fixtures-generate FLAGS="":
 animated-fixtures-generate FLAGS="":
     go run ./cmd/primitivefixtures --suite animated {{FLAGS}}
 
-# Render frame-0 Go regression baselines for the primitive fixtures.
+# Render frame-0 Go artifacts for the primitive fixtures.
 parity-primitives-generate FLAGS="":
+    go run -tags freetype ./cmd/parityref --samples tests/parity/primitives/inputs --refs tests/parity/primitives/artifacts --frame 0 --overwrite {{FLAGS}}
+
+# Regenerate frame-0 Go regression baselines for the primitive fixtures.
+parity-primitives-baseline-go-generate FLAGS="":
     go run -tags freetype ./cmd/parityref --samples tests/parity/primitives/inputs --refs tests/parity/primitives/baseline-go --frame 0 --overwrite {{FLAGS}}
 
 # Render authoritative Java baselines for the primitive fixtures.
 java-parity-primitives-generate FLAGS="":
     ./legacy/run-render-cli.sh --samples tests/parity/primitives/inputs --output-dir tests/parity/primitives/baseline-java --frame 0 --overwrite {{FLAGS}}
 
-# Render Go regression baselines for animated/effect-stack fixture keyframes.
+# Render Go artifacts for animated/effect-stack fixture keyframes.
 parity-animated-generate FLAGS="":
+    go run -tags freetype ./cmd/parityref --samples tests/parity/animated/inputs --refs tests/parity/animated/artifacts --keyframes first,mid,last --overwrite {{FLAGS}}
+
+# Regenerate Go regression baselines for animated/effect-stack fixture keyframes.
+parity-animated-baseline-go-generate FLAGS="":
     go run -tags freetype ./cmd/parityref --samples tests/parity/animated/inputs --refs tests/parity/animated/baseline-go --keyframes first,mid,last --overwrite {{FLAGS}}
 
 # Render authoritative Java baselines for animated/effect-stack fixture keyframes.
 java-parity-animated-generate FLAGS="":
     ./legacy/run-render-cli.sh --samples tests/parity/animated/inputs --output-dir tests/parity/animated/baseline-java --keyframes first,mid,last --overwrite {{FLAGS}}
 
-# Render Go regression baselines for selected animated sample keyframes.
+# Render Go artifacts for selected animated sample keyframes.
 parity-animated-samples-generate FLAGS="":
+    go run -tags freetype ./cmd/parityref --samples assets/samples --refs tests/parity/animated-samples/artifacts --names Green_Radar,LineShadow,White_Vol --keyframes first,mid,last --overwrite {{FLAGS}}
+
+# Regenerate Go regression baselines for selected animated sample keyframes.
+parity-animated-samples-baseline-go-generate FLAGS="":
     go run -tags freetype ./cmd/parityref --samples assets/samples --refs tests/parity/animated-samples/baseline-go --names Green_Radar,LineShadow,White_Vol --keyframes first,mid,last --overwrite {{FLAGS}}
 
 # Render authoritative Java baselines for selected animated sample keyframes.

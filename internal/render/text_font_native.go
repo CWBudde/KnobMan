@@ -196,7 +196,7 @@ func candidateFontFamilies(family string) []string {
 	case "sansserif", "dialog":
 		return []string{"Noto Sans", "Helvetica", "Arial", "DejaVu Sans", "Liberation Sans"}
 	case "serif":
-		return []string{"Noto Serif", "Times New Roman", "Times", "DejaVu Serif", "Liberation Serif"}
+		return []string{"Nimbus Roman", "Nimbus Roman No9 L", "Noto Serif", "Times New Roman", "Times", "DejaVu Serif", "Liberation Serif"}
 	case "monospaced", "dialoginput", "monospace":
 		return []string{"Noto Sans Mono", "Courier New", "Courier", "DejaVu Sans Mono", "Liberation Mono"}
 	default:

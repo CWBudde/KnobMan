@@ -210,7 +210,7 @@ func TestParityStrictZeroMismatchBaselineGo(t *testing.T) {
 			}
 
 			if diffCases != 0 {
-				t.Fatalf("strict gate: %d of %d cases differ from baseline-go at tolerance=%d (worst=%s). Regenerate via just parity-generate / just parity-primitives-generate if the drift is intentional, or add an entry to parityAllowlist with a reason.",
+				t.Fatalf("strict gate: %d of %d cases differ from baseline-go at tolerance=%d (worst=%s). Regenerate via just parity-baseline-go-generate / just parity-primitives-baseline-go-generate if the drift is intentional, or add an entry to parityAllowlist with a reason.",
 					diffCases, compared, parityTolerance, worst)
 			}
 

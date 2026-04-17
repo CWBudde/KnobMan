@@ -1,7 +1,9 @@
 package render
 
 import (
+	"image"
 	"image/color"
+	"path/filepath"
 	"testing"
 
 	model "knobman/internal/model"
@@ -67,6 +69,60 @@ func TestShapeOutlineKnobCurveUsesBezierControls(t *testing.T) {
 	if minY >= 28 {
 		t.Fatalf("expected bezier outline to rise above anchor polyline, top pixel row=%d", minY)
 	}
+}
+
+func TestShapeOutlinePlainMatchesJavaEndpointAlphaProfile(t *testing.T) {
+	root := testRepoRoot(t)
+	samplePath := filepath.Join(root, "tests", "parity", "primitives", "inputs", "shape_outline_plain.knob")
+
+	doc, textures, err := LoadParityDocument(samplePath, root)
+	if err != nil {
+		t.Fatalf("LoadParityDocument: %v", err)
+	}
+
+	want, err := ReadPNGAsRGBA(filepath.Join(root, "tests", "parity", "primitives", "baseline-java", "shape_outline_plain.png"))
+	if err != nil {
+		t.Fatalf("ReadPNGAsRGBA: %v", err)
+	}
+
+	out := NewPixBuf(doc.Prefs.PWidth.Val, doc.Prefs.PHeight.Val)
+	RenderFrame(out, doc, 0, textures)
+
+	gotMinX, gotMaxX := visibleSpanX(out, 0, parityTolerance)
+	wantMinX, wantMaxX := visibleSpanRGBA_X(want, 0, parityTolerance)
+
+	if gotMinX != wantMinX || gotMaxX != wantMaxX {
+		t.Fatalf("top-edge visible span mismatch: got [%d,%d] want [%d,%d]", gotMinX, gotMaxX, wantMinX, wantMaxX)
+	}
+}
+
+func visibleSpanX(buf *PixBuf, y int, tol uint8) (minX, maxX int) {
+	minX, maxX = -1, -1
+	for x := 0; x < buf.Width; x++ {
+		if buf.At(x, y).A <= tol {
+			continue
+		}
+		if minX < 0 {
+			minX = x
+		}
+		maxX = x
+	}
+	return minX, maxX
+}
+
+func visibleSpanRGBA_X(img *image.RGBA, y int, tol uint8) (minX, maxX int) {
+	minX, maxX = -1, -1
+	bounds := img.Bounds()
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		if img.RGBAAt(x, y).A <= tol {
+			continue
+		}
+		if minX < 0 {
+			minX = x
+		}
+		maxX = x
+	}
+	return minX, maxX
 }
 
 func TestShapeFillBlendsOverExistingPixels(t *testing.T) {

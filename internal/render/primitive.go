@@ -474,6 +474,11 @@ func renderShapeAggMask(mask *PixBuf, s string, w, h int, fill bool, strokeWidth
 	ctx.SetStrokeColor(agg.Color{B: 255, A: 255})
 	ctx.SetLineJoin(agg.JoinMiter)
 	ctx.SetLineCap(agg.CapSquare)
+	ctx.SetMiterLimit(10.0)
+
+	if !fill {
+		ctx.Transform(agg.Translation(0.5, 0.5))
+	}
 
 	if !appendKnobShapeAggPath(ctx, s, w, h, fill) {
 		return false
@@ -491,6 +496,8 @@ func renderShapeAggMask(mask *PixBuf, s string, w, h int, fill bool, strokeWidth
 	return true
 }
 
+const aggCurveFlattenSteps = 32
+
 func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool) bool {
 	if ctx == nil {
 		return false
@@ -506,25 +513,31 @@ func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool
 			}
 
 			start := knots[0]
-			ctx.MoveTo(shapeScaleX(start.pX, w), shapeScaleY(start.pY, h))
+			startP := fpoint{x: shapeScaleX(start.pX, w), y: shapeScaleY(start.pY, h)}
+			ctx.MoveTo(startP.x, startP.y)
 
 			for i := 1; i < len(knots); i++ {
 				prev := knots[i-1]
 				cur := knots[i]
-				ctx.CubicCurveTo(
-					shapeScaleX(prev.outX, w), shapeScaleY(prev.outY, h),
-					shapeScaleX(cur.inX, w), shapeScaleY(cur.inY, h),
-					shapeScaleX(cur.pX, w), shapeScaleY(cur.pY, h),
-				)
+				p0 := fpoint{x: shapeScaleX(prev.pX, w), y: shapeScaleY(prev.pY, h)}
+				c1 := fpoint{x: shapeScaleX(prev.outX, w), y: shapeScaleY(prev.outY, h)}
+				c2 := fpoint{x: shapeScaleX(cur.inX, w), y: shapeScaleY(cur.inY, h)}
+				p1 := fpoint{x: shapeScaleX(cur.pX, w), y: shapeScaleY(cur.pY, h)}
+				pts := flattenCubic(p0, c1, c2, p1, aggCurveFlattenSteps)
+				for _, pt := range pts[1:] {
+					ctx.LineTo(pt.x, pt.y)
+				}
 			}
 
 			if closePath {
 				last := knots[len(knots)-1]
-				ctx.CubicCurveTo(
-					shapeScaleX(last.outX, w), shapeScaleY(last.outY, h),
-					shapeScaleX(start.inX, w), shapeScaleY(start.inY, h),
-					shapeScaleX(start.pX, w), shapeScaleY(start.pY, h),
-				)
+				p0 := fpoint{x: shapeScaleX(last.pX, w), y: shapeScaleY(last.pY, h)}
+				c1 := fpoint{x: shapeScaleX(last.outX, w), y: shapeScaleY(last.outY, h)}
+				c2 := fpoint{x: shapeScaleX(start.inX, w), y: shapeScaleY(start.inY, h)}
+				pts := flattenCubic(p0, c1, c2, startP, aggCurveFlattenSteps)
+				for _, pt := range pts[1:] {
+					ctx.LineTo(pt.x, pt.y)
+				}
 				ctx.ClosePath()
 			}
 		}

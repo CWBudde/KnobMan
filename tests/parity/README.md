@@ -12,16 +12,20 @@
 
 ## Commands
 
-- `just parity-generate` regenerates `tests/parity/samples/baseline-go/`.
+- `just parity-generate` regenerates `tests/parity/samples/artifacts/`.
+- `just parity-baseline-go-generate` regenerates `tests/parity/samples/baseline-go/`.
 - `just java-parity-generate` regenerates `tests/parity/samples/baseline-java/`.
 - `just primitive-fixtures-generate` regenerates `tests/parity/primitives/inputs/`.
 - `just animated-fixtures-generate` regenerates `tests/parity/animated/inputs/`.
-- `just parity-primitives-generate` regenerates `tests/parity/primitives/baseline-go/`.
+- `just parity-primitives-generate` regenerates `tests/parity/primitives/artifacts/`.
+- `just parity-primitives-baseline-go-generate` regenerates `tests/parity/primitives/baseline-go/`.
 - `just java-parity-primitives-generate` regenerates `tests/parity/primitives/baseline-java/`.
 - `just phase2-parity-test` runs the full Phase 2 primitive parity slice, including the Java checkpoint for the expanded primitive suite.
-- `just parity-animated-generate` regenerates `tests/parity/animated/baseline-go/` for first/mid/last keyframes.
+- `just parity-animated-generate` regenerates `tests/parity/animated/artifacts/` for first/mid/last keyframes.
+- `just parity-animated-baseline-go-generate` regenerates `tests/parity/animated/baseline-go/` for first/mid/last keyframes.
 - `just java-parity-animated-generate` regenerates `tests/parity/animated/baseline-java/` for first/mid/last keyframes.
-- `just parity-animated-samples-generate` regenerates `tests/parity/animated-samples/baseline-go/` for the selected real animated samples.
+- `just parity-animated-samples-generate` regenerates `tests/parity/animated-samples/artifacts/` for the selected real animated samples.
+- `just parity-animated-samples-baseline-go-generate` regenerates `tests/parity/animated-samples/baseline-go/` for the selected real animated samples.
 - `just java-parity-animated-samples-generate` regenerates `tests/parity/animated-samples/baseline-java/` for the selected real animated samples.
 - `just parity-animated-test` runs the animated fixture regression suite against Go keyframe baselines.
 - `just parity-animated-golden-test` runs the animated fixture parity suite against Java keyframe baselines.
@@ -34,7 +38,7 @@
 
 Phase 1 formalized a two-track pass policy. Both tracks run on every parity test invocation.
 
-- **`baseline-go` — strict (0x mismatch at `parityTolerance=2`).** The Go regression tripwire. `TestParityRegressionSamplesFrame0`, `TestParityRegressionPrimitiveFixturesFrame0`, and `TestParityStrictZeroMismatchBaselineGo` fail if _any_ pixel differs from the Go baseline. When intentionally changing renderer output, regenerate via `just parity-generate` (+ `just parity-primitives-generate` / `just parity-animated-generate` as applicable) and commit the baseline PNG diff in the same PR as the renderer change.
+- **`baseline-go` — strict (0x mismatch at `parityTolerance=2`).** The Go regression tripwire. `TestParityRegressionSamplesFrame0`, `TestParityRegressionPrimitiveFixturesFrame0`, and `TestParityStrictZeroMismatchBaselineGo` fail if _any_ pixel differs from the Go baseline. When intentionally changing renderer output, regenerate via `just parity-baseline-go-generate` (+ `just parity-primitives-baseline-go-generate` / `just parity-animated-baseline-go-generate` as applicable) and commit the baseline PNG diff in the same PR as the renderer change.
 - **`baseline-java` — tolerance budgets (max RMSE, mean RMSE, diff-rate).** The cross-implementation parity checkpoint. `TestPrimitiveFixtureJavaCheckpoints` and `TestSampleSweepDeltaCheckpoints` enforce RMSE / diff-rate budgets that reflect known small deltas from legacy JKnobMan. Budgets live next to each test and are tightened as parity improves.
 - **`parityAllowlist` (in `internal/render/parity_test.go`) skips intentionally diverging samples with a written reason.** Empty today — adding an entry requires a PR that references the tracking issue. Key format: `"<suite>/<baseline>/<sample>"` (e.g. `"samples/baseline-java/Green_Radar"`). The allowlist should be a last resort, used only when the delta has a documented cause that falls outside the current budget.
 

@@ -17,7 +17,7 @@ func main() {
 	inputPath := flag.String("input", "", "Single .knob file to render")
 	outputPath := flag.String("output", "", "Single PNG file to write when --input is used")
 	samplesDir := flag.String("samples", filepath.Join("assets", "samples"), "Directory with sample .knob files")
-	refDir := flag.String("refs", filepath.Join("tests", "parity", "samples", "baseline-go"), "Directory to write reference PNGs")
+	refDir := flag.String("refs", "", "Directory to write rendered PNGs (defaults to the matching parity artifacts directory)")
 	names := flag.String("names", "", "Comma-separated .knob basenames to render from --samples")
 	keyframes := flag.String("keyframes", "", "Comma-separated keyframes to render: first,mid,last")
 	frame := flag.Int("frame", 0, "Frame index to render")
@@ -34,6 +34,10 @@ func main() {
 	keyframeSpecs, err := parseKeyframes(*keyframes)
 	if err != nil {
 		log.Fatalf("parse keyframes: %v", err)
+	}
+
+	if *refDir == "" {
+		*refDir = defaultRefsDirForSamplesDir(*samplesDir)
 	}
 
 	if *inputPath != "" {
@@ -102,6 +106,21 @@ func main() {
 		}
 
 		fmt.Println(refPath)
+	}
+}
+
+func defaultRefsDirForSamplesDir(samplesDir string) string {
+	clean := filepath.Clean(samplesDir)
+
+	switch clean {
+	case filepath.Join("assets", "samples"):
+		return filepath.Join("tests", "parity", "samples", "artifacts")
+	case filepath.Join("tests", "parity", "primitives", "inputs"):
+		return filepath.Join("tests", "parity", "primitives", "artifacts")
+	case filepath.Join("tests", "parity", "animated", "inputs"):
+		return filepath.Join("tests", "parity", "animated", "artifacts")
+	default:
+		return filepath.Join("tests", "parity", "samples", "artifacts")
 	}
 }
 
