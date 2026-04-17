@@ -131,6 +131,32 @@ func TestPageHeaderIncludesAnimatedSuiteFilters(t *testing.T) {
 	}
 }
 
+func TestPageHeaderIncludesBulkRerenderButton(t *testing.T) {
+	for _, want := range []string{
+		`<button id="rerender-all-btn" class="rerender-btn" type="button">Re-render Artifacts</button>`,
+	} {
+		if !strings.Contains(pageHeader, want) {
+			t.Fatalf("pageHeader missing %q", want)
+		}
+	}
+}
+
+func TestPageFooterIncludesBulkRerenderHelpers(t *testing.T) {
+	for _, want := range []string{
+		`function rerenderArtifact(suite, name) {`,
+		`function setRerenderButtonsDisabled(disabled) {`,
+		`var bulkButton = document.getElementById('rerender-all-btn');`,
+		`var buttons = document.querySelectorAll('.rerender-btn');`,
+		`return rerenderArtifact(suite, name).then(function() {`,
+		`var cards = Array.from(document.querySelectorAll('.card'));`,
+		`return rerenderArtifact(card.dataset.suite || '', card.dataset.name || '');`,
+	} {
+		if !strings.Contains(pageFooter, want) {
+			t.Fatalf("pageFooter missing %q", want)
+		}
+	}
+}
+
 func TestParityCaseSpec(t *testing.T) {
 	root := "/repo"
 

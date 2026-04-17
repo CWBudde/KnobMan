@@ -70,3 +70,49 @@ func TestJustParityGenerateRecipesWriteArtifacts(t *testing.T) {
 		}
 	}
 }
+
+func TestParseRenderOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		wantErr bool
+	}{
+		{name: "default empty", raw: ""},
+		{name: "default explicit", raw: "default"},
+		{name: "java triangle raster", raw: "java-triangle-raster"},
+		{name: "invalid", raw: "java", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := parseRenderOptions(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("parseRenderOptions(%q) succeeded, want error", tt.raw)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("parseRenderOptions(%q): %v", tt.raw, err)
+			}
+
+			switch tt.raw {
+			case "java-triangle-raster":
+				if opts.Compatibility != "java-triangle-raster" {
+					t.Fatalf("compatibility = %q, want %q", opts.Compatibility, "java-triangle-raster")
+				}
+			default:
+				if opts.Compatibility != "" {
+					t.Fatalf("compatibility = %q, want default empty mode", opts.Compatibility)
+				}
+			}
+		})
+	}
+}

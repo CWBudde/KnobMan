@@ -8,6 +8,11 @@ import (
 
 // RenderFrame renders one document frame to dst.
 func RenderFrame(dst *PixBuf, doc *model.Document, frame int, textures []*Texture) {
+	RenderFrameWithOptions(dst, doc, frame, textures, DefaultRenderOptions())
+}
+
+// RenderFrameWithOptions renders one document frame to dst with render-time options.
+func RenderFrameWithOptions(dst *PixBuf, doc *model.Document, frame int, textures []*Texture, opts RenderOptions) {
 	if dst == nil || doc == nil {
 		return
 	}
@@ -32,10 +37,10 @@ func RenderFrame(dst *PixBuf, doc *model.Document, frame int, textures []*Textur
 	}
 
 	if scale <= 1 {
-		renderLayers(out, doc, frame, textures)
+		renderLayers(out, doc, frame, textures, opts)
 	} else {
 		hi := NewPixBuf(w*scale, h*scale)
-		renderLayers(hi, doc, frame, textures)
+		renderLayers(hi, doc, frame, textures, opts)
 		downsampleBox(out, hi, scale)
 	}
 
@@ -48,6 +53,11 @@ func RenderFrame(dst *PixBuf, doc *model.Document, frame int, textures []*Textur
 
 // RenderAll renders all export frames.
 func RenderAll(doc *model.Document, textures []*Texture) []*PixBuf {
+	return RenderAllWithOptions(doc, textures, DefaultRenderOptions())
+}
+
+// RenderAllWithOptions renders all export frames with render-time options.
+func RenderAllWithOptions(doc *model.Document, textures []*Texture, opts RenderOptions) []*PixBuf {
 	if doc == nil {
 		return nil
 	}
@@ -62,14 +72,14 @@ func RenderAll(doc *model.Document, textures []*Texture) []*PixBuf {
 	frames := make([]*PixBuf, n)
 	for i := range n {
 		b := NewPixBuf(w, h)
-		RenderFrame(b, doc, i, textures)
+		RenderFrameWithOptions(b, doc, i, textures, opts)
 		frames[i] = b
 	}
 
 	return frames
 }
 
-func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Texture) {
+func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Texture, opts RenderOptions) {
 	dst.Clear(color.RGBA{})
 
 	totalFrames := max(doc.Prefs.RenderFrames.Val, 1)
@@ -100,7 +110,7 @@ func renderLayers(dst *PixBuf, doc *model.Document, frame int, textures []*Textu
 		animTotal, startFrame, endFrame := layerRenderSpan(&ly.Eff, frame, totalFrames)
 		for subFrame := startFrame; subFrame <= endFrame; subFrame++ {
 			prim := NewPixBuf(dst.Width, dst.Height)
-			RenderPrimitive(prim, &ly.Prim, textures, subFrame, animTotal)
+			RenderPrimitiveWithOptions(prim, &ly.Prim, textures, subFrame, animTotal, opts)
 			ratio := FrameFrac(subFrame, animTotal, ly.Eff.AnimStep.Val)
 			applyEffectAtRatio(dst, prim, &ly.Eff, &doc.Curves, ratio, textures)
 		}

@@ -276,7 +276,7 @@ func renderRectFill(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	}
 }
 
-func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
+func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture, opts RenderOptions) {
 	base := primitiveColor(p)
 	rCX := float64(dst.Width) * 0.5
 	rCY := float64(dst.Height) * 0.5
@@ -285,7 +285,7 @@ func renderTriangle(dst *PixBuf, p *model.Primitive, textures []*Texture) {
 	rD := 1.0 - p.Diffuse.Val*0.01
 
 	var mask *PixBuf
-	if p.Diffuse.Val == 0 {
+	if p.Diffuse.Val == 0 && !opts.useJavaTriangleRaster() {
 		mask = NewPixBuf(dst.Width, dst.Height)
 		mask.Clear(color.RGBA{A: 255})
 

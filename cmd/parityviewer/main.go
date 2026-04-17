@@ -926,6 +926,7 @@ code { color: #f4f7fb; }
       <option value="smooth">Scaling: smooth</option>
       <option value="pixelated">Scaling: pixelated</option>
     </select>
+    <button id="rerender-all-btn" class="rerender-btn" type="button">Re-render Artifacts</button>
     <label><input type="checkbox" id="original-size" onchange="setOriginalSize(this.checked)"> Original size</label>
     <span id="summary"></span>
   </div>
@@ -1045,6 +1046,27 @@ const pageFooter = `</div>
     document.getElementById('summary').textContent = visible.length + ' / ' + all.length + ' cases';
   }
 
+  function setRerenderButtonsDisabled(disabled) {
+    var buttons = document.querySelectorAll('.rerender-btn');
+    buttons.forEach(function(button) {
+      button.disabled = disabled;
+    });
+  }
+
+  function rerenderArtifact(suite, name) {
+    return fetch('/rerender', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ suite: suite, name: name }).toString()
+    }).then(function(response) {
+      if (!response.ok) {
+        return response.text().then(function(text) {
+          throw new Error(text || 'rerender failed');
+        });
+      }
+    });
+  }
+
   document.querySelectorAll('.card-header').forEach(function(header) {
     header.addEventListener('click', function() {
       header.closest('.card').classList.toggle('open');
@@ -1054,24 +1076,38 @@ const pageFooter = `</div>
   document.querySelectorAll('.rerender-btn').forEach(function(button) {
     button.addEventListener('click', function(event) {
       event.stopPropagation();
+      if (button.id === 'rerender-all-btn') {
+        return;
+      }
       var suite = button.dataset.suite || '';
       var name = button.dataset.name || '';
-      button.disabled = true;
-      fetch('/rerender', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: new URLSearchParams({ suite: suite, name: name }).toString()
-      }).then(function(response) {
-        if (!response.ok) {
-          return response.text().then(function(text) {
-            throw new Error(text || 'rerender failed');
-          });
-        }
+      setRerenderButtonsDisabled(true);
+      return rerenderArtifact(suite, name).then(function() {
         window.location.reload();
       }).catch(function(err) {
         window.alert(err.message);
-        button.disabled = false;
+        setRerenderButtonsDisabled(false);
       });
+    });
+  });
+
+  var bulkButton = document.getElementById('rerender-all-btn');
+  bulkButton.addEventListener('click', function() {
+    var cards = Array.from(document.querySelectorAll('.card'));
+    setRerenderButtonsDisabled(true);
+
+    var chain = Promise.resolve();
+    cards.forEach(function(card) {
+      chain = chain.then(function() {
+        return rerenderArtifact(card.dataset.suite || '', card.dataset.name || '');
+      });
+    });
+
+    chain.then(function() {
+      window.location.reload();
+    }).catch(function(err) {
+      window.alert(err.message);
+      setRerenderButtonsDisabled(false);
     });
   });
 

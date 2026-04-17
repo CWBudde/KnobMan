@@ -19,6 +19,11 @@ import (
 // This is the Phase 2 baseline implementation; complex Java parity details
 // (advanced lighting/masks/anti-aliasing) are layered in later phases.
 func RenderPrimitive(dst *PixBuf, p *model.Primitive, textures []*Texture, frame, totalFrames int) {
+	RenderPrimitiveWithOptions(dst, p, textures, frame, totalFrames, DefaultRenderOptions())
+}
+
+// RenderPrimitiveWithOptions draws a primitive into dst with render-time options.
+func RenderPrimitiveWithOptions(dst *PixBuf, p *model.Primitive, textures []*Texture, frame, totalFrames int, opts RenderOptions) {
 	if dst == nil || p == nil || dst.Width == 0 || dst.Height == 0 {
 		return
 	}
@@ -43,7 +48,7 @@ func RenderPrimitive(dst *PixBuf, p *model.Primitive, textures []*Texture, frame
 	case model.PrimRectFill:
 		renderRect(dst, p, false, textures)
 	case model.PrimTriangle:
-		renderTriangle(dst, p, textures)
+		renderTriangle(dst, p, textures, opts)
 	case model.PrimLine:
 		renderLine(dst, p)
 	case model.PrimRadiateLine:

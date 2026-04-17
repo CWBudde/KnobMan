@@ -23,6 +23,7 @@ func main() {
 	frame := flag.Int("frame", 0, "Frame index to render")
 	overwrite := flag.Bool("overwrite", false, "Overwrite existing reference images")
 	transparentBG := flag.Bool("transparent-bg", false, "Force document background alpha to 0 before rendering")
+	compat := flag.String("compat", "default", "Render compatibility mode: default, java-triangle-raster")
 
 	flag.Parse()
 
@@ -36,6 +37,11 @@ func main() {
 		log.Fatalf("parse keyframes: %v", err)
 	}
 
+	renderOpts, err := parseRenderOptions(*compat)
+	if err != nil {
+		log.Fatalf("parse compat: %v", err)
+	}
+
 	if *refDir == "" {
 		*refDir = defaultRefsDirForSamplesDir(*samplesDir)
 	}
@@ -46,7 +52,7 @@ func main() {
 		}
 
 		if len(keyframeSpecs) != 0 {
-			err := renderKeyframes(root, *inputPath, *outputPath, keyframeSpecs, *transparentBG)
+			err := renderKeyframes(root, *inputPath, *outputPath, keyframeSpecs, *transparentBG, renderOpts)
 			if err != nil {
 				log.Fatalf("render %s: %v", *inputPath, err)
 			}
@@ -58,7 +64,7 @@ func main() {
 			return
 		}
 
-		err := renderOne(root, *inputPath, *outputPath, *frame, *transparentBG)
+		err := renderOne(root, *inputPath, *outputPath, *frame, *transparentBG, renderOpts)
 		if err != nil {
 			log.Fatalf("render %s: %v", *inputPath, err)
 		}
@@ -83,7 +89,7 @@ func main() {
 	for _, sample := range paths {
 		name := strings.TrimSuffix(filepath.Base(sample), filepath.Ext(sample))
 		if len(keyframeSpecs) != 0 {
-			err := renderSampleKeyframes(root, sample, *refDir, name, keyframeSpecs, *overwrite, *transparentBG)
+			err := renderSampleKeyframes(root, sample, *refDir, name, keyframeSpecs, *overwrite, *transparentBG, renderOpts)
 			if err != nil {
 				log.Fatalf("render %s: %v", sample, err)
 			}
@@ -100,7 +106,7 @@ func main() {
 			continue
 		}
 
-		err := renderOne(root, sample, refPath, *frame, *transparentBG)
+		err := renderOne(root, sample, refPath, *frame, *transparentBG, renderOpts)
 		if err != nil {
 			log.Fatalf("render %s: %v", sample, err)
 		}
@@ -128,7 +134,7 @@ type keyframeSpec struct {
 	name string
 }
 
-func renderOne(root, samplePath, outputPath string, frame int, transparentBG bool) error {
+func renderOne(root, samplePath, outputPath string, frame int, transparentBG bool, opts render.RenderOptions) error {
 	doc, textures, err := render.LoadParityDocument(samplePath, root)
 	if err != nil {
 		return fmt.Errorf("load sample: %w", err)
@@ -143,7 +149,7 @@ func renderOne(root, samplePath, outputPath string, frame int, transparentBG boo
 		return errors.New("allocate buffer")
 	}
 
-	render.RenderFrame(out, doc, frame, textures)
+	render.RenderFrameWithOptions(out, doc, frame, textures, opts)
 
 	err = render.WritePixBufPNG(outputPath, out)
 	if err != nil {
@@ -153,7 +159,7 @@ func renderOne(root, samplePath, outputPath string, frame int, transparentBG boo
 	return nil
 }
 
-func renderSampleKeyframes(root, samplePath, outputDir, name string, keyframes []keyframeSpec, overwrite, transparentBG bool) error {
+func renderSampleKeyframes(root, samplePath, outputDir, name string, keyframes []keyframeSpec, overwrite, transparentBG bool, opts render.RenderOptions) error {
 	doc, textures, err := render.LoadParityDocument(samplePath, root)
 	if err != nil {
 		return fmt.Errorf("load sample: %w", err)
@@ -174,7 +180,7 @@ func renderSampleKeyframes(root, samplePath, outputDir, name string, keyframes [
 			return errors.New("allocate buffer")
 		}
 
-		render.RenderFrame(out, doc, spec.frameIndex(doc.Prefs.RenderFrames.Val), textures)
+		render.RenderFrameWithOptions(out, doc, spec.frameIndex(doc.Prefs.RenderFrames.Val), textures, opts)
 
 		err := render.WritePixBufPNG(outputPath, out)
 		if err != nil {
@@ -185,7 +191,7 @@ func renderSampleKeyframes(root, samplePath, outputDir, name string, keyframes [
 	return nil
 }
 
-func renderKeyframes(root, samplePath, outputPath string, keyframes []keyframeSpec, transparentBG bool) error {
+func renderKeyframes(root, samplePath, outputPath string, keyframes []keyframeSpec, transparentBG bool, opts render.RenderOptions) error {
 	doc, textures, err := render.LoadParityDocument(samplePath, root)
 	if err != nil {
 		return fmt.Errorf("load sample: %w", err)
@@ -201,7 +207,7 @@ func renderKeyframes(root, samplePath, outputPath string, keyframes []keyframeSp
 			return errors.New("allocate buffer")
 		}
 
-		render.RenderFrame(out, doc, spec.frameIndex(doc.Prefs.RenderFrames.Val), textures)
+		render.RenderFrameWithOptions(out, doc, spec.frameIndex(doc.Prefs.RenderFrames.Val), textures, opts)
 
 		err := render.WritePixBufPNG(keyframeOutputPath(outputPath, spec.name), out)
 		if err != nil {
@@ -233,6 +239,17 @@ func parseKeyframes(raw string) ([]keyframeSpec, error) {
 	}
 
 	return out, nil
+}
+
+func parseRenderOptions(raw string) (render.RenderOptions, error) {
+	switch strings.TrimSpace(raw) {
+	case "", "default":
+		return render.DefaultRenderOptions(), nil
+	case string(render.CompatibilityJavaTriangleRaster):
+		return render.RenderOptions{Compatibility: render.CompatibilityJavaTriangleRaster}, nil
+	default:
+		return render.RenderOptions{}, fmt.Errorf("unsupported compat mode %q", raw)
+	}
 }
 
 func parseNames(raw string) map[string]struct{} {
