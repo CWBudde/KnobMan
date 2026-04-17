@@ -47,7 +47,7 @@ func TestRenderCardIncludesFiltersAndMetrics(t *testing.T) {
 	entry := caseEntry{
 		Suite:      "primitives",
 		Baseline:   "baseline-java",
-		Name:       "triangle_basic",
+		Name:       "triangle_plain",
 		RMSE:       12.3456,
 		AvgDiff:    3.21,
 		MaxDiff:    17,
@@ -147,12 +147,12 @@ func TestParityCaseSpec(t *testing.T) {
 		t.Fatalf("samples frame mismatch: got %d want 0", frame)
 	}
 
-	got, frame, err = parityCaseSpec(root, "primitives", "triangle_basic")
+	got, frame, err = parityCaseSpec(root, "primitives", "triangle_plain")
 	if err != nil {
 		t.Fatalf("primitives parityCaseSpec: %v", err)
 	}
 
-	if want := filepath.Join(root, "tests", "parity", "primitives", "inputs", "triangle_basic.knob"); got != want {
+	if want := filepath.Join(root, "tests", "parity", "primitives", "inputs", "triangle_plain.knob"); got != want {
 		t.Fatalf("primitives path mismatch: got %q want %q", got, want)
 	}
 

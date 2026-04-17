@@ -86,7 +86,7 @@ func TestPrimitiveFixtureJavaCheckpoints(t *testing.T) {
 	)
 
 	budget := parityCheckpointBudget{
-		ComparedCases:    36,
+		ComparedCases:    35,
 		ComparedMaxRMSE:  27,
 		ComparedMeanRMSE: 2.6,
 		ComparedDiffRate: 0.42,

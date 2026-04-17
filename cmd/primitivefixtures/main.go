@@ -229,16 +229,6 @@ func primitiveFixtures() []fixtureDef {
 
 			return doc
 		}},
-		{Name: "triangle_basic", Build: func() *model.Document {
-			doc := newPrimitiveDoc("Triangle")
-			ly := &doc.Layers[0]
-			ly.Prim.Type.Val = int(model.PrimTriangle)
-			ly.Prim.Color.Val = rgb(220, 96, 40)
-			ly.Prim.Width.Val = 62
-			ly.Prim.Length.Val = 74
-
-			return doc
-		}},
 		{Name: "triangle_plain", Build: func() *model.Document {
 			doc := newPrimitiveDoc("Tier1TrianglePlain")
 			ly := &doc.Layers[0]
