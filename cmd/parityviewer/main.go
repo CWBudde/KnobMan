@@ -238,6 +238,7 @@ func buildEntry(repoRoot, suite, baseline, name, baselinePath, artifactPath stri
 
 	docBGColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	docBG := "#ffffff"
+
 	if repoRoot != "" {
 		if bg, css, err := documentBackground(repoRoot, suite, name); err == nil {
 			docBGColor = bg

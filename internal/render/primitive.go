@@ -528,6 +528,7 @@ func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool
 				c1 := fpoint{x: shapeScaleX(prev.outX, w), y: shapeScaleY(prev.outY, h)}
 				c2 := fpoint{x: shapeScaleX(cur.inX, w), y: shapeScaleY(cur.inY, h)}
 				p1 := fpoint{x: shapeScaleX(cur.pX, w), y: shapeScaleY(cur.pY, h)}
+
 				pts := flattenCubic(p0, c1, c2, p1, aggCurveFlattenSteps)
 				for _, pt := range pts[1:] {
 					ctx.LineTo(pt.x, pt.y)
@@ -539,10 +540,12 @@ func appendKnobShapeAggPath(ctx *agg.Context, s string, w, h int, closePath bool
 				p0 := fpoint{x: shapeScaleX(last.pX, w), y: shapeScaleY(last.pY, h)}
 				c1 := fpoint{x: shapeScaleX(last.outX, w), y: shapeScaleY(last.outY, h)}
 				c2 := fpoint{x: shapeScaleX(start.inX, w), y: shapeScaleY(start.inY, h)}
+
 				pts := flattenCubic(p0, c1, c2, startP, aggCurveFlattenSteps)
 				for _, pt := range pts[1:] {
 					ctx.LineTo(pt.x, pt.y)
 				}
+
 				ctx.ClosePath()
 			}
 		}

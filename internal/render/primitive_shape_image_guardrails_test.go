@@ -98,30 +98,38 @@ func TestShapeOutlinePlainMatchesJavaEndpointAlphaProfile(t *testing.T) {
 
 func visibleSpanX(buf *PixBuf, y int, tol uint8) (minX, maxX int) {
 	minX, maxX = -1, -1
-	for x := 0; x < buf.Width; x++ {
+
+	for x := range buf.Width {
 		if buf.At(x, y).A <= tol {
 			continue
 		}
+
 		if minX < 0 {
 			minX = x
 		}
+
 		maxX = x
 	}
+
 	return minX, maxX
 }
 
 func visibleSpanRGBA_X(img *image.RGBA, y int, tol uint8) (minX, maxX int) {
 	minX, maxX = -1, -1
+
 	bounds := img.Bounds()
 	for x := bounds.Min.X; x < bounds.Max.X; x++ {
 		if img.RGBAAt(x, y).A <= tol {
 			continue
 		}
+
 		if minX < 0 {
 			minX = x
 		}
+
 		maxX = x
 	}
+
 	return minX, maxX
 }
 

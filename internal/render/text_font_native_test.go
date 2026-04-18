@@ -73,22 +73,22 @@ func TestClassifyFamilyFallback(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"":                "SansSerif",
-		"   ":             "SansSerif",
-		"Arial":           "SansSerif",
-		"Helvetica":       "SansSerif",
-		"Verdana":         "SansSerif",
-		"WST_Engl":        "Serif",
-		"wst_germ":        "Serif",
-		"Times New Roman": "Serif",
-		"Georgia":         "Serif",
-		"Palatino Linotype": "Serif",
-		"Garamond":        "Serif",
+		"":                   "SansSerif",
+		"   ":                "SansSerif",
+		"Arial":              "SansSerif",
+		"Helvetica":          "SansSerif",
+		"Verdana":            "SansSerif",
+		"WST_Engl":           "Serif",
+		"wst_germ":           "Serif",
+		"Times New Roman":    "Serif",
+		"Georgia":            "Serif",
+		"Palatino Linotype":  "Serif",
+		"Garamond":           "Serif",
 		"Century Schoolbook": "Serif",
-		"Courier New":     "Monospaced",
-		"Consolas":        "Monospaced",
-		"DejaVu Sans Mono": "Monospaced",
-		"Source Code Pro": "Monospaced",
+		"Courier New":        "Monospaced",
+		"Consolas":           "Monospaced",
+		"DejaVu Sans Mono":   "Monospaced",
+		"Source Code Pro":    "Monospaced",
 	}
 
 	for family, want := range cases {

@@ -21,6 +21,11 @@ type configuredAggTextFont struct {
 	trueType *agg.FreeTypeOutlineText
 }
 
+type loadedTrueTypeFont struct {
+	face            *agg.FreeTypeOutlineText
+	syntheticItalic bool
+}
+
 func (f configuredAggTextFont) Close() {
 	if f.trueType != nil {
 		_ = f.trueType.Close()

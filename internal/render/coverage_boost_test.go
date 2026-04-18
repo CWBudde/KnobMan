@@ -12,6 +12,7 @@ func TestDynamicTextEvalSupportsMathFunctionsAndPrecedence(t *testing.T) {
 	dt := newDynamicText("pow(x,2)+sqrt(9)+log(exp(1))+log10(100)-5/2")
 
 	got := dt.eval(0, 4)
+
 	want := 19.5
 	if math.Abs(got-want) > 1e-9 {
 		t.Fatalf("eval mismatch: got %v want %v", got, want)
@@ -102,6 +103,7 @@ func TestPixBufDegenerateAllocationAndClippedRectOps(t *testing.T) {
 	}
 
 	buf.Set(-1, 0, color.RGBA{R: 255, A: 255})
+
 	if got := buf.At(0, 0); got.A != 0 {
 		t.Fatalf("expected out-of-bounds write to be ignored, got %+v", got)
 	}
@@ -137,6 +139,7 @@ func TestMakeHighlightUsesWhiteShadowTint(t *testing.T) {
 	src.Set(1, 3, color.RGBA{A: 255})
 
 	highlight := MakeHighlight(src, 2, 100, 0, 0)
+
 	got := highlight.At(3, 3)
 	if got.A == 0 {
 		t.Fatalf("expected shifted highlight pixel, got %+v", got)
@@ -183,6 +186,7 @@ func TestTextureSetAddGetAndDecodeTextureInvalid(t *testing.T) {
 
 func TestExtractFrameAutoDetectAndClonePaths(t *testing.T) {
 	wide := NewPixBuf(6, 2)
+
 	for y := range 2 {
 		for x := range 2 {
 			wide.Set(x, y, color.RGBA{R: 255, A: 255})
@@ -196,6 +200,7 @@ func TestExtractFrameAutoDetectAndClonePaths(t *testing.T) {
 	}
 
 	tall := NewPixBuf(2, 6)
+
 	for y := range 2 {
 		for x := range 2 {
 			tall.Set(x, y, color.RGBA{R: 255, A: 255})
@@ -218,12 +223,14 @@ func TestExtractFrameAutoDetectAndClonePaths(t *testing.T) {
 
 	clone := ExtractFrameAligned(wide, 3, 1, 3, 2)
 	clone.Set(0, 0, color.RGBA{})
+
 	if got := wide.At(0, 0); got.A == 0 {
 		t.Fatalf("align=2 should clone, original was mutated: %+v", got)
 	}
 
 	single := ExtractFrameAligned(wide, 1, 0, 1, 1)
 	single.Set(1, 1, color.RGBA{})
+
 	if got := wide.At(1, 1); got.A == 0 {
 		t.Fatalf("numFrames<=1 should clone, original was mutated: %+v", got)
 	}

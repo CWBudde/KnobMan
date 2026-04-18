@@ -33,7 +33,6 @@ func TestDefaultRefsDirForSamplesDir(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -48,6 +47,7 @@ func TestJustParityGenerateRecipesWriteArtifacts(t *testing.T) {
 	t.Parallel()
 
 	justfilePath := filepath.Join("..", "..", "justfile")
+
 	data, err := os.ReadFile(justfilePath)
 	if err != nil {
 		t.Fatalf("read justfile: %v", err)
@@ -86,7 +86,6 @@ func TestParseRenderOptions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
