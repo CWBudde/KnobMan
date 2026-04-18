@@ -15,6 +15,7 @@ import {
   clampInt,
   getLayerControlLabel,
   getLayerToggleLabel,
+  hasBoundedRangeControl,
   isCurveSelectorField,
   syncCanvasElementSize,
 } from "./utils.js";
@@ -795,6 +796,56 @@ function coerceParamValue(def, input) {
   return input.value;
 }
 
+function parseNumericValue(def, rawValue) {
+  if (def.numeric === "int") {
+    const value = parseInt(rawValue, 10);
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (def.numeric === "float") {
+    const value = parseFloat(rawValue);
+    return Number.isFinite(value) ? value : 0;
+  }
+  return rawValue;
+}
+
+function buildBoundedNumericControl(def, value, onChange) {
+  const wrap = document.createElement("div");
+  wrap.className = "param-numeric";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = String(def.min);
+  slider.max = String(def.max);
+  slider.step = String(def.step ?? 1);
+  slider.value = String(value ?? 0);
+
+  const number = document.createElement("input");
+  number.type = "number";
+  number.min = String(def.min);
+  number.max = String(def.max);
+  number.step = String(def.step ?? 1);
+  number.value = String(value ?? 0);
+
+  function syncAndApply(rawValue, source) {
+    const nextValue = parseNumericValue(def, rawValue);
+    const normalized = String(nextValue);
+    if (source !== slider) slider.value = normalized;
+    if (source !== number) number.value = normalized;
+    onChange(nextValue);
+  }
+
+  slider.addEventListener("input", () => {
+    syncAndApply(slider.value, slider);
+  });
+  number.addEventListener("input", () => {
+    syncAndApply(number.value, number);
+  });
+
+  wrap.appendChild(slider);
+  wrap.appendChild(number);
+  return wrap;
+}
+
 function applyParamChange(key, value) {
   const ok = window.knobman_setParam(state.selectedLayer, key, value);
   if (!ok) return false;
@@ -954,13 +1005,21 @@ function buildParamRow(key, value) {
 
   const eventName =
     def.type === "select" || def.type === "checkbox" ? "change" : "input";
-  input.addEventListener(eventName, () => {
-    const nextValue = coerceParamValue(def, input);
-    applyParamChange(key, nextValue);
-  });
 
   row.appendChild(caption);
-  row.appendChild(input);
+  if (hasBoundedRangeControl(def)) {
+    row.appendChild(
+      buildBoundedNumericControl(def, value, (nextValue) => {
+        applyParamChange(key, nextValue);
+      }),
+    );
+  } else {
+    input.addEventListener(eventName, () => {
+      const nextValue = coerceParamValue(def, input);
+      applyParamChange(key, nextValue);
+    });
+    row.appendChild(input);
+  }
   return row;
 }
 
@@ -1004,16 +1063,27 @@ function buildEffectRow(key, value) {
 
   const eventName =
     def.type === "select" || def.type === "checkbox" ? "change" : "input";
-  input.addEventListener(eventName, () => {
-    const nextValue = coerceParamValue(def, input);
-    applyEffectParamChange(key, nextValue);
-    if (isCurveSelectorField(key) && Number(nextValue) > 0) {
-      curveEditor.focusCurve(Number(nextValue));
-    }
-  });
 
   row.appendChild(caption);
-  row.appendChild(input);
+  if (hasBoundedRangeControl(def)) {
+    row.appendChild(
+      buildBoundedNumericControl(def, value, (nextValue) => {
+        applyEffectParamChange(key, nextValue);
+        if (isCurveSelectorField(key) && Number(nextValue) > 0) {
+          curveEditor.focusCurve(Number(nextValue));
+        }
+      }),
+    );
+  } else {
+    input.addEventListener(eventName, () => {
+      const nextValue = coerceParamValue(def, input);
+      applyEffectParamChange(key, nextValue);
+      if (isCurveSelectorField(key) && Number(nextValue) > 0) {
+        curveEditor.focusCurve(Number(nextValue));
+      }
+    });
+    row.appendChild(input);
+  }
   return row;
 }
 

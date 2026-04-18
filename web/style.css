@@ -453,6 +453,7 @@ button:active {
 
 .param-row input[type="text"],
 .param-row input[type="number"],
+.param-row input[type="range"],
 .param-row input[type="color"],
 .param-row input[type="file"],
 .param-row select,
@@ -469,6 +470,19 @@ button:active {
 .param-row textarea {
   min-height: 72px;
   resize: vertical;
+}
+
+.param-numeric {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px;
+  gap: 8px;
+  align-items: center;
+}
+
+.param-numeric input[type="range"] {
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .param-row.checkbox {

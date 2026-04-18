@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   getLayerControlLabel,
   getLayerToggleLabel,
+  hasBoundedRangeControl,
   isPristineSessionPayload,
   resolveAssetUrl,
 } from "./utils.js";
@@ -94,4 +95,23 @@ test("getLayerControlLabel returns descriptive layer toolbar labels", () => {
   assert.equal(getLayerControlLabel("up"), "Move selected layer up");
   assert.equal(getLayerControlLabel("down"), "Move selected layer down");
   assert.equal(getLayerControlLabel("duplicate"), "Duplicate selected layer");
+});
+
+test("hasBoundedRangeControl is true only for bounded numeric defs", () => {
+  assert.equal(
+    hasBoundedRangeControl({ type: "number", min: -100, max: 100 }),
+    true,
+  );
+  assert.equal(
+    hasBoundedRangeControl({ type: "number", min: 0, max: 0 }),
+    false,
+  );
+  assert.equal(
+    hasBoundedRangeControl({ type: "number", min: 0 }),
+    false,
+  );
+  assert.equal(
+    hasBoundedRangeControl({ type: "text", min: 0, max: 10 }),
+    false,
+  );
 });

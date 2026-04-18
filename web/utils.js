@@ -287,6 +287,16 @@ export function getLayerControlLabel(action) {
   }
 }
 
+export function hasBoundedRangeControl(def) {
+  return Boolean(
+    def &&
+      def.type === "number" &&
+      Number.isFinite(def.min) &&
+      Number.isFinite(def.max) &&
+      Number(def.max) > Number(def.min),
+  );
+}
+
 export function filenameTimestampNow() {
   const d = new Date();
   const pad2 = (n) => String(n).padStart(2, "0");
