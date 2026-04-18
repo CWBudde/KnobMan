@@ -326,6 +326,36 @@ function appendAnimatedEffectRows(rows, curveKey, fromKey, toKey, labelBase, opt
   }
 }
 
+function appendStaticOrAnimatedEffectRows(
+  rows,
+  values,
+  curveKey,
+  fromKey,
+  toKey,
+  labelBase,
+  opts,
+) {
+  const disabled = Boolean(opts?.disabled);
+  const animated = isCurveEnabled(values?.[curveKey]);
+  rows.push({
+    key: fromKey,
+    label: animated ? `${labelBase} From` : labelBase,
+    disabled,
+  });
+  if (animated) {
+    rows.push({
+      key: toKey,
+      label: `${labelBase} To`,
+      disabled,
+    });
+  }
+  rows.push({
+    key: curveKey,
+    label: `${labelBase} Curve`,
+    disabled,
+  });
+}
+
 export function getTransformEffectRows(effectValues) {
   const values = effectValues || {};
   const rows = [
@@ -391,6 +421,155 @@ export function getColorEffectRows(effectValues) {
   });
 
   return rows;
+}
+
+export function getSpecularHighlightRows(effectValues) {
+  const values = effectValues || {};
+  const rows = [];
+
+  appendStaticOrAnimatedEffectRows(
+    rows,
+    values,
+    "sLightDirAnim",
+    "sLightDirF",
+    "sLightDirT",
+    "LightDir",
+  );
+  appendStaticOrAnimatedEffectRows(
+    rows,
+    values,
+    "sDensityAnim",
+    "sDensityF",
+    "sDensityT",
+    "Density",
+  );
+
+  return rows;
+}
+
+function buildShadowLikeEffectRows(effectValues, config) {
+  const values = effectValues || {};
+  const rows = [];
+
+  (config.leadingKeys || []).forEach((key) => {
+    rows.push({
+      key,
+      label: getEffectLabel(key),
+      disabled: false,
+    });
+  });
+
+  (config.groups || []).forEach((group) => {
+    appendStaticOrAnimatedEffectRows(
+      rows,
+      values,
+      group.curveKey,
+      group.fromKey,
+      group.toKey,
+      group.labelBase,
+    );
+  });
+
+  (config.trailingKeys || []).forEach((key) => {
+    rows.push({
+      key,
+      label: getEffectLabel(key),
+      disabled: false,
+    });
+  });
+
+  return rows;
+}
+
+export function getDropShadowEffectRows(effectValues) {
+  return buildShadowLikeEffectRows(effectValues, {
+    leadingKeys: ["dLightDirEna"],
+    groups: [
+      {
+        curveKey: "dLightDirAnim",
+        fromKey: "dLightDirF",
+        toKey: "dLightDirT",
+        labelBase: "LightDir",
+      },
+      {
+        curveKey: "dOffsetAnim",
+        fromKey: "dOffsetF",
+        toKey: "dOffsetT",
+        labelBase: "Offset",
+      },
+      {
+        curveKey: "dDensityAnim",
+        fromKey: "dDensityF",
+        toKey: "dDensityT",
+        labelBase: "Density",
+      },
+      {
+        curveKey: "dDiffuseAnim",
+        fromKey: "dDiffuseF",
+        toKey: "dDiffuseT",
+        labelBase: "Diffuse",
+      },
+    ],
+    trailingKeys: ["dsType", "dsGrad"],
+  });
+}
+
+export function getInnerShadowEffectRows(effectValues) {
+  return buildShadowLikeEffectRows(effectValues, {
+    leadingKeys: ["iLightDirEna"],
+    groups: [
+      {
+        curveKey: "iLightDirAnim",
+        fromKey: "iLightDirF",
+        toKey: "iLightDirT",
+        labelBase: "LightDir",
+      },
+      {
+        curveKey: "iOffsetAnim",
+        fromKey: "iOffsetF",
+        toKey: "iOffsetT",
+        labelBase: "Offset",
+      },
+      {
+        curveKey: "iDensityAnim",
+        fromKey: "iDensityF",
+        toKey: "iDensityT",
+        labelBase: "Density",
+      },
+      {
+        curveKey: "iDiffuseAnim",
+        fromKey: "iDiffuseF",
+        toKey: "iDiffuseT",
+        labelBase: "Diffuse",
+      },
+    ],
+  });
+}
+
+export function getEmbossEffectRows(effectValues) {
+  return buildShadowLikeEffectRows(effectValues, {
+    leadingKeys: ["eLightDirEna"],
+    groups: [
+      {
+        curveKey: "eLightDirAnim",
+        fromKey: "eLightDirF",
+        toKey: "eLightDirT",
+        labelBase: "LightDir",
+      },
+      {
+        curveKey: "eOffsetAnim",
+        fromKey: "eOffsetF",
+        toKey: "eOffsetT",
+        labelBase: "Offset",
+      },
+      {
+        curveKey: "eDensityAnim",
+        fromKey: "eDensityF",
+        toKey: "eDensityT",
+        labelBase: "Density",
+      },
+    ],
+  });
 }
 
 export function filenameTimestampNow() {

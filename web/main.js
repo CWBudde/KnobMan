@@ -14,8 +14,12 @@ import {
   canvasToBlobSync,
   clampInt,
   getColorEffectRows,
+  getDropShadowEffectRows,
+  getEmbossEffectRows,
+  getInnerShadowEffectRows,
   getLayerControlLabel,
   getLayerToggleLabel,
+  getSpecularHighlightRows,
   getTransformEffectRows,
   hasBoundedRangeControl,
   isCurveSelectorField,
@@ -1126,6 +1130,42 @@ function appendEffectSections(content) {
           )
         : section.title === "Color"
           ? getColorEffectRows(
+              Object.fromEntries(
+                section.fields.map((key) => [
+                  key,
+                  window.knobman_getEffectParam(state.selectedLayer, key),
+                ]),
+              ),
+            )
+        : section.title === "Specular Highlight"
+          ? getSpecularHighlightRows(
+              Object.fromEntries(
+                section.fields.map((key) => [
+                  key,
+                  window.knobman_getEffectParam(state.selectedLayer, key),
+                ]),
+              ),
+            )
+        : section.title === "Drop Shadow"
+          ? getDropShadowEffectRows(
+              Object.fromEntries(
+                section.fields.map((key) => [
+                  key,
+                  window.knobman_getEffectParam(state.selectedLayer, key),
+                ]),
+              ),
+            )
+        : section.title === "Inner Shadow"
+          ? getInnerShadowEffectRows(
+              Object.fromEntries(
+                section.fields.map((key) => [
+                  key,
+                  window.knobman_getEffectParam(state.selectedLayer, key),
+                ]),
+              ),
+            )
+        : section.title === "Emboss"
+          ? getEmbossEffectRows(
               Object.fromEntries(
                 section.fields.map((key) => [
                   key,

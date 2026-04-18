@@ -5,6 +5,7 @@ import {
   getColorEffectRows,
   getDropShadowEffectRows,
   getEmbossEffectRows,
+  getInnerShadowEffectRows,
   getSpecularHighlightRows,
   getTransformEffectRows,
   getLayerControlLabel,
@@ -281,6 +282,31 @@ test("getEmbossEffectRows applies the same static-vs-animated rule", () => {
       ["eOffsetAnim", "Offset Curve", false],
       ["eDensityF", "Density", false],
       ["eDensityAnim", "Density Curve", false],
+    ],
+  );
+});
+
+test("getInnerShadowEffectRows keeps curve last and only shows To when animated", () => {
+  const rows = getInnerShadowEffectRows({
+    iLightDirAnim: 0,
+    iOffsetAnim: 0,
+    iDensityAnim: 2,
+    iDiffuseAnim: 0,
+  });
+
+  assert.deepEqual(
+    rows.map((row) => [row.key, row.label, row.disabled]),
+    [
+      ["iLightDirEna", "Enable", false],
+      ["iLightDirF", "LightDir", false],
+      ["iLightDirAnim", "LightDir Curve", false],
+      ["iOffsetF", "Offset", false],
+      ["iOffsetAnim", "Offset Curve", false],
+      ["iDensityF", "Density From", false],
+      ["iDensityT", "Density To", false],
+      ["iDensityAnim", "Density Curve", false],
+      ["iDiffuseF", "Diffuse", false],
+      ["iDiffuseAnim", "Diffuse Curve", false],
     ],
   );
 });
