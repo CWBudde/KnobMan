@@ -25,6 +25,10 @@ import {
   supportsOpenPicker,
   uniqueId,
 } from "./utils.js";
+import {
+  createIframeSamplePreviewRenderer,
+  createSamplePreviewService,
+} from "./sample-previews.js";
 
 export function createProjects({
   state,
@@ -36,6 +40,10 @@ export function createProjects({
   setStatus,
   syncAspectRatioFromInputs,
 }) {
+  const samplePreviewService = createSamplePreviewService({
+    renderer: createIframeSamplePreviewRenderer(),
+  });
+
   async function fetchBuiltinTextureBytes(filename) {
     const paths = [
       "../assets/textures/" + filename,
@@ -77,6 +85,55 @@ export function createProjects({
 
   function sampleLabelFromFileName(fileName) {
     return stripFileExtension(fileName).replace(/[_-]+/g, " ").trim();
+  }
+
+  function buildSampleCard(fileName, onClick) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "sample-item sample-preview-item";
+
+    const layout = document.createElement("div");
+    layout.className = "sample-preview-layout";
+
+    const textCol = document.createElement("div");
+    textCol.className = "sample-preview-text";
+    const label = document.createElement("strong");
+    label.textContent = sampleLabelFromFileName(fileName);
+    textCol.appendChild(label);
+    const meta = document.createElement("small");
+    meta.textContent = fileName;
+    textCol.appendChild(meta);
+
+    const preview = document.createElement("div");
+    preview.className = "sample-preview loading";
+    const status = document.createElement("span");
+    status.className = "sample-preview-status";
+    status.textContent = "Loading preview…";
+    preview.appendChild(status);
+
+    layout.appendChild(textCol);
+    layout.appendChild(preview);
+    btn.appendChild(layout);
+    btn.addEventListener("click", onClick);
+
+    void samplePreviewService.getPreview(fileName).then((result) => {
+      if (!btn.isConnected) return;
+      preview.classList.remove("loading");
+      if (!result || !result.url) {
+        preview.classList.add("failed");
+        status.textContent = "No preview";
+        return;
+      }
+      preview.classList.add("ready");
+      const img = document.createElement("img");
+      img.className = "sample-preview-image";
+      img.alt = `${sampleLabelFromFileName(fileName)} preview`;
+      img.src = result.url;
+      preview.textContent = "";
+      preview.appendChild(img);
+    });
+
+    return btn;
   }
 
   function recentDocsLoad() {
@@ -273,16 +330,7 @@ export function createProjects({
     }
 
     matches.forEach((file) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "sample-item";
-      const label = document.createElement("strong");
-      label.textContent = sampleLabelFromFileName(file);
-      btn.appendChild(label);
-      const meta = document.createElement("small");
-      meta.textContent = file;
-      btn.appendChild(meta);
-      btn.addEventListener("click", () => {
+      const btn = buildSampleCard(file, () => {
         closeWelcomeOverlay();
         void loadSampleProject(file);
       });
@@ -346,19 +394,7 @@ export function createProjects({
     }
 
     matches.forEach((file) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "sample-item";
-
-      const label = document.createElement("strong");
-      label.textContent = sampleLabelFromFileName(file);
-      btn.appendChild(label);
-
-      const meta = document.createElement("small");
-      meta.textContent = file;
-      btn.appendChild(meta);
-
-      btn.addEventListener("click", () => {
+      const btn = buildSampleCard(file, () => {
         void loadSampleProject(file);
       });
       list.appendChild(btn);

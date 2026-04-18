@@ -47,7 +47,7 @@ func main() {
 			log.Fatalf("save %s: %v", fixture.Name, err)
 		}
 
-		err = os.WriteFile(path, data, 0o644)
+		err = os.WriteFile(path, data, 0o600)
 		if err != nil {
 			log.Fatalf("write %s: %v", path, err)
 		}
@@ -72,6 +72,12 @@ type fixtureDef struct {
 	Name  string
 	Build func() *model.Document
 }
+
+const (
+	shapeTriangleLoop  = "/128,24,128,24,128,24:232,128,232,128,232,128:128,232,128,232,128,232:24,128,24,128,24,128"
+	embeddedCheckerPNG = "embedded-checker.png"
+	embeddedSeamPNG    = "embedded-seam.png"
+)
 
 func primitiveFixtures() []fixtureDef {
 	return []fixtureDef{
@@ -246,7 +252,7 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Type.Val = int(model.PrimShape)
 			ly.Prim.Color.Val = rgb(56, 144, 88)
 			ly.Prim.Fill.Val = 1
-			ly.Prim.Shape.Val = "/128,24,128,24,128,24:232,128,232,128,232,128:128,232,128,232,128,232:24,128,24,128,24,128"
+			ly.Prim.Shape.Val = shapeTriangleLoop
 
 			return doc
 		}},
@@ -256,7 +262,7 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Type.Val = int(model.PrimShape)
 			ly.Prim.Color.Val = rgb(56, 144, 88)
 			ly.Prim.Fill.Val = 0
-			ly.Prim.Shape.Val = "/128,24,128,24,128,24:232,128,232,128,232,128:128,232,128,232,128,232:24,128,24,128,24,128"
+			ly.Prim.Shape.Val = shapeTriangleLoop
 
 			return doc
 		}},
@@ -351,7 +357,7 @@ func primitiveFixtures() []fixtureDef {
 			ly.Prim.Type.Val = int(model.PrimShape)
 			ly.Prim.Color.Val = rgb(224, 80, 48)
 			ly.Prim.Fill.Val = 1
-			ly.Prim.Shape.Val = "/128,24,128,24,128,24:232,128,232,128,232,128:128,232,128,232,128,232:24,128,24,128,24,128"
+			ly.Prim.Shape.Val = shapeTriangleLoop
 
 			return doc
 		}},
@@ -382,7 +388,7 @@ func primitiveFixtures() []fixtureDef {
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimRectFill)
 			ly.Prim.Color.Val = rgb(96, 120, 168)
-			ly.Prim.TextureName = "embedded-checker.png"
+			ly.Prim.TextureName = embeddedCheckerPNG
 			ly.Prim.EmbeddedTexture = checkerTexturePNG()
 			ly.Prim.TextureDepth.Val = 70
 			ly.Prim.TextureZoom.Val = 100
@@ -394,7 +400,7 @@ func primitiveFixtures() []fixtureDef {
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimRectFill)
 			ly.Prim.Color.Val = rgb(112, 112, 112)
-			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.TextureName = embeddedSeamPNG
 			ly.Prim.EmbeddedTexture = seamTexturePNG()
 			ly.Prim.TextureDepth.Val = 80
 			ly.Prim.TextureZoom.Val = 100
@@ -406,7 +412,7 @@ func primitiveFixtures() []fixtureDef {
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimRectFill)
 			ly.Prim.Color.Val = rgb(112, 112, 112)
-			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.TextureName = embeddedSeamPNG
 			ly.Prim.EmbeddedTexture = seamTexturePNG()
 			ly.Prim.TextureDepth.Val = 80
 			ly.Prim.TextureZoom.Val = 220
@@ -418,7 +424,7 @@ func primitiveFixtures() []fixtureDef {
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimRectFill)
 			ly.Prim.Color.Val = rgb(112, 112, 112)
-			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.TextureName = embeddedSeamPNG
 			ly.Prim.EmbeddedTexture = seamTexturePNG()
 			ly.Prim.TextureDepth.Val = 80
 			ly.Prim.TextureZoom.Val = 40
@@ -430,7 +436,7 @@ func primitiveFixtures() []fixtureDef {
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimCircleFill)
 			ly.Prim.Color.Val = rgb(96, 120, 168)
-			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.TextureName = embeddedSeamPNG
 			ly.Prim.EmbeddedTexture = seamTexturePNG()
 			ly.Prim.TextureDepth.Val = 70
 			ly.Prim.TextureZoom.Val = 100
@@ -442,7 +448,7 @@ func primitiveFixtures() []fixtureDef {
 			ly := &doc.Layers[0]
 			ly.Prim.Type.Val = int(model.PrimCircleFill)
 			ly.Prim.Color.Val = rgb(80, 150, 96)
-			ly.Prim.TextureName = "embedded-checker.png"
+			ly.Prim.TextureName = embeddedCheckerPNG
 			ly.Prim.EmbeddedTexture = checkerTexturePNG()
 			ly.Prim.TextureDepth.Val = 65
 			ly.Prim.TextureZoom.Val = 140
@@ -574,7 +580,7 @@ func animatedFixtures() []fixtureDef {
 			ly.Prim.Color.Val = rgb(120, 136, 164)
 			ly.Prim.Length.Val = 80
 			ly.Prim.Aspect.Val = 30
-			ly.Prim.TextureName = "embedded-seam.png"
+			ly.Prim.TextureName = embeddedSeamPNG
 			ly.Prim.EmbeddedTexture = seamTexturePNG()
 			ly.Prim.TextureDepth.Val = 54
 			ly.Prim.TextureZoom.Val = 120
@@ -620,7 +626,7 @@ func animatedFixtures() []fixtureDef {
 			background.Prim.Color.Val = rgb(34, 38, 46)
 			background.Prim.Length.Val = 100
 			background.Prim.Aspect.Val = 100
-			background.Prim.TextureName = "embedded-seam.png"
+			background.Prim.TextureName = embeddedSeamPNG
 			background.Prim.EmbeddedTexture = seamTexturePNG()
 			background.Prim.TextureDepth.Val = 18
 			background.Prim.TextureZoom.Val = 85
@@ -629,7 +635,7 @@ func animatedFixtures() []fixtureDef {
 			main.Name = "Main"
 			main.Prim.Type.Val = int(model.PrimCircleFill)
 			main.Prim.Color.Val = rgb(214, 88, 66)
-			main.Prim.TextureName = "embedded-checker.png"
+			main.Prim.TextureName = embeddedCheckerPNG
 			main.Prim.EmbeddedTexture = checkerTexturePNG()
 			main.Prim.TextureDepth.Val = 34
 			main.Prim.TextureZoom.Val = 150

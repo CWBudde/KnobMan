@@ -17,6 +17,15 @@ import (
 
 var fontPathCache sync.Map
 
+const (
+	fontFamilyDialog       = "dialog"
+	fontFamilyDialogInput  = "dialoginput"
+	fontFamilySansSerifKey = "sansserif"
+	fontFamilySerif        = "serif"
+	fontFamilyMonospaced   = "monospaced"
+	fontFamilyMonospace    = "monospace"
+)
+
 type resolvedFontFace struct {
 	path            string
 	syntheticItalic bool
@@ -87,7 +96,7 @@ func resolveFontPath(family string, bold, italic bool) resolvedFontFace {
 func findFontPath(family string, bold, italic bool) resolvedFontFace {
 	family = strings.TrimSpace(family)
 	if family == "" {
-		family = "SansSerif"
+		family = fontFamilySansSerif
 	}
 
 	if filepath.IsAbs(family) {
@@ -153,7 +162,7 @@ func findFontPath(family string, bold, italic bool) resolvedFontFace {
 func classifyFamilyFallback(family string) string {
 	normalized := strings.ToLower(strings.TrimSpace(family))
 	if normalized == "" {
-		return "SansSerif"
+		return fontFamilySansSerif
 	}
 
 	monoTokens := []string{
@@ -177,12 +186,12 @@ func classifyFamilyFallback(family string) string {
 		}
 	}
 
-	return "SansSerif"
+	return fontFamilySansSerif
 }
 
 func isJavaGenericFontFamily(family string) bool {
 	switch strings.ToLower(strings.ReplaceAll(strings.TrimSpace(family), " ", "")) {
-	case "sansserif", "dialog", "serif", "monospaced", "dialoginput", "monospace":
+	case fontFamilySansSerifKey, fontFamilyDialog, fontFamilySerif, fontFamilyMonospaced, fontFamilyDialogInput, fontFamilyMonospace:
 		return true
 	default:
 		return false
@@ -192,11 +201,11 @@ func isJavaGenericFontFamily(family string) bool {
 func candidateFontFamilies(family string) []string {
 	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(family), " ", ""))
 	switch normalized {
-	case "sansserif", "dialog":
+	case fontFamilySansSerifKey, fontFamilyDialog:
 		return []string{"Noto Sans", "Helvetica", "Arial", "DejaVu Sans", "Liberation Sans"}
-	case "serif":
+	case fontFamilySerif:
 		return []string{"Nimbus Roman", "Nimbus Roman No9 L", "Noto Serif", "Times New Roman", "Times", "DejaVu Serif", "Liberation Serif"}
-	case "monospaced", "dialoginput", "monospace":
+	case fontFamilyMonospaced, fontFamilyDialogInput, fontFamilyMonospace:
 		return []string{"Noto Sans Mono", "Courier New", "Courier", "DejaVu Sans Mono", "Liberation Mono"}
 	default:
 		return []string{family}
@@ -330,12 +339,12 @@ func fallbackFontPaths(family string) []string {
 	switch runtime.GOOS {
 	case "darwin":
 		switch normalized {
-		case "serif":
+		case fontFamilySerif:
 			return []string{
 				"/System/Library/Fonts/Supplemental/Times New Roman.ttf",
 				"/System/Library/Fonts/NewYork.ttf",
 			}
-		case "monospaced", "dialoginput", "monospace":
+		case fontFamilyMonospaced, fontFamilyDialogInput, fontFamilyMonospace:
 			return []string{
 				"/System/Library/Fonts/Menlo.ttc",
 				"/System/Library/Fonts/Courier.dfont",
@@ -348,22 +357,22 @@ func fallbackFontPaths(family string) []string {
 		}
 	case "windows":
 		switch normalized {
-		case "serif":
+		case fontFamilySerif:
 			return []string{`C:\Windows\Fonts\times.ttf`, `C:\Windows\Fonts\timesbd.ttf`}
-		case "monospaced", "dialoginput", "monospace":
+		case fontFamilyMonospaced, fontFamilyDialogInput, fontFamilyMonospace:
 			return []string{`C:\Windows\Fonts\consola.ttf`, `C:\Windows\Fonts\cour.ttf`}
 		default:
 			return []string{`C:\Windows\Fonts\arial.ttf`, `C:\Windows\Fonts\segoeui.ttf`}
 		}
 	default:
 		switch normalized {
-		case "serif":
+		case fontFamilySerif:
 			return []string{
 				"/usr/share/fonts/truetype/noto/NotoSerif-Regular.ttf",
 				"/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
 				"/usr/share/fonts/truetype/liberation2/LiberationSerif-Regular.ttf",
 			}
-		case "monospaced", "dialoginput", "monospace":
+		case fontFamilyMonospaced, fontFamilyDialogInput, fontFamilyMonospace:
 			return []string{
 				"/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
 				"/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",

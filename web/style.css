@@ -732,7 +732,7 @@ button:active {
   overflow-y: auto;
   padding: 8px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 8px;
 }
 
@@ -742,6 +742,26 @@ button:active {
   background: var(--bg3);
   text-align: left;
   padding: 8px;
+}
+
+.sample-preview-item {
+  min-height: 96px;
+  padding: 10px;
+}
+
+.sample-preview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(92px, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  min-height: 74px;
+}
+
+.sample-preview-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .sample-item:hover {
@@ -758,6 +778,59 @@ button:active {
 .sample-item small {
   color: var(--text-dim);
   font-size: 10px;
+}
+
+.sample-preview {
+  min-height: 74px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background:
+    linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.04) 25%,
+      transparent 25%,
+      transparent 75%,
+      rgba(255, 255, 255, 0.04) 75%
+    ),
+    linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.04) 25%,
+      transparent 25%,
+      transparent 75%,
+      rgba(255, 255, 255, 0.04) 75%
+    ),
+    #1a1a1c;
+  background-position:
+    0 0,
+    6px 6px;
+  background-size: 12px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.sample-preview.loading {
+  border-style: dashed;
+}
+
+.sample-preview.failed {
+  background: #1a1a1c;
+}
+
+.sample-preview-status {
+  color: var(--text-dim);
+  font-size: 10px;
+  text-align: center;
+  padding: 0 6px;
+}
+
+.sample-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
 }
 
 .sample-item[disabled] {
@@ -780,6 +853,10 @@ button:active {
   padding: 1px 6px;
   font-size: 10px;
   color: var(--text-dim);
+}
+
+.sample-preview-frame {
+  display: none;
 }
 
 /* ── Welcome dialog ───────────────────────────────────────────── */

@@ -3,8 +3,9 @@ package render
 import (
 	"strings"
 
-	agg "github.com/cwbudde/agg_go"
 	"knobman/internal/model"
+
+	agg "github.com/cwbudde/agg_go"
 )
 
 type aggTextBackend int
@@ -25,6 +26,8 @@ type loadedTrueTypeFont struct {
 	face            *agg.FreeTypeOutlineText
 	syntheticItalic bool
 }
+
+const fontFamilySansSerif = "SansSerif"
 
 func (f configuredAggTextFont) Close() {
 	if f.trueType != nil {
@@ -55,12 +58,12 @@ func configureAggTextFont(_ *agg.Context, p *model.Primitive, size float64) conf
 
 func primitiveFontFamily(p *model.Primitive) string {
 	if p == nil {
-		return "SansSerif"
+		return fontFamilySansSerif
 	}
 
 	name := strings.TrimSpace(p.FontName)
 	if name == "" {
-		return "SansSerif"
+		return fontFamilySansSerif
 	}
 
 	return name

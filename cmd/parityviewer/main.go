@@ -927,52 +927,58 @@ func renderCard(w io.Writer, entry *caseEntry) {
 	fmt.Fprint(w, `</div></div></div>`)
 }
 
+const (
+	badgeClassOK   = "badge-ok"
+	badgeClassWarn = "badge-warn"
+	badgeClassBad  = "badge-bad"
+)
+
 func badgeClass(rmse float64) string {
 	if rmse <= 5 {
-		return "badge-ok"
+		return badgeClassOK
 	}
 
 	if rmse <= 20 {
-		return "badge-warn"
+		return badgeClassWarn
 	}
 
-	return "badge-bad"
+	return badgeClassBad
 }
 
 func badgeClassAvgDiff(v float64) string {
 	if v <= 2 {
-		return "badge-ok"
+		return badgeClassOK
 	}
 
 	if v <= 8 {
-		return "badge-warn"
+		return badgeClassWarn
 	}
 
-	return "badge-bad"
+	return badgeClassBad
 }
 
 func badgeClassMaxDiff(v uint8) string {
 	if v <= 10 {
-		return "badge-ok"
+		return badgeClassOK
 	}
 
 	if v <= 40 {
-		return "badge-warn"
+		return badgeClassWarn
 	}
 
-	return "badge-bad"
+	return badgeClassBad
 }
 
 func badgeClassDiffRatio(r float64) string {
 	if r <= 0.01 {
-		return "badge-ok"
+		return badgeClassOK
 	}
 
 	if r <= 0.05 {
-		return "badge-warn"
+		return badgeClassWarn
 	}
 
-	return "badge-bad"
+	return badgeClassBad
 }
 
 const pageHeader = `<!DOCTYPE html>

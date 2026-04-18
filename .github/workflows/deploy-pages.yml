@@ -35,7 +35,7 @@ jobs:
         run: cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/dist/wasm_exec.js
 
       - name: Copy static web assets
-        run: cp web/index.html web/main.js web/style.css web/dist/
+        run: find web -maxdepth 1 -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' \) -exec cp {} web/dist/ \;
 
       - name: Copy assets (textures + sample knobs)
         run: cp -r assets web/dist/assets

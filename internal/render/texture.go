@@ -218,11 +218,6 @@ func (t *Texture) Sample(u, v, zoom float64) color.RGBA {
 	}
 }
 
-func (t *Texture) at(x, y int) color.RGBA {
-	i := (y*t.W + x) * 4
-	return color.RGBA{R: t.Data[i], G: t.Data[i+1], B: t.Data[i+2], A: t.Data[i+3]}
-}
-
 // SampleHeightAlpha matches JKnobMan's Tex.Get behavior for primitive textures.
 // It treats the texture as a tiled grayscale+alpha map in coordinates centered on
 // the primitive, and switches to a 2x downsampled lookup when zoom <= 50.
@@ -273,6 +268,11 @@ func (t *Texture) SampleHeightAlpha(x, y, zoom float64) (luma, alpha int) {
 	a1 := float64(a01)*(1.0-fx) + float64(a11)*fx
 
 	return int(p0*(1.0-fy) + p1*fy), int(a0*(1.0-fy) + a1*fy)
+}
+
+func (t *Texture) at(x, y int) color.RGBA {
+	i := (y*t.W + x) * 4
+	return color.RGBA{R: t.Data[i], G: t.Data[i+1], B: t.Data[i+2], A: t.Data[i+3]}
 }
 
 func (t *Texture) gridHeightAlpha(gx, gy, zWidth, zHeight, reduction int) (luma, alpha int) {

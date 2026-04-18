@@ -58,7 +58,7 @@ func main() {
 			}
 
 			for _, spec := range keyframeSpecs {
-				fmt.Println(keyframeOutputPath(*outputPath, spec.name))
+				printOutputPath(keyframeOutputPath(*outputPath, spec.name))
 			}
 
 			return
@@ -69,7 +69,7 @@ func main() {
 			log.Fatalf("render %s: %v", *inputPath, err)
 		}
 
-		fmt.Println(*outputPath)
+		printOutputPath(*outputPath)
 
 		return
 	}
@@ -95,7 +95,7 @@ func main() {
 			}
 
 			for _, spec := range keyframeSpecs {
-				fmt.Println(filepath.Join(*refDir, name+"__"+spec.name+".png"))
+				printOutputPath(filepath.Join(*refDir, name+"__"+spec.name+".png"))
 			}
 
 			continue
@@ -111,7 +111,14 @@ func main() {
 			log.Fatalf("render %s: %v", sample, err)
 		}
 
-		fmt.Println(refPath)
+		printOutputPath(refPath)
+	}
+}
+
+func printOutputPath(path string) {
+	_, err := fmt.Fprintln(os.Stdout, path)
+	if err != nil {
+		log.Fatalf("write output path: %v", err)
 	}
 }
 
