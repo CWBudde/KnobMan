@@ -198,46 +198,6 @@
             <option value="3">8×</option>
           </select>
         </label>
-        <label
-          >Export:
-          <select id="prefExport">
-            <option value="0">PNG Strip (V)</option>
-            <option value="1">PNG Strip (H)</option>
-            <option value="2">PNG Frames</option>
-            <option value="3">Animated GIF</option>
-            <option value="4">APNG</option>
-          </select>
-        </label>
-        <label
-          >Align:
-          <select id="prefAlign">
-            <option value="0">Vertical</option>
-            <option value="1">Horizontal</option>
-          </select>
-        </label>
-        <label
-          >Duration:
-          <input
-            type="number"
-            id="prefDuration"
-            value="100"
-            min="1"
-            max="10000"
-            step="1"
-          />
-        </label>
-        <label
-          >Loop:
-          <input
-            type="number"
-            id="prefLoop"
-            value="0"
-            min="0"
-            max="9999"
-            step="1"
-          />
-        </label>
-        <label><input type="checkbox" id="prefBiDir" /> BiDir</label>
       </footer>
     </div>
 
@@ -318,6 +278,71 @@
           <button id="btnCloseRecent" type="button">Close</button>
         </div>
         <div id="recentList" class="samples-list"></div>
+      </div>
+    </div>
+
+    <div id="exportOverlay" class="samples-overlay" hidden>
+      <div
+        class="samples-dialog export-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exportTitle"
+      >
+        <div class="samples-header">
+          <h2 id="exportTitle">Export</h2>
+          <button id="btnCloseExport" type="button">Close</button>
+        </div>
+        <div class="export-body">
+          <div class="export-form">
+            <label>
+              <span>Format</span>
+              <select id="prefExport">
+                <option value="0">PNG Strip (V)</option>
+                <option value="1">PNG Strip (H)</option>
+                <option value="2">PNG Frames</option>
+                <option value="3">Animated GIF</option>
+                <option value="4">APNG</option>
+              </select>
+            </label>
+            <label>
+              <span>Align</span>
+              <select id="prefAlign">
+                <option value="0">Vertical</option>
+                <option value="1">Horizontal</option>
+              </select>
+            </label>
+            <label>
+              <span>Duration</span>
+              <input
+                type="number"
+                id="prefDuration"
+                value="100"
+                min="1"
+                max="10000"
+                step="1"
+              />
+            </label>
+            <label>
+              <span>Loop</span>
+              <input
+                type="number"
+                id="prefLoop"
+                value="0"
+                min="0"
+                max="9999"
+                step="1"
+              />
+            </label>
+            <label class="export-checkbox">
+              <input type="checkbox" id="prefBiDir" />
+              <span>Bidirectional preview/export timing</span>
+            </label>
+          </div>
+        </div>
+        <div class="export-actions">
+          <button id="btnExportCancel" type="button">Cancel</button>
+          <button id="btnExportConfirm" type="button">Export</button>
+        </div>
       </div>
     </div>
 

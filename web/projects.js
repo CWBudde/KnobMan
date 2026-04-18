@@ -213,6 +213,24 @@ export function createProjects({
     if (overlay) overlay.hidden = true;
   }
 
+  function isExportOverlayOpen() {
+    const overlay = el("exportOverlay");
+    return Boolean(overlay && !overlay.hidden);
+  }
+
+  function closeExportOverlay() {
+    const overlay = el("exportOverlay");
+    if (overlay) overlay.hidden = true;
+  }
+
+  function openExportOverlay() {
+    const overlay = el("exportOverlay");
+    if (!overlay) return;
+    overlay.hidden = false;
+    const format = el("prefExport");
+    if (format) format.focus();
+  }
+
   function isRecentOverlayOpen() {
     const overlay = el("recentOverlay");
     return Boolean(overlay && !overlay.hidden);
@@ -634,6 +652,7 @@ export function createProjects({
         setStatus("PNG strip export canceled");
         return;
       }
+      closeExportOverlay();
       setStatus(
         result.mode === "picker"
           ? `Exported ${fileName}`
@@ -662,6 +681,7 @@ export function createProjects({
         setStatus("PNG frames export canceled");
         return;
       }
+      closeExportOverlay();
       setStatus(
         result.mode === "picker"
           ? `Exported ${fileName}`
@@ -690,6 +710,7 @@ export function createProjects({
         setStatus("GIF export canceled");
         return;
       }
+      closeExportOverlay();
       setStatus(
         result.mode === "picker"
           ? `Exported ${fileName}`
@@ -718,6 +739,7 @@ export function createProjects({
         setStatus("APNG export canceled");
         return;
       }
+      closeExportOverlay();
       setStatus(
         result.mode === "picker"
           ? `Exported ${fileName}`
@@ -865,16 +887,19 @@ export function createProjects({
   }
 
   return {
+    closeExportOverlay,
     closeRecentOverlay,
     closeSamplesOverlay,
     closeWelcomeOverlay,
     ensureBuiltinTextures,
+    isExportOverlayOpen,
     isRecentOverlayOpen,
     isSamplesOverlayOpen,
     onExport,
     onFileOpen,
     onNew,
     onSave,
+    openExportOverlay,
     openProjectWithPicker,
     openRecentOverlay,
     openSamplesOverlay,

@@ -13,6 +13,8 @@ import {
 import {
   canvasToBlobSync,
   clampInt,
+  getLayerControlLabel,
+  getLayerToggleLabel,
   isCurveSelectorField,
   syncCanvasElementSize,
 } from "./utils.js";
@@ -509,7 +511,7 @@ function wireControls() {
   el("btnSamples").addEventListener("click", projects.openSamplesOverlay);
   el("fileInput").addEventListener("change", projects.onFileOpen);
   el("btnSave").addEventListener("click", projects.onSave);
-  el("btnExport").addEventListener("click", projects.onExport);
+  el("btnExport").addEventListener("click", projects.openExportOverlay);
   el("btnPreviewWin").addEventListener("click", toggleDetachedPreviewWindow);
   el("btnUndo").addEventListener("click", onUndo);
   el("btnRedo").addEventListener("click", onRedo);
@@ -519,6 +521,22 @@ function wireControls() {
   el("btnMoveUp").addEventListener("click", onMoveUp);
   el("btnMoveDown").addEventListener("click", onMoveDown);
   el("btnDuplicate").addEventListener("click", onDuplicate);
+  el("btnAddLayer").title = getLayerControlLabel("add");
+  el("btnAddLayer").setAttribute("aria-label", getLayerControlLabel("add"));
+  el("btnDeleteLayer").title = getLayerControlLabel("delete");
+  el("btnDeleteLayer").setAttribute(
+    "aria-label",
+    getLayerControlLabel("delete"),
+  );
+  el("btnMoveUp").title = getLayerControlLabel("up");
+  el("btnMoveUp").setAttribute("aria-label", getLayerControlLabel("up"));
+  el("btnMoveDown").title = getLayerControlLabel("down");
+  el("btnMoveDown").setAttribute("aria-label", getLayerControlLabel("down"));
+  el("btnDuplicate").title = getLayerControlLabel("duplicate");
+  el("btnDuplicate").setAttribute(
+    "aria-label",
+    getLayerControlLabel("duplicate"),
+  );
 
   const samplesOverlay = el("samplesOverlay");
   const sampleSearch = el("sampleSearch");
@@ -533,6 +551,27 @@ function wireControls() {
   }
   if (closeSamples) {
     closeSamples.addEventListener("click", projects.closeSamplesOverlay);
+  }
+
+  const exportOverlay = el("exportOverlay");
+  const closeExport = el("btnCloseExport");
+  const cancelExport = el("btnExportCancel");
+  const confirmExport = el("btnExportConfirm");
+  if (exportOverlay) {
+    exportOverlay.addEventListener("click", (e) => {
+      if (e.target === exportOverlay) projects.closeExportOverlay();
+    });
+  }
+  if (closeExport) {
+    closeExport.addEventListener("click", projects.closeExportOverlay);
+  }
+  if (cancelExport) {
+    cancelExport.addEventListener("click", projects.closeExportOverlay);
+  }
+  if (confirmExport) {
+    confirmExport.addEventListener("click", () => {
+      void projects.onExport();
+    });
   }
 
   const recentOverlay = el("recentOverlay");
@@ -662,10 +701,12 @@ function refreshLayerList() {
       state.selectedLayer = layer.index;
     }
 
-    const vis = document.createElement("span");
+    const vis = document.createElement("button");
+    vis.type = "button";
     vis.className = "layer-vis" + (layer.visible ? " on" : "");
     vis.textContent = "V";
-    vis.title = "Toggle visibility";
+    vis.title = getLayerToggleLabel("visibility", layer.visible);
+    vis.setAttribute("aria-label", vis.title);
     vis.addEventListener("click", (e) => {
       e.stopPropagation();
       window.knobman_setLayerVisible(layer.index, !layer.visible);
@@ -673,10 +714,12 @@ function refreshLayerList() {
       markDirty();
     });
 
-    const solo = document.createElement("span");
+    const solo = document.createElement("button");
+    solo.type = "button";
     solo.className = "layer-solo" + (layer.solo ? " on" : "");
     solo.textContent = "S";
-    solo.title = "Toggle solo";
+    solo.title = getLayerToggleLabel("solo", layer.solo);
+    solo.setAttribute("aria-label", solo.title);
     solo.addEventListener("click", (e) => {
       e.stopPropagation();
       window.knobman_setLayerSolo(layer.index, !layer.solo);
@@ -1262,6 +1305,11 @@ function onKeyDown(e) {
     projects.closeRecentOverlay();
     return;
   }
+  if (key === "escape" && projects.isExportOverlayOpen()) {
+    e.preventDefault();
+    projects.closeExportOverlay();
+    return;
+  }
   const mod = e.ctrlKey || e.metaKey;
   const editing = isEditableTarget(e.target);
   if (mod && key === "z") {
@@ -1286,7 +1334,7 @@ function onKeyDown(e) {
   }
   if (mod && key === "e") {
     e.preventDefault();
-    void projects.onExport();
+    projects.openExportOverlay();
     return;
   }
   if (mod && key === "d") {

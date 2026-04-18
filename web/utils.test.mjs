@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { isPristineSessionPayload, resolveAssetUrl } from "./utils.js";
+import {
+  getLayerControlLabel,
+  getLayerToggleLabel,
+  isPristineSessionPayload,
+  resolveAssetUrl,
+} from "./utils.js";
 
 test("resolveAssetUrl uses sibling assets when app is served from web/", () => {
   const url = resolveAssetUrl(
@@ -74,4 +79,19 @@ test("isPristineSessionPayload keeps non-default sessions restorable", () => {
   );
 
   assert.equal(pristine, false);
+});
+
+test("getLayerToggleLabel returns state-aware visibility and solo labels", () => {
+  assert.equal(getLayerToggleLabel("visibility", true), "Hide layer");
+  assert.equal(getLayerToggleLabel("visibility", false), "Show layer");
+  assert.equal(getLayerToggleLabel("solo", true), "Disable solo");
+  assert.equal(getLayerToggleLabel("solo", false), "Solo layer");
+});
+
+test("getLayerControlLabel returns descriptive layer toolbar labels", () => {
+  assert.equal(getLayerControlLabel("add"), "Add layer");
+  assert.equal(getLayerControlLabel("delete"), "Delete selected layer");
+  assert.equal(getLayerControlLabel("up"), "Move selected layer up");
+  assert.equal(getLayerControlLabel("down"), "Move selected layer down");
+  assert.equal(getLayerControlLabel("duplicate"), "Duplicate selected layer");
 });

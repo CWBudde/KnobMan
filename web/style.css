@@ -145,6 +145,7 @@ button:active {
   font-size: 11px;
   flex-shrink: 0;
   cursor: pointer;
+  padding: 0;
 }
 #layerList .layer-vis.on {
   background: #2a6;
@@ -623,9 +624,7 @@ button:active {
   font-size: 12px;
 }
 
-#prefPreviewFrames,
-#prefDuration,
-#prefLoop {
+#prefPreviewFrames {
   width: 68px;
 }
 
@@ -863,6 +862,61 @@ button:active {
 
 .sample-preview-frame {
   display: none;
+}
+
+.export-dialog {
+  width: min(520px, 100%);
+}
+
+.export-body {
+  padding: 14px 16px 10px;
+}
+
+.export-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.export-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.export-form select,
+.export-form input[type="number"] {
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.export-checkbox {
+  grid-column: 1 / -1;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  color: var(--text);
+}
+
+.export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+@media (max-width: 720px) {
+  .export-form {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Welcome dialog ───────────────────────────────────────────── */

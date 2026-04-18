@@ -260,6 +260,33 @@ export function isPristineSessionPayload(payload, baseline) {
   );
 }
 
+export function getLayerToggleLabel(kind, isActive) {
+  if (kind === "visibility") {
+    return isActive ? "Hide layer" : "Show layer";
+  }
+  if (kind === "solo") {
+    return isActive ? "Disable solo" : "Solo layer";
+  }
+  return "Layer control";
+}
+
+export function getLayerControlLabel(action) {
+  switch (action) {
+    case "add":
+      return "Add layer";
+    case "delete":
+      return "Delete selected layer";
+    case "up":
+      return "Move selected layer up";
+    case "down":
+      return "Move selected layer down";
+    case "duplicate":
+      return "Duplicate selected layer";
+    default:
+      return "Layer control";
+  }
+}
+
 export function filenameTimestampNow() {
   const d = new Date();
   const pad2 = (n) => String(n).padStart(2, "0");
