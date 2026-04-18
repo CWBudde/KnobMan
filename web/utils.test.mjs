@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  getColorEffectRows,
+  getDropShadowEffectRows,
+  getEmbossEffectRows,
+  getSpecularHighlightRows,
   getTransformEffectRows,
   getLayerControlLabel,
   getLayerToggleLabel,
@@ -136,7 +140,6 @@ test("getTransformEffectRows collapses zoom labels and hides inactive value rows
       ["zoomXAnim", "Zoom Curve", false],
       ["zoomXF", "Zoom From", false],
       ["zoomXT", "Zoom To", false],
-      ["zoomYAnim", "Zoom Y Curve", true],
       ["offXAnim", "Offset X Curve", false],
       ["offYAnim", "Offset Y Curve", false],
       ["offYF", "Offset Y From", false],
@@ -183,6 +186,101 @@ test("getTransformEffectRows shows both zoom axes and value rows when enabled", 
       ["angleF", "Angle From", false],
       ["angleT", "Angle To", false],
       ["angleAnim", "Angle Curve", false],
+    ],
+  );
+});
+
+test("getColorEffectRows moves curves first and hides off value rows", () => {
+  const rows = getColorEffectRows({
+    alphaAnim: 0,
+    brightAnim: 2,
+    contrastAnim: 1,
+    saturationAnim: 0,
+    hueAnim: 3,
+  });
+
+  assert.deepEqual(
+    rows.map((row) => [row.key, row.label, row.disabled]),
+    [
+      ["alphaAnim", "Alpha Curve", false],
+      ["brightAnim", "Brightness Curve", false],
+      ["brightF", "Brightness From", false],
+      ["brightT", "Brightness To", false],
+      ["contrastAnim", "Contrast Curve", false],
+      ["contrastF", "Contrast From", false],
+      ["contrastT", "Contrast To", false],
+      ["saturationAnim", "Saturation Curve", false],
+      ["hueAnim", "Hue Curve", false],
+      ["hueF", "Hue From", false],
+      ["hueT", "Hue To", false],
+    ],
+  );
+});
+
+test("getSpecularHighlightRows keeps static values visible and puts curves last", () => {
+  const rows = getSpecularHighlightRows({
+    sLightDirAnim: 0,
+    sDensityAnim: 2,
+  });
+
+  assert.deepEqual(
+    rows.map((row) => [row.key, row.label, row.disabled]),
+    [
+      ["sLightDirF", "LightDir", false],
+      ["sLightDirAnim", "LightDir Curve", false],
+      ["sDensityF", "Density From", false],
+      ["sDensityT", "Density To", false],
+      ["sDensityAnim", "Density Curve", false],
+    ],
+  );
+});
+
+test("getDropShadowEffectRows preserves fixed controls and only expands animated groups when enabled", () => {
+  const rows = getDropShadowEffectRows({
+    dLightDirAnim: 0,
+    dOffsetAnim: 1,
+    dDensityAnim: 0,
+    dDiffuseAnim: 3,
+  });
+
+  assert.deepEqual(
+    rows.map((row) => [row.key, row.label, row.disabled]),
+    [
+      ["dLightDirEna", "Enable", false],
+      ["dLightDirF", "LightDir", false],
+      ["dLightDirAnim", "LightDir Curve", false],
+      ["dOffsetF", "Offset From", false],
+      ["dOffsetT", "Offset To", false],
+      ["dOffsetAnim", "Offset Curve", false],
+      ["dDensityF", "Density", false],
+      ["dDensityAnim", "Density Curve", false],
+      ["dDiffuseF", "Diffuse From", false],
+      ["dDiffuseT", "Diffuse To", false],
+      ["dDiffuseAnim", "Diffuse Curve", false],
+      ["dsType", "Shadow Type", false],
+      ["dsGrad", "Gradient", false],
+    ],
+  );
+});
+
+test("getEmbossEffectRows applies the same static-vs-animated rule", () => {
+  const rows = getEmbossEffectRows({
+    eLightDirAnim: 1,
+    eOffsetAnim: 0,
+    eDensityAnim: 0,
+  });
+
+  assert.deepEqual(
+    rows.map((row) => [row.key, row.label, row.disabled]),
+    [
+      ["eLightDirEna", "Enable", false],
+      ["eLightDirF", "LightDir From", false],
+      ["eLightDirT", "LightDir To", false],
+      ["eLightDirAnim", "LightDir Curve", false],
+      ["eOffsetF", "Offset", false],
+      ["eOffsetAnim", "Offset Curve", false],
+      ["eDensityF", "Density", false],
+      ["eDensityAnim", "Density Curve", false],
     ],
   );
 });

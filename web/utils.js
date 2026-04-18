@@ -344,10 +344,11 @@ export function getTransformEffectRows(effectValues) {
     zoomSeparated ? "Zoom X" : "Zoom",
     { showValues: isCurveEnabled(values.zoomXAnim) },
   );
-  appendAnimatedEffectRows(rows, "zoomYAnim", "zoomYF", "zoomYT", "Zoom Y", {
-    disabled: !zoomSeparated,
-    showValues: zoomSeparated && isCurveEnabled(values.zoomYAnim),
-  });
+  if (zoomSeparated) {
+    appendAnimatedEffectRows(rows, "zoomYAnim", "zoomYF", "zoomYT", "Zoom Y", {
+      showValues: isCurveEnabled(values.zoomYAnim),
+    });
+  }
   appendAnimatedEffectRows(rows, "offXAnim", "offXF", "offXT", "Offset X", {
     showValues: isCurveEnabled(values.offXAnim),
   });
@@ -367,6 +368,25 @@ export function getTransformEffectRows(effectValues) {
       key,
       label: getEffectLabel(key),
       disabled: false,
+    });
+  });
+
+  return rows;
+}
+
+export function getColorEffectRows(effectValues) {
+  const values = effectValues || {};
+  const rows = [];
+
+  [
+    ["alpha", "alphaAnim", "alphaF", "alphaT", "Alpha"],
+    ["bright", "brightAnim", "brightF", "brightT", "Brightness"],
+    ["contrast", "contrastAnim", "contrastF", "contrastT", "Contrast"],
+    ["saturation", "saturationAnim", "saturationF", "saturationT", "Saturation"],
+    ["hue", "hueAnim", "hueF", "hueT", "Hue"],
+  ].forEach(([, curveKey, fromKey, toKey, labelBase]) => {
+    appendAnimatedEffectRows(rows, curveKey, fromKey, toKey, labelBase, {
+      showValues: isCurveEnabled(values[curveKey]),
     });
   });
 

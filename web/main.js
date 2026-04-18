@@ -13,6 +13,7 @@ import {
 import {
   canvasToBlobSync,
   clampInt,
+  getColorEffectRows,
   getLayerControlLabel,
   getLayerToggleLabel,
   getTransformEffectRows,
@@ -1123,6 +1124,15 @@ function appendEffectSections(content) {
               ]),
             ),
           )
+        : section.title === "Color"
+          ? getColorEffectRows(
+              Object.fromEntries(
+                section.fields.map((key) => [
+                  key,
+                  window.knobman_getEffectParam(state.selectedLayer, key),
+                ]),
+              ),
+            )
         : section.fields.map((key) => ({
             key,
             label: EFFECT_DEFS[key]?.label || key,
