@@ -14,32 +14,46 @@ import (
 )
 
 func main() {
-	inputPath := flag.String("input", "", "Single .knob file to render")
-	outputPath := flag.String("output", "", "Single PNG file to write when --input is used")
-	samplesDir := flag.String("samples", filepath.Join("assets", "samples"), "Directory with sample .knob files")
-	refDir := flag.String("refs", "", "Directory to write rendered PNGs (defaults to the matching parity artifacts directory)")
-	names := flag.String("names", "", "Comma-separated .knob basenames to render from --samples")
-	keyframes := flag.String("keyframes", "", "Comma-separated keyframes to render: first,mid,last")
-	frame := flag.Int("frame", 0, "Frame index to render")
-	overwrite := flag.Bool("overwrite", false, "Overwrite existing reference images")
-	transparentBG := flag.Bool("transparent-bg", false, "Force document background alpha to 0 before rendering")
-	compat := flag.String("compat", "default", "Render compatibility mode: default, java-triangle-raster")
-
-	flag.Parse()
-
-	root, err := detectRepoRoot()
+	err := runParityRef(os.Args[1:], "")
 	if err != nil {
-		log.Fatalf("detect repo root: %v", err)
+		log.Fatal(err)
+	}
+}
+
+func runParityRef(args []string, root string) error {
+	fs := flag.NewFlagSet("parityref", flag.ContinueOnError)
+	fs.SetOutput(new(strings.Builder))
+	inputPath := fs.String("input", "", "Single .knob file to render")
+	outputPath := fs.String("output", "", "Single PNG file to write when --input is used")
+	samplesDir := fs.String("samples", filepath.Join("assets", "samples"), "Directory with sample .knob files")
+	refDir := fs.String("refs", "", "Directory to write rendered PNGs (defaults to the matching parity artifacts directory)")
+	names := fs.String("names", "", "Comma-separated .knob basenames to render from --samples")
+	keyframes := fs.String("keyframes", "", "Comma-separated keyframes to render: first,mid,last")
+	frame := fs.Int("frame", 0, "Frame index to render")
+	overwrite := fs.Bool("overwrite", false, "Overwrite existing reference images")
+	transparentBG := fs.Bool("transparent-bg", false, "Force document background alpha to 0 before rendering")
+	compat := fs.String("compat", "default", "Render compatibility mode: default, java-triangle-raster")
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	var err error
+	if root == "" {
+		root, err = detectRepoRoot()
+		if err != nil {
+			return fmt.Errorf("detect repo root: %w", err)
+		}
 	}
 
 	keyframeSpecs, err := parseKeyframes(*keyframes)
 	if err != nil {
-		log.Fatalf("parse keyframes: %v", err)
+		return fmt.Errorf("parse keyframes: %w", err)
 	}
 
 	renderOpts, err := parseRenderOptions(*compat)
 	if err != nil {
-		log.Fatalf("parse compat: %v", err)
+		return fmt.Errorf("parse compat: %w", err)
 	}
 
 	if *refDir == "" {
@@ -48,39 +62,39 @@ func main() {
 
 	if *inputPath != "" {
 		if *outputPath == "" {
-			log.Fatal("--output is required when --input is used")
+			return errors.New("--output is required when --input is used")
 		}
 
 		if len(keyframeSpecs) != 0 {
 			err := renderKeyframes(root, *inputPath, *outputPath, keyframeSpecs, *transparentBG, renderOpts)
 			if err != nil {
-				log.Fatalf("render %s: %v", *inputPath, err)
+				return fmt.Errorf("render %s: %w", *inputPath, err)
 			}
 
 			for _, spec := range keyframeSpecs {
 				printOutputPath(keyframeOutputPath(*outputPath, spec.name))
 			}
 
-			return
+			return nil
 		}
 
 		err := renderOne(root, *inputPath, *outputPath, *frame, *transparentBG, renderOpts)
 		if err != nil {
-			log.Fatalf("render %s: %v", *inputPath, err)
+			return fmt.Errorf("render %s: %w", *inputPath, err)
 		}
 
 		printOutputPath(*outputPath)
 
-		return
+		return nil
 	}
 
 	paths, err := filepath.Glob(filepath.Join(*samplesDir, "*.knob"))
 	if err != nil {
-		log.Fatalf("glob samples: %v", err)
+		return fmt.Errorf("glob samples: %w", err)
 	}
 
 	if len(paths) == 0 {
-		log.Fatalf("no sample .knob files found in %s", *samplesDir)
+		return fmt.Errorf("no sample .knob files found in %s", *samplesDir)
 	}
 
 	paths = filterSamplePaths(paths, parseNames(*names))
@@ -91,7 +105,7 @@ func main() {
 		if len(keyframeSpecs) != 0 {
 			err := renderSampleKeyframes(root, sample, *refDir, name, keyframeSpecs, *overwrite, *transparentBG, renderOpts)
 			if err != nil {
-				log.Fatalf("render %s: %v", sample, err)
+				return fmt.Errorf("render %s: %w", sample, err)
 			}
 
 			for _, spec := range keyframeSpecs {
@@ -108,11 +122,13 @@ func main() {
 
 		err := renderOne(root, sample, refPath, *frame, *transparentBG, renderOpts)
 		if err != nil {
-			log.Fatalf("render %s: %v", sample, err)
+			return fmt.Errorf("render %s: %w", sample, err)
 		}
 
 		printOutputPath(refPath)
 	}
+
+	return nil
 }
 
 func printOutputPath(path string) {
@@ -322,6 +338,15 @@ func (k keyframeSpec) frameIndex(totalFrames int) int {
 
 func detectRepoRoot() (string, error) {
 	wd, err := filepath.Abs(".")
+	if err != nil {
+		return "", err
+	}
+
+	return detectRepoRootFrom(wd)
+}
+
+func detectRepoRootFrom(wd string) (string, error) {
+	wd, err := filepath.Abs(wd)
 	if err != nil {
 		return "", err
 	}

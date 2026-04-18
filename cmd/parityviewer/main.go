@@ -25,6 +25,8 @@ import (
 	"knobman/internal/render"
 )
 
+var runRerenderCommand = defaultRunRerenderCommand
+
 type caseEntry struct {
 	Suite       string
 	Baseline    string
@@ -585,24 +587,9 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 
 	outputPath := outputFile.Name()
 
-	cmd := exec.Command(
-		"go", "run", "-tags", "freetype", "./cmd/parityref",
-		"--input", inputPath,
-		"--output", outputPath,
-		"--frame", strconv.Itoa(frame),
-	)
-	cmd.Dir = repoRoot
-
-	cmd.Env = append(os.Environ(), "GOCACHE=/tmp/knobman-gocache")
-
-	out, err := cmd.CombinedOutput()
+	err = runRerenderCommand(repoRoot, inputPath, outputPath, frame)
 	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if msg == "" {
-			msg = err.Error()
-		}
-
-		return fmt.Errorf("rerender failed: %s", msg)
+		return err
 	}
 
 	_, err = os.Stat(outputPath)
@@ -625,6 +612,29 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 		if err != nil {
 			return fmt.Errorf("write artifact %s: %w", path, err)
 		}
+	}
+
+	return nil
+}
+
+func defaultRunRerenderCommand(repoRoot, inputPath, outputPath string, frame int) error {
+	cmd := exec.Command(
+		"go", "run", "-tags", "freetype", "./cmd/parityref",
+		"--input", inputPath,
+		"--output", outputPath,
+		"--frame", strconv.Itoa(frame),
+	)
+	cmd.Dir = repoRoot
+	cmd.Env = append(os.Environ(), "GOCACHE=/tmp/knobman-gocache")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+
+		return fmt.Errorf("rerender failed: %s", msg)
 	}
 
 	return nil

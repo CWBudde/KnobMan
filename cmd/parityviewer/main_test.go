@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -106,6 +107,23 @@ func TestRenderCardIncludesFiltersAndMetrics(t *testing.T) {
 	}
 }
 
+func TestRenderPageEmptyState(t *testing.T) {
+	var buf bytes.Buffer
+
+	renderPage(&buf, loadResult{})
+
+	html := buf.String()
+	for _, want := range []string{
+		`No parity comparisons found.`,
+		`<div class="container" id="cards-container">`,
+		`0 comparisons loaded.`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("renderPage missing %q in output:\n%s", want, html)
+		}
+	}
+}
+
 func TestPageHeaderOriginalSizeStylesExpandImageColumns(t *testing.T) {
 	for _, want := range []string{
 		`.original-size .img-grid { grid-template-columns: repeat(5, max-content); }`,
@@ -178,6 +196,88 @@ func TestCompositeOverSolidMatte(t *testing.T) {
 
 	if c := got.RGBAAt(0, 0); c != (color.RGBA{R: 255, G: 127, B: 127, A: 255}) {
 		t.Fatalf("compositeOverSolid pixel = %+v, want {R:255 G:127 B:127 A:255}", c)
+	}
+}
+
+func TestEnvOr(t *testing.T) {
+	t.Setenv("KNOBMAN_TEST_VALUE", " configured ")
+	if got := envOr("KNOBMAN_TEST_VALUE", "fallback"); got != "configured" {
+		t.Fatalf("envOr returned %q, want %q", got, "configured")
+	}
+
+	t.Setenv("KNOBMAN_TEST_VALUE", "   ")
+	if got := envOr("KNOBMAN_TEST_VALUE", "fallback"); got != "fallback" {
+		t.Fatalf("envOr blank env = %q, want fallback", got)
+	}
+}
+
+func TestIsSafePathPart(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{input: "alpha", want: true},
+		{input: "alpha-beta_01", want: true},
+		{input: "", want: false},
+		{input: "  ", want: false},
+		{input: "../escape", want: false},
+		{input: "nested/path", want: false},
+	}
+
+	for _, tt := range tests {
+		if got := isSafePathPart(tt.input); got != tt.want {
+			t.Fatalf("isSafePathPart(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestBadgeClassThresholds(t *testing.T) {
+	if got := badgeClass(5); got != badgeClassOK {
+		t.Fatalf("badgeClass(5) = %q, want %q", got, badgeClassOK)
+	}
+
+	if got := badgeClass(12); got != badgeClassWarn {
+		t.Fatalf("badgeClass(12) = %q, want %q", got, badgeClassWarn)
+	}
+
+	if got := badgeClass(21); got != badgeClassBad {
+		t.Fatalf("badgeClass(21) = %q, want %q", got, badgeClassBad)
+	}
+
+	if got := badgeClassAvgDiff(2); got != badgeClassOK {
+		t.Fatalf("badgeClassAvgDiff(2) = %q, want %q", got, badgeClassOK)
+	}
+
+	if got := badgeClassAvgDiff(5); got != badgeClassWarn {
+		t.Fatalf("badgeClassAvgDiff(5) = %q, want %q", got, badgeClassWarn)
+	}
+
+	if got := badgeClassAvgDiff(9); got != badgeClassBad {
+		t.Fatalf("badgeClassAvgDiff(9) = %q, want %q", got, badgeClassBad)
+	}
+
+	if got := badgeClassMaxDiff(10); got != badgeClassOK {
+		t.Fatalf("badgeClassMaxDiff(10) = %q, want %q", got, badgeClassOK)
+	}
+
+	if got := badgeClassMaxDiff(20); got != badgeClassWarn {
+		t.Fatalf("badgeClassMaxDiff(20) = %q, want %q", got, badgeClassWarn)
+	}
+
+	if got := badgeClassMaxDiff(41); got != badgeClassBad {
+		t.Fatalf("badgeClassMaxDiff(41) = %q, want %q", got, badgeClassBad)
+	}
+
+	if got := badgeClassDiffRatio(0.01); got != badgeClassOK {
+		t.Fatalf("badgeClassDiffRatio(0.01) = %q, want %q", got, badgeClassOK)
+	}
+
+	if got := badgeClassDiffRatio(0.03); got != badgeClassWarn {
+		t.Fatalf("badgeClassDiffRatio(0.03) = %q, want %q", got, badgeClassWarn)
+	}
+
+	if got := badgeClassDiffRatio(0.06); got != badgeClassBad {
+		t.Fatalf("badgeClassDiffRatio(0.06) = %q, want %q", got, badgeClassBad)
 	}
 }
 
@@ -290,6 +390,141 @@ func TestParityCaseSpecAnimatedKeyframes(t *testing.T) {
 	_, _, err = parityCaseSpec(root, "animated", "fixture")
 	if err == nil {
 		t.Fatal("expected error for animated case without keyframe suffix")
+	}
+}
+
+func TestRerenderArtifactWritesArtifactAndBaselineOutputs(t *testing.T) {
+	root := t.TempDir()
+	parityDir := filepath.Join(root, "tests", "parity")
+	doc := model.NewDocument()
+	doc.Prefs.RenderFrames.Val = 4
+	mustWriteKnob(t, filepath.Join(root, "tests", "parity", "animated", "inputs", "fixture.knob"), doc)
+
+	sentinel := solidImage(2, 2, color.RGBA{R: 25, G: 50, B: 75, A: 255})
+	mustWritePNG(t, filepath.Join(parityDir, "animated", "artifacts", "baseline-go", "stale.png"), sentinel)
+	mustWritePNG(t, filepath.Join(parityDir, "animated", "artifacts", "baseline-java", "stale.png"), sentinel)
+
+	orig := runRerenderCommand
+	t.Cleanup(func() { runRerenderCommand = orig })
+
+	var gotRepoRoot, gotInput, gotOutput string
+	var gotFrame int
+	runRerenderCommand = func(repoRoot, inputPath, outputPath string, frame int) error {
+		gotRepoRoot = repoRoot
+		gotInput = inputPath
+		gotOutput = outputPath
+		gotFrame = frame
+		mustWritePNG(t, outputPath, solidImage(3, 1, color.RGBA{R: 210, G: 80, B: 40, A: 255}))
+		return nil
+	}
+
+	if err := rerenderArtifact(root, parityDir, "animated", "fixture__last"); err != nil {
+		t.Fatalf("rerenderArtifact: %v", err)
+	}
+
+	if gotRepoRoot != root {
+		t.Fatalf("repo root = %q, want %q", gotRepoRoot, root)
+	}
+
+	if want := filepath.Join(root, "tests", "parity", "animated", "inputs", "fixture.knob"); gotInput != want {
+		t.Fatalf("input path = %q, want %q", gotInput, want)
+	}
+
+	if gotFrame != 3 {
+		t.Fatalf("frame = %d, want 3", gotFrame)
+	}
+
+	if !strings.Contains(filepath.Base(gotOutput), "parityviewer-rerender-") {
+		t.Fatalf("unexpected temp output path %q", gotOutput)
+	}
+
+	for _, path := range []string{
+		filepath.Join(parityDir, "animated", "artifacts", "fixture__last.png"),
+		filepath.Join(parityDir, "animated", "artifacts", "baseline-go", "fixture__last.png"),
+		filepath.Join(parityDir, "animated", "artifacts", "baseline-java", "fixture__last.png"),
+	} {
+		img, err := readPNGAsRGBA(path)
+		if err != nil {
+			t.Fatalf("readPNGAsRGBA(%q): %v", path, err)
+		}
+
+		if img.Bounds().Dx() != 3 || img.Bounds().Dy() != 1 {
+			t.Fatalf("unexpected rerendered bounds for %q: %v", path, img.Bounds())
+		}
+	}
+}
+
+func TestRerenderArtifactRejectsUnsafePathParts(t *testing.T) {
+	root := t.TempDir()
+	parityDir := filepath.Join(root, "tests", "parity")
+
+	if err := rerenderArtifact(root, parityDir, "../bad", "case"); err == nil {
+		t.Fatal("expected unsafe suite to fail")
+	}
+
+	if err := rerenderArtifact(root, parityDir, "samples", "../bad"); err == nil {
+		t.Fatal("expected unsafe case name to fail")
+	}
+}
+
+func TestDocumentBackgroundReadsKnobPreferences(t *testing.T) {
+	root := t.TempDir()
+	doc := model.NewDocument()
+	doc.Prefs.BkColor.Val = color.RGBA{R: 1, G: 2, B: 3, A: 99}
+	mustWriteKnob(t, filepath.Join(root, "tests", "parity", "primitives", "inputs", "fixture.knob"), doc)
+
+	bg, css, err := documentBackground(root, "primitives", "fixture")
+	if err != nil {
+		t.Fatalf("documentBackground: %v", err)
+	}
+
+	if bg != (color.RGBA{R: 1, G: 2, B: 3, A: 255}) {
+		t.Fatalf("background = %+v, want opaque RGB copy", bg)
+	}
+
+	if css != "#010203" {
+		t.Fatalf("css = %q, want #010203", css)
+	}
+}
+
+func TestRenderFrameCountAndKeyframeFrameIndex(t *testing.T) {
+	root := t.TempDir()
+	doc := model.NewDocument()
+	doc.Prefs.RenderFrames.Val = 7
+	input := filepath.Join(root, "fixture.knob")
+	mustWriteKnob(t, input, doc)
+
+	totalFrames, err := renderFrameCount(input)
+	if err != nil {
+		t.Fatalf("renderFrameCount: %v", err)
+	}
+
+	if totalFrames != 7 {
+		t.Fatalf("renderFrameCount = %d, want 7", totalFrames)
+	}
+
+	tests := []struct {
+		key  string
+		want int
+	}{
+		{key: "first", want: 0},
+		{key: "mid", want: 3},
+		{key: "last", want: 6},
+	}
+
+	for _, tt := range tests {
+		got, err := keyframeFrameIndex(tt.key, totalFrames)
+		if err != nil {
+			t.Fatalf("keyframeFrameIndex(%q): %v", tt.key, err)
+		}
+
+		if got != tt.want {
+			t.Fatalf("keyframeFrameIndex(%q) = %d, want %d", tt.key, got, tt.want)
+		}
+	}
+
+	if _, err := keyframeFrameIndex("frame-"+strconv.Itoa(totalFrames), totalFrames); err == nil {
+		t.Fatal("expected unsupported keyframe to fail")
 	}
 }
 

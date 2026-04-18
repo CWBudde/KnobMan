@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"image"
 	"image/color"
@@ -15,20 +16,33 @@ import (
 )
 
 func main() {
-	suite := flag.String("suite", "primitives", "Fixture suite to generate: primitives or animated")
-	outDir := flag.String("out", "", "Directory to write fixture .knob files (defaults to the suite's input directory)")
-	overwrite := flag.Bool("overwrite", false, "Overwrite existing fixture files")
+	err := runPrimitiveFixtures(os.Args[1:])
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
-	flag.Parse()
+func runPrimitiveFixtures(args []string) error {
+	fs := flag.NewFlagSet("primitivefixtures", flag.ContinueOnError)
+	fs.SetOutput(new(bytes.Buffer))
+	suite := fs.String("suite", "primitives", "Fixture suite to generate: primitives or animated")
+	outDir := fs.String("out", "", "Directory to write fixture .knob files (defaults to the suite's input directory)")
+	overwrite := fs.Bool("overwrite", false, "Overwrite existing fixture files")
 
-	fixtures, defaultOutDir := fixtureSet(*suite)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	fixtures, defaultOutDir, err := fixtureSet(*suite)
+	if err != nil {
+		return err
+	}
 	if *outDir == "" {
 		*outDir = defaultOutDir
 	}
 
-	err := os.MkdirAll(*outDir, 0o755)
-	if err != nil {
-		log.Fatalf("mkdir %s: %v", *outDir, err)
+	if err := os.MkdirAll(*outDir, 0o755); err != nil {
+		return errFixtureMkdir(*outDir, err)
 	}
 
 	for _, fixture := range fixtures {
@@ -44,28 +58,40 @@ func main() {
 
 		data, err := fileio.Save(doc)
 		if err != nil {
-			log.Fatalf("save %s: %v", fixture.Name, err)
+			return errFixtureSave(fixture.Name, err)
 		}
 
-		err = os.WriteFile(path, data, 0o600)
-		if err != nil {
-			log.Fatalf("write %s: %v", path, err)
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			return errFixtureWrite(path, err)
 		}
 
 		log.Println(path)
 	}
+
+	return nil
 }
 
-func fixtureSet(name string) ([]fixtureDef, string) {
+func fixtureSet(name string) ([]fixtureDef, string, error) {
 	switch name {
 	case "primitives":
-		return primitiveFixtures(), filepath.Join("tests", "parity", "primitives", "inputs")
+		return primitiveFixtures(), filepath.Join("tests", "parity", "primitives", "inputs"), nil
 	case "animated":
-		return animatedFixtures(), filepath.Join("tests", "parity", "animated", "inputs")
+		return animatedFixtures(), filepath.Join("tests", "parity", "animated", "inputs"), nil
 	default:
-		log.Fatalf("unknown fixture suite %q", name)
-		return nil, ""
+		return nil, "", errors.New("unknown fixture suite " + `"` + name + `"`)
 	}
+}
+
+func errFixtureMkdir(path string, err error) error {
+	return errors.New("mkdir " + path + ": " + err.Error())
+}
+
+func errFixtureSave(name string, err error) error {
+	return errors.New("save " + name + ": " + err.Error())
+}
+
+func errFixtureWrite(path string, err error) error {
+	return errors.New("write " + path + ": " + err.Error())
 }
 
 type fixtureDef struct {
