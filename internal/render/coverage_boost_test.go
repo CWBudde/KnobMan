@@ -179,7 +179,8 @@ func TestTextureSetAddGetAndDecodeTextureInvalid(t *testing.T) {
 		t.Fatalf("expected nil set lookup to return nil, got %p", got)
 	}
 
-	if tex, err := DecodeTexture([]byte("not an image")); err == nil || tex != nil {
+	tex, err := DecodeTexture([]byte("not an image"))
+	if err == nil || tex != nil {
 		t.Fatalf("expected invalid texture decode to fail, got tex=%v err=%v", tex, err)
 	}
 }

@@ -51,16 +51,22 @@ type parityCheckpointBudget struct {
 }
 
 func TestParityRegressionSamplesFrame0(t *testing.T) {
+	t.Parallel()
+
 	root := testRepoRoot(t)
 	runParitySuite(t, root, sampleParitySuite(root), "baseline-go")
 }
 
 func TestParityRegressionPrimitiveFixturesFrame0(t *testing.T) {
+	t.Parallel()
+
 	root := testRepoRoot(t)
 	runParitySuite(t, root, primitiveParitySuite(root), "baseline-go")
 }
 
 func TestParityGoldenPrimitiveFixturesFrame0(t *testing.T) {
+	t.Parallel()
+
 	root := testRepoRoot(t)
 	runNamedParitySuite(t, root, primitiveParitySuite(root), primitiveGoldenFixtureNames(), "baseline-java")
 }

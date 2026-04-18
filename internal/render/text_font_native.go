@@ -10,8 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	agg "github.com/cwbudde/agg_go"
 	"knobman/internal/model"
+
+	agg "github.com/cwbudde/agg_go"
 )
 
 var fontPathCache sync.Map
@@ -39,7 +40,8 @@ func loadAggTrueTypeFont(p *model.Primitive, size float64) loadedTrueTypeFont {
 	txt.SetHinting(true)
 	txt.SetFlip(true)
 
-	if err := txt.SetTrueTypeInterpreterVersion(35); err != nil {
+	err = txt.SetTrueTypeInterpreterVersion(35)
+	if err != nil {
 		_ = txt.Close()
 		return loadedTrueTypeFont{}
 	}

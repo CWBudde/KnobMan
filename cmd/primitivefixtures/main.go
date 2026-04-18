@@ -47,7 +47,8 @@ func main() {
 			log.Fatalf("save %s: %v", fixture.Name, err)
 		}
 
-		if err := os.WriteFile(path, data, 0o644); err != nil {
+		err = os.WriteFile(path, data, 0o644)
+		if err != nil {
 			log.Fatalf("write %s: %v", path, err)
 		}
 

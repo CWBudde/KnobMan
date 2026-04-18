@@ -240,7 +240,8 @@ func buildEntry(repoRoot, suite, baseline, name, baselinePath, artifactPath stri
 	docBG := "#ffffff"
 
 	if repoRoot != "" {
-		if bg, css, err := documentBackground(repoRoot, suite, name); err == nil {
+		bg, css, bgErr := documentBackground(repoRoot, suite, name)
+		if bgErr == nil {
 			docBGColor = bg
 			docBG = css
 		}

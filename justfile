@@ -1,7 +1,6 @@
 set shell := ["bash", "-uc"]
 
 goroot := `go env GOROOT`
-wasm_exec := "{{goroot}}/lib/wasm/wasm_exec.js"
 
 # Default recipe - show available commands
 default:
@@ -10,12 +9,14 @@ default:
 # Build the WASM binary into web/
 build-wasm:
     GOOS=js GOARCH=wasm go build -o web/knobman.wasm ./cmd/wasm/
+    cp "{{goroot}}/lib/wasm/wasm_exec.js" web/wasm_exec.js
     @echo "Built web/knobman.wasm ($(du -sh web/knobman.wasm | cut -f1))"
+    @echo "Copied wasm_exec.js from {{goroot}}/lib/wasm/wasm_exec.js"
 
-# Sync wasm_exec.js from the Go toolchain (run after updating Go)
+# Sync wasm_exec.js from the Go toolchain without rebuilding the WASM binary
 sync-wasm-exec:
-    cp {{wasm_exec}} web/wasm_exec.js
-    @echo "Copied wasm_exec.js from {{wasm_exec}}"
+    cp "{{goroot}}/lib/wasm/wasm_exec.js" web/wasm_exec.js
+    @echo "Copied wasm_exec.js from {{goroot}}/lib/wasm/wasm_exec.js"
 
 # Start a local HTTP server for the web/ directory
 serve: build-wasm
