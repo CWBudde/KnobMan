@@ -17,6 +17,7 @@ import {
   idbDeleteHandle,
   idbGetHandle,
   idbPutHandle,
+  resolveAssetUrl,
   sanitizeFileBaseName,
   storageGet,
   storageRemove,
@@ -45,19 +46,12 @@ export function createProjects({
   });
 
   async function fetchBuiltinTextureBytes(filename) {
-    const paths = [
-      "../assets/textures/" + filename,
-      "/assets/textures/" + filename,
-      "assets/textures/" + filename,
-    ];
-    for (const path of paths) {
-      try {
-        const res = await fetch(path);
-        if (!res.ok) continue;
-        const buf = await res.arrayBuffer();
-        if (buf.byteLength > 0) return new Uint8Array(buf);
-      } catch (_err) {}
-    }
+    try {
+      const res = await fetch(resolveAssetUrl("textures", filename));
+      if (!res.ok) return null;
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength > 0) return new Uint8Array(buf);
+    } catch (_err) {}
     return null;
   }
 
@@ -411,19 +405,12 @@ export function createProjects({
   }
 
   async function fetchSampleProjectBytes(fileName) {
-    const paths = [
-      "../assets/samples/" + fileName,
-      "/assets/samples/" + fileName,
-      "assets/samples/" + fileName,
-    ];
-    for (const path of paths) {
-      try {
-        const res = await fetch(path);
-        if (!res.ok) continue;
-        const buf = await res.arrayBuffer();
-        if (buf.byteLength > 0) return new Uint8Array(buf);
-      } catch (_err) {}
-    }
+    try {
+      const res = await fetch(resolveAssetUrl("samples", fileName));
+      if (!res.ok) return null;
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength > 0) return new Uint8Array(buf);
+    } catch (_err) {}
     return null;
   }
 

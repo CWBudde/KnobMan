@@ -1,3 +1,5 @@
+import { resolveAssetUrl } from "./utils.js";
+
 const PREVIEW_SOURCE = "knobman-sample-preview";
 
 const go = new Go();
@@ -20,19 +22,12 @@ function post(type, payload) {
 }
 
 async function fetchSampleProjectBytes(fileName) {
-  const paths = [
-    "../assets/samples/" + fileName,
-    "/assets/samples/" + fileName,
-    "assets/samples/" + fileName,
-  ];
-  for (const path of paths) {
-    try {
-      const res = await fetch(path);
-      if (!res.ok) continue;
-      const buf = await res.arrayBuffer();
-      if (buf.byteLength > 0) return new Uint8Array(buf);
-    } catch (_err) {}
-  }
+  try {
+    const res = await fetch(resolveAssetUrl("samples", fileName));
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > 0) return new Uint8Array(buf);
+  } catch (_err) {}
   return null;
 }
 

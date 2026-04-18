@@ -232,6 +232,21 @@ export function stripFileExtension(name) {
   return s.slice(0, idx);
 }
 
+export function resolveAssetUrl(assetGroup, fileName, locationHref) {
+  const href =
+    locationHref ||
+    (typeof window !== "undefined" && window.location
+      ? window.location.href
+      : "http://localhost/");
+  const currentUrl = new URL(href);
+  const currentDir = new URL(".", currentUrl);
+  const fromWebDir = currentDir.pathname.endsWith("/web/");
+  const relativePath = fromWebDir
+    ? `../assets/${assetGroup}/${fileName}`
+    : `assets/${assetGroup}/${fileName}`;
+  return new URL(relativePath, currentUrl).href;
+}
+
 export function filenameTimestampNow() {
   const d = new Date();
   const pad2 = (n) => String(n).padStart(2, "0");
