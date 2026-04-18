@@ -1,1603 +1,91 @@
-"use strict";
+import { createCurveEditor } from "./curve-editor.js";
+import { createDomCache } from "./dom.js";
+import { createProjects } from "./projects.js";
+import { createShapeEditor } from "./shape-editor.js";
+import {
+  createAppState,
+  EFFECT_DEFS,
+  EFFECT_SECTIONS,
+  LAYER_PREVIEW_SIZE,
+  PARAM_DEFS,
+  PARAMS_BY_PRIM_TYPE,
+} from "./state.js";
+import {
+  canvasToBlobSync,
+  clampInt,
+  isCurveSelectorField,
+  syncCanvasElementSize,
+} from "./utils.js";
 
-// ── WASM bootstrap ────────────────────────────────────────────────────────────
+const state = createAppState();
+const el = createDomCache(document);
 
-const go = new Go();
-let wasmReady = false;
-
-WebAssembly.instantiateStreaming(
-  fetch("knobman.wasm", { cache: "no-store" }),
-  go.importObject,
-)
-  .then((result) => {
-    go.run(result.instance);
-    wasmReady = true;
-    onWasmReady();
-  })
-  .catch((err) => {
-    document.getElementById("loading").textContent =
-      "Failed to load WASM: " + err;
-    console.error(err);
-  });
-
-// ── App state ─────────────────────────────────────────────────────────────────
-
-let canvasW = 64;
-let canvasH = 64;
-let zoomFactor = 8;
-let currentFrame = 0;
-let dirty = true;
-let modifiedSinceSave = false;
-let rafPending = false;
-let pixelBuf = null;
-let imageData = null;
-let selectedLayer = 0;
-let prefAspectLock = false;
-let prefAspectRatio = 1;
-let builtinTextureLoadPromise = null;
-let projectBaseName = "project";
-let detachedPreviewWindow = null;
-let detachedPreviewTimer = null;
-let detachedPreviewPlaying = false;
-let detachedPreviewFrame = 0;
-let detachedPreviewDir = 1;
-let layerPreviewToken = 0;
-let layerPreviewRevision = 1;
-const layerPreviewCache = new Map();
-const LAYER_PREVIEW_SIZE = 36;
-let selectedCurve = 1;
-let curveCanvas = null;
-let curveCtx = null;
-let curveDragPoint = -1;
-let curveSelectedPoint = -1;
-let shapeMode = "L";
-let shapeCanvas = null;
-let shapeCtx = null;
-let shapeCommands = [];
-let shapeDragHandle = null;
-let shapeSelectedHandle = null;
-
-const CURVE_POINT_LIMIT = 12;
-
-const BUILTIN_TEXTURE_FILES = [
-  "Aura.jpg",
-  "Checkers.bmp",
-  "Circle.jpg",
-  "Coal.jpg",
-  "Fabric.bmp",
-  "Hairline.bmp",
-  "HairlineV.bmp",
-  "Hexagon.png",
-  "Magma.bmp",
-  "Mosaic.bmp",
-  "Plant.png",
-  "Plasma.bmp",
-  "PunchingMetal.png",
-  "Radiation.jpg",
-  "Sand.bmp",
-  "Scratch.jpg",
-  "Stripe.bmp",
-  "StripeV.bmp",
-];
-
-const SAMPLE_PROJECT_FILES = [
-  "2Color_Pointed.knob",
-  "3p_wedge.knob",
-  "Aqua.knob",
-  "Black_Gear.knob",
-  "BlueDot_V.knob",
-  "Blue_HSW.knob",
-  "Blue_HSW2.knob",
-  "CheckBox.knob",
-  "ColorRing.knob",
-  "CorkBoard.knob",
-  "FabricStar.knob",
-  "Granite.knob",
-  "Gray_Ring2.knob",
-  "GreenAb.knob",
-  "Green_Radar.knob",
-  "Green_VSW.knob",
-  "LineShadow.knob",
-  "Monotone_Simple.knob",
-  "Number.knob",
-  "Number_HSwitch.knob",
-  "NumberedTick.knob",
-  "Orange_Lever.knob",
-  "Orange_Round.knob",
-  "Pop_Meter.knob",
-  "Red_Gear.knob",
-  "Shape_sample.knob",
-  "Small_Gaged.knob",
-  "Ticked_HSlider.knob",
-  "Waveform.knob",
-  "White_Dip.knob",
-  "White_Pan.knob",
-  "White_Vol.knob",
-  "White_Wave.knob",
-  "Wood_Gear.knob",
-  "face.knob",
-  "g200kglogo.knob",
-  "led.knob",
-  "vu3.knob",
-];
-
-const SESSION_KEY = "knobman_session_v2";
-const LEGACY_SESSION_KEY = "knobman_session";
-const RECENT_DOCS_KEY = "knobman_recent_docs_v1";
-const RECENT_DOC_LIMIT = 8;
-const HANDLE_DB_NAME = "knobman_recent_handles";
-const HANDLE_STORE_NAME = "handles";
-
-const PRIM_TYPES = [
-  { value: 0, label: "None" },
-  { value: 1, label: "Image" },
-  { value: 2, label: "Circle" },
-  { value: 3, label: "CircleFill" },
-  { value: 4, label: "MetalCircle" },
-  { value: 5, label: "WaveCircle" },
-  { value: 6, label: "Sphere" },
-  { value: 7, label: "Rect" },
-  { value: 8, label: "RectFill" },
-  { value: 9, label: "Triangle" },
-  { value: 10, label: "Line" },
-  { value: 11, label: "RadiateLine" },
-  { value: 12, label: "H-Lines" },
-  { value: 13, label: "V-Lines" },
-  { value: 14, label: "Text" },
-  { value: 15, label: "Shape" },
-];
-
-const PARAM_DEFS = {
-  name: { label: "Layer Name", type: "text" },
-  primType: {
-    label: "Primitive",
-    type: "select",
-    numeric: "int",
-    options: PRIM_TYPES,
-  },
-  color: { label: "Color", type: "color" },
-  file: { label: "Image Name", type: "text" },
-  embeddedImage: { label: "Image File", type: "file", accept: "image/*" },
-  text: { label: "Text", type: "text" },
-  shape: { label: "Shape", type: "textarea" },
-  fill: { label: "Fill", type: "checkbox" },
-  bold: { label: "Bold", type: "checkbox" },
-  italic: { label: "Italic", type: "checkbox" },
-  font: {
-    label: "Font",
-    type: "number",
-    numeric: "int",
-    min: 0,
-    max: 64,
-    step: 1,
-  },
-  textureFile: {
-    label: "Texture Slot",
-    type: "number",
-    numeric: "int",
-    min: 0,
-    max: 64,
-    step: 1,
-  },
-  textureName: { label: "Texture Name", type: "text" },
-  width: {
-    label: "Width",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 200,
-    step: 0.1,
-  },
-  length: {
-    label: "Length",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 200,
-    step: 0.1,
-  },
-  aspect: {
-    label: "Aspect",
-    type: "number",
-    numeric: "float",
-    min: -200,
-    max: 200,
-    step: 0.1,
-  },
-  round: {
-    label: "Round",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 100,
-    step: 0.1,
-  },
-  step: {
-    label: "Step",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  angleStep: {
-    label: "Angle Step",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  emboss: {
-    label: "Emboss",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 100,
-    step: 0.1,
-  },
-  embossDiffuse: {
-    label: "Emboss Diffuse",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 200,
-    step: 0.1,
-  },
-  ambient: {
-    label: "Ambient",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  lightDir: {
-    label: "Light Dir",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  specular: {
-    label: "Specular",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 200,
-    step: 0.1,
-  },
-  specularWidth: {
-    label: "Spec Width",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 200,
-    step: 0.1,
-  },
-  textureDepth: {
-    label: "Texture Depth",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 200,
-    step: 0.1,
-  },
-  textureZoom: {
-    label: "Texture Zoom",
-    type: "number",
-    numeric: "float",
-    min: 1,
-    max: 400,
-    step: 0.1,
-  },
-  diffuse: {
-    label: "Diffuse",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 200,
-    step: 0.1,
-  },
-  fontSize: {
-    label: "Font Size",
-    type: "number",
-    numeric: "float",
-    min: 1,
-    max: 300,
-    step: 0.1,
-  },
-  textAlign: {
-    label: "Text Align",
-    type: "select",
-    numeric: "int",
-    options: [
-      { value: 0, label: "Center" },
-      { value: 1, label: "Left" },
-      { value: 2, label: "Right" },
-    ],
-  },
-  frameAlign: {
-    label: "Frame Align",
-    type: "select",
-    numeric: "int",
-    options: [
-      { value: 0, label: "Vertical Strip" },
-      { value: 1, label: "Horizontal Strip" },
-      { value: 2, label: "Files" },
-    ],
-  },
-  numFrame: {
-    label: "Frames",
-    type: "number",
-    numeric: "int",
-    min: 1,
-    max: 256,
-    step: 1,
-  },
-  autoFit: { label: "Auto Fit", type: "checkbox" },
-  transparent: {
-    label: "Transparent",
-    type: "select",
-    numeric: "int",
-    options: [
-      { value: 0, label: "File Alpha" },
-      { value: 1, label: "Force Opaque" },
-      { value: 2, label: "Color Key" },
-    ],
-  },
-  intelliAlpha: {
-    label: "IntelliAlpha",
-    type: "number",
-    numeric: "int",
-    min: 0,
-    max: 100,
-    step: 1,
-  },
-};
-
-const PARAMS_BY_PRIM_TYPE = {
-  0: [],
-  1: [
-    "embeddedImage",
-    "file",
-    "autoFit",
-    "intelliAlpha",
-    "numFrame",
-    "frameAlign",
-    "transparent",
-  ],
-  2: [
-    "color",
-    "width",
-    "round",
-    "diffuse",
-    "emboss",
-    "embossDiffuse",
-    "ambient",
-    "lightDir",
-    "specular",
-    "specularWidth",
-    "textureDepth",
-    "textureZoom",
-    "textureFile",
-  ],
-  3: [
-    "color",
-    "aspect",
-    "diffuse",
-    "ambient",
-    "lightDir",
-    "specular",
-    "specularWidth",
-    "textureDepth",
-    "textureZoom",
-    "textureFile",
-  ],
-  4: [
-    "color",
-    "aspect",
-    "diffuse",
-    "ambient",
-    "lightDir",
-    "specular",
-    "specularWidth",
-    "textureDepth",
-    "textureZoom",
-    "textureFile",
-  ],
-  5: [
-    "color",
-    "width",
-    "step",
-    "length",
-    "diffuse",
-    "emboss",
-    "embossDiffuse",
-    "ambient",
-    "lightDir",
-    "specular",
-    "specularWidth",
-  ],
-  6: ["color", "aspect", "diffuse", "step", "angleStep"],
-  7: [
-    "color",
-    "width",
-    "round",
-    "length",
-    "aspect",
-    "diffuse",
-    "emboss",
-    "embossDiffuse",
-    "ambient",
-    "lightDir",
-    "specular",
-    "specularWidth",
-  ],
-  8: [
-    "color",
-    "round",
-    "aspect",
-    "diffuse",
-    "emboss",
-    "embossDiffuse",
-    "ambient",
-    "lightDir",
-    "specular",
-    "specularWidth",
-    "textureDepth",
-    "textureZoom",
-    "textureFile",
-  ],
-  9: ["color", "width", "round", "length", "fill", "diffuse"],
-  10: ["color", "width", "length", "lightDir"],
-  11: ["color", "width", "length", "angleStep", "step"],
-  12: ["color", "width", "step"],
-  13: ["color", "width", "step"],
-  14: [
-    "color",
-    "text",
-    "font",
-    "fontSize",
-    "textAlign",
-    "frameAlign",
-    "bold",
-    "italic",
-  ],
-  15: ["color", "shape", "fill", "round", "diffuse", "width"],
-};
-
-const CURVE_OPTIONS = [
-  { value: 0, label: "Off" },
-  { value: 1, label: "Linear" },
-  { value: 2, label: "Curve 1" },
-  { value: 3, label: "Curve 2" },
-  { value: 4, label: "Curve 3" },
-  { value: 5, label: "Curve 4" },
-  { value: 6, label: "Curve 5" },
-  { value: 7, label: "Curve 6" },
-  { value: 8, label: "Curve 7" },
-  { value: 9, label: "Curve 8" },
-];
-
-const EFFECT_DEFS = {
-  antiAlias: { label: "AntiAlias", type: "checkbox" },
-  unfold: { label: "Unfold", type: "checkbox" },
-  animStep: {
-    label: "AnimStep",
-    type: "number",
-    numeric: "int",
-    min: 0,
-    max: 1024,
-    step: 1,
-  },
-  zoomXYSepa: { label: "Zoom XY Sepa", type: "checkbox" },
-  zoomXF: {
-    label: "Zoom X From",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  zoomXT: {
-    label: "Zoom X To",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  zoomXAnim: {
-    label: "Zoom X Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  zoomYF: {
-    label: "Zoom Y From",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  zoomYT: {
-    label: "Zoom Y To",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  zoomYAnim: {
-    label: "Zoom Y Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  offXF: {
-    label: "Offset X From",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  offXT: {
-    label: "Offset X To",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  offXAnim: {
-    label: "Offset X Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  offYF: {
-    label: "Offset Y From",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  offYT: {
-    label: "Offset Y To",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  offYAnim: {
-    label: "Offset Y Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  keepDir: { label: "Keep Dir", type: "checkbox" },
-  centerX: {
-    label: "Center X",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  centerY: {
-    label: "Center Y",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  angleF: {
-    label: "Angle From",
-    type: "number",
-    numeric: "float",
-    min: -3600,
-    max: 3600,
-    step: 0.1,
-  },
-  angleT: {
-    label: "Angle To",
-    type: "number",
-    numeric: "float",
-    min: -3600,
-    max: 3600,
-    step: 0.1,
-  },
-  angleAnim: {
-    label: "Angle Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-
-  alphaF: {
-    label: "Alpha From",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  alphaT: {
-    label: "Alpha To",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  alphaAnim: {
-    label: "Alpha Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  brightF: {
-    label: "Brightness From",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 100,
-    step: 0.1,
-  },
-  brightT: {
-    label: "Brightness To",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 100,
-    step: 0.1,
-  },
-  brightAnim: {
-    label: "Brightness Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  contrastF: {
-    label: "Contrast From",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 100,
-    step: 0.1,
-  },
-  contrastT: {
-    label: "Contrast To",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 100,
-    step: 0.1,
-  },
-  contrastAnim: {
-    label: "Contrast Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  saturationF: {
-    label: "Saturation From",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 100,
-    step: 0.1,
-  },
-  saturationT: {
-    label: "Saturation To",
-    type: "number",
-    numeric: "float",
-    min: -100,
-    max: 100,
-    step: 0.1,
-  },
-  saturationAnim: {
-    label: "Saturation Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  hueF: {
-    label: "Hue From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  hueT: {
-    label: "Hue To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  hueAnim: {
-    label: "Hue Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-
-  mask1Ena: { label: "Enable", type: "checkbox" },
-  mask1Type: {
-    label: "Type",
-    type: "select",
-    numeric: "int",
-    options: [
-      { value: 0, label: "Rotation" },
-      { value: 1, label: "Radial" },
-      { value: 2, label: "Horizontal" },
-      { value: 3, label: "Vertical" },
-    ],
-  },
-  mask1Grad: {
-    label: "Gradation",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  mask1GradDir: {
-    label: "Grad Dir",
-    type: "number",
-    numeric: "int",
-    min: 0,
-    max: 8,
-    step: 1,
-  },
-  mask1StartF: {
-    label: "Start From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  mask1StartT: {
-    label: "Start To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  mask1StartAnim: {
-    label: "Start Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  mask1StopF: {
-    label: "Stop From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  mask1StopT: {
-    label: "Stop To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  mask1StopAnim: {
-    label: "Stop Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-
-  mask2Ena: { label: "Enable", type: "checkbox" },
-  mask2Op: {
-    label: "Operation",
-    type: "select",
-    numeric: "int",
-    options: [
-      { value: 0, label: "AND" },
-      { value: 1, label: "OR" },
-    ],
-  },
-  mask2Type: {
-    label: "Type",
-    type: "select",
-    numeric: "int",
-    options: [
-      { value: 0, label: "Rotation" },
-      { value: 1, label: "Radial" },
-      { value: 2, label: "Horizontal" },
-      { value: 3, label: "Vertical" },
-    ],
-  },
-  mask2Grad: {
-    label: "Gradation",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  mask2GradDir: {
-    label: "Grad Dir",
-    type: "number",
-    numeric: "int",
-    min: 0,
-    max: 8,
-    step: 1,
-  },
-  mask2StartF: {
-    label: "Start From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  mask2StartT: {
-    label: "Start To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  mask2StartAnim: {
-    label: "Start Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  mask2StopF: {
-    label: "Stop From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  mask2StopT: {
-    label: "Stop To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  mask2StopAnim: {
-    label: "Stop Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-
-  fMaskEna: {
-    label: "Mode",
-    type: "select",
-    numeric: "int",
-    options: [
-      { value: 0, label: "Off" },
-      { value: 1, label: "Range" },
-      { value: 2, label: "Bitmask" },
-    ],
-  },
-  fMaskStart: {
-    label: "Range Start",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  fMaskStop: {
-    label: "Range Stop",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  fMaskBits: { label: "Bitmask", type: "text" },
-
-  sLightDirF: {
-    label: "LightDir From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  sLightDirT: {
-    label: "LightDir To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  sLightDirAnim: {
-    label: "LightDir Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  sDensityF: {
-    label: "Density From",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  sDensityT: {
-    label: "Density To",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  sDensityAnim: {
-    label: "Density Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-
-  dLightDirEna: { label: "Enable", type: "checkbox" },
-  dLightDirF: {
-    label: "LightDir From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  dLightDirT: {
-    label: "LightDir To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  dLightDirAnim: {
-    label: "LightDir Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  dOffsetF: {
-    label: "Offset From",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  dOffsetT: {
-    label: "Offset To",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  dOffsetAnim: {
-    label: "Offset Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  dDensityF: {
-    label: "Density From",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  dDensityT: {
-    label: "Density To",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  dDensityAnim: {
-    label: "Density Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  dDiffuseF: {
-    label: "Diffuse From",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  dDiffuseT: {
-    label: "Diffuse To",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  dDiffuseAnim: {
-    label: "Diffuse Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  dsType: {
-    label: "Shadow Type",
-    type: "select",
-    numeric: "int",
-    options: [
-      { value: 0, label: "Soft" },
-      { value: 1, label: "Hard" },
-    ],
-  },
-  dsGrad: {
-    label: "Gradient",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-
-  iLightDirEna: { label: "Enable", type: "checkbox" },
-  iLightDirF: {
-    label: "LightDir From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  iLightDirT: {
-    label: "LightDir To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  iLightDirAnim: {
-    label: "LightDir Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  iOffsetF: {
-    label: "Offset From",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  iOffsetT: {
-    label: "Offset To",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  iOffsetAnim: {
-    label: "Offset Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  iDensityF: {
-    label: "Density From",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  iDensityT: {
-    label: "Density To",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  iDensityAnim: {
-    label: "Density Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  iDiffuseF: {
-    label: "Diffuse From",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  iDiffuseT: {
-    label: "Diffuse To",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  iDiffuseAnim: {
-    label: "Diffuse Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-
-  eLightDirEna: { label: "Enable", type: "checkbox" },
-  eLightDirF: {
-    label: "LightDir From",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  eLightDirT: {
-    label: "LightDir To",
-    type: "number",
-    numeric: "float",
-    min: -360,
-    max: 360,
-    step: 0.1,
-  },
-  eLightDirAnim: {
-    label: "LightDir Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  eOffsetF: {
-    label: "Offset From",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  eOffsetT: {
-    label: "Offset To",
-    type: "number",
-    numeric: "float",
-    min: -500,
-    max: 500,
-    step: 0.1,
-  },
-  eOffsetAnim: {
-    label: "Offset Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-  eDensityF: {
-    label: "Density From",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  eDensityT: {
-    label: "Density To",
-    type: "number",
-    numeric: "float",
-    min: 0,
-    max: 100,
-    step: 0.1,
-  },
-  eDensityAnim: {
-    label: "Density Curve",
-    type: "select",
-    numeric: "int",
-    options: CURVE_OPTIONS,
-  },
-};
-
-const EFFECT_SECTIONS = [
-  {
-    title: "Transform",
-    open: true,
-    fields: [
-      "antiAlias",
-      "unfold",
-      "animStep",
-      "zoomXYSepa",
-      "zoomXF",
-      "zoomXT",
-      "zoomXAnim",
-      "zoomYF",
-      "zoomYT",
-      "zoomYAnim",
-      "offXF",
-      "offXT",
-      "offXAnim",
-      "offYF",
-      "offYT",
-      "offYAnim",
-      "keepDir",
-      "centerX",
-      "centerY",
-      "angleF",
-      "angleT",
-      "angleAnim",
-    ],
-  },
-  {
-    title: "Color",
-    open: true,
-    fields: [
-      "alphaF",
-      "alphaT",
-      "alphaAnim",
-      "brightF",
-      "brightT",
-      "brightAnim",
-      "contrastF",
-      "contrastT",
-      "contrastAnim",
-      "saturationF",
-      "saturationT",
-      "saturationAnim",
-      "hueF",
-      "hueT",
-      "hueAnim",
-    ],
-  },
-  {
-    title: "Mask 1",
-    fields: [
-      "mask1Ena",
-      "mask1Type",
-      "mask1Grad",
-      "mask1GradDir",
-      "mask1StartF",
-      "mask1StartT",
-      "mask1StartAnim",
-      "mask1StopF",
-      "mask1StopT",
-      "mask1StopAnim",
-    ],
-  },
-  {
-    title: "Mask 2",
-    fields: [
-      "mask2Ena",
-      "mask2Op",
-      "mask2Type",
-      "mask2Grad",
-      "mask2GradDir",
-      "mask2StartF",
-      "mask2StartT",
-      "mask2StartAnim",
-      "mask2StopF",
-      "mask2StopT",
-      "mask2StopAnim",
-    ],
-  },
-  {
-    title: "Frame Mask",
-    fields: ["fMaskEna", "fMaskStart", "fMaskStop", "fMaskBits"],
-  },
-  {
-    title: "Specular Highlight",
-    fields: [
-      "sLightDirF",
-      "sLightDirT",
-      "sLightDirAnim",
-      "sDensityF",
-      "sDensityT",
-      "sDensityAnim",
-    ],
-  },
-  {
-    title: "Drop Shadow",
-    fields: [
-      "dLightDirEna",
-      "dLightDirF",
-      "dLightDirT",
-      "dLightDirAnim",
-      "dOffsetF",
-      "dOffsetT",
-      "dOffsetAnim",
-      "dDensityF",
-      "dDensityT",
-      "dDensityAnim",
-      "dDiffuseF",
-      "dDiffuseT",
-      "dDiffuseAnim",
-      "dsType",
-      "dsGrad",
-    ],
-  },
-  {
-    title: "Inner Shadow",
-    fields: [
-      "iLightDirEna",
-      "iLightDirF",
-      "iLightDirT",
-      "iLightDirAnim",
-      "iOffsetF",
-      "iOffsetT",
-      "iOffsetAnim",
-      "iDensityF",
-      "iDensityT",
-      "iDensityAnim",
-      "iDiffuseF",
-      "iDiffuseT",
-      "iDiffuseAnim",
-    ],
-  },
-  {
-    title: "Emboss",
-    fields: [
-      "eLightDirEna",
-      "eLightDirF",
-      "eLightDirT",
-      "eLightDirAnim",
-      "eOffsetF",
-      "eOffsetT",
-      "eOffsetAnim",
-      "eDensityF",
-      "eDensityT",
-      "eDensityAnim",
-    ],
-  },
-];
-
-function clampFloat(v, min, max) {
-  return Math.max(min, Math.min(max, v));
-}
-
-function clampInt(v, min, max) {
-  if (!Number.isFinite(v)) return min;
-  return Math.max(min, Math.min(max, Math.round(v)));
-}
-
-function storageGet(key) {
-  try {
-    return window.localStorage.getItem(key);
-  } catch (_err) {
-    return null;
-  }
-}
-
-function storageSet(key, value) {
-  try {
-    window.localStorage.setItem(key, value);
-    return true;
-  } catch (_err) {
-    return false;
-  }
-}
-
-function storageRemove(key) {
-  try {
-    window.localStorage.removeItem(key);
-  } catch (_err) {}
-}
-
-function bytesToBase64(bytes) {
-  if (!bytes || !bytes.length) return "";
-  const chunkSize = 0x8000;
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const slice = bytes.subarray(i, Math.min(bytes.length, i + chunkSize));
-    binary += String.fromCharCode.apply(null, slice);
-  }
-  return btoa(binary);
-}
-
-function base64ToBytes(b64) {
-  const bin = atob(String(b64 || ""));
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
-function supportsOpenPicker() {
-  return (
-    window.isSecureContext &&
-    typeof window.showOpenFilePicker === "function" &&
-    typeof window.FileSystemFileHandle === "function"
-  );
-}
-
-function supportsStoredHandles() {
-  return (
-    typeof window.indexedDB !== "undefined" &&
-    typeof window.FileSystemFileHandle === "function"
-  );
-}
-
-let recentHandlesDbPromise = null;
-
-function openRecentHandlesDb() {
-  if (!supportsStoredHandles()) return Promise.resolve(null);
-  if (recentHandlesDbPromise) return recentHandlesDbPromise;
-  recentHandlesDbPromise = new Promise((resolve) => {
-    try {
-      const req = indexedDB.open(HANDLE_DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(HANDLE_STORE_NAME)) {
-          db.createObjectStore(HANDLE_STORE_NAME);
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    } catch (_err) {
-      resolve(null);
-    }
-  });
-  return recentHandlesDbPromise;
-}
-
-async function idbPutHandle(key, handle) {
-  const db = await openRecentHandlesDb();
-  if (!db || !key || !handle) return false;
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(HANDLE_STORE_NAME, "readwrite");
-      tx.objectStore(HANDLE_STORE_NAME).put(handle, key);
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-      tx.onabort = () => resolve(false);
-    } catch (_err) {
-      resolve(false);
-    }
-  });
-}
-
-async function idbGetHandle(key) {
-  const db = await openRecentHandlesDb();
-  if (!db || !key) return null;
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(HANDLE_STORE_NAME, "readonly");
-      const req = tx.objectStore(HANDLE_STORE_NAME).get(key);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
-    } catch (_err) {
-      resolve(null);
-    }
-  });
-}
-
-async function idbDeleteHandle(key) {
-  const db = await openRecentHandlesDb();
-  if (!db || !key) return false;
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(HANDLE_STORE_NAME, "readwrite");
-      tx.objectStore(HANDLE_STORE_NAME).delete(key);
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-      tx.onabort = () => resolve(false);
-    } catch (_err) {
-      resolve(false);
-    }
-  });
-}
-
-function uniqueId(prefix) {
-  if (window.crypto && typeof window.crypto.randomUUID === "function") {
-    return `${prefix}_${window.crypto.randomUUID()}`;
-  }
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function isCurveSelectorField(key) {
-  return typeof key === "string" && key.endsWith("Anim");
-}
+const curveEditor = createCurveEditor({
+  state,
+  el,
+  markDirty,
+  setStatus,
+});
+const shapeEditor = createShapeEditor({
+  state,
+  el,
+  markDirty,
+  setStatus,
+});
+const projects = createProjects({
+  state,
+  el,
+  invalidateLayerPreviews,
+  markDirty,
+  refreshFromDoc,
+  refreshParamPanel,
+  setStatus,
+  syncAspectRatioFromInputs,
+});
 
 function isDetachedPreviewOpen() {
   try {
-    return Boolean(detachedPreviewWindow && !detachedPreviewWindow.closed);
+    return Boolean(
+      state.detachedPreviewWindow && !state.detachedPreviewWindow.closed,
+    );
   } catch (_) {
     return false;
   }
 }
 
 function detachedPreviewRenderFrames() {
-  return Math.max(
-    1,
-    parseInt(document.getElementById("prefFrames").value, 10) || 1,
-  );
+  return Math.max(1, parseInt(el("prefFrames").value, 10) || 1);
 }
 
 function detachedPreviewDelayMs() {
-  const duration = Math.max(
-    1,
-    parseInt(document.getElementById("prefDuration").value, 10) || 100,
-  );
+  const duration = Math.max(1, parseInt(el("prefDuration").value, 10) || 100);
   const frames = detachedPreviewRenderFrames();
   return Math.max(16, Math.round(duration / Math.max(1, frames)));
 }
 
 function cleanupDetachedPreviewWindow() {
-  if (detachedPreviewTimer) {
-    clearInterval(detachedPreviewTimer);
-    detachedPreviewTimer = null;
+  if (state.detachedPreviewTimer) {
+    clearInterval(state.detachedPreviewTimer);
+    state.detachedPreviewTimer = null;
   }
-  detachedPreviewPlaying = false;
-  detachedPreviewWindow = null;
-  const btn = document.getElementById("btnPreviewWin");
+  state.detachedPreviewPlaying = false;
+  state.detachedPreviewWindow = null;
+  const btn = el("btnPreviewWin");
   if (btn) btn.textContent = "Preview";
 }
 
 function closeDetachedPreviewWindow() {
   if (isDetachedPreviewOpen()) {
-    detachedPreviewWindow.close();
+    state.detachedPreviewWindow.close();
   }
   cleanupDetachedPreviewWindow();
-}
-
-function syncCanvasElementSize(canvas, width, height, setStyleSize = true) {
-  if (!canvas) return false;
-  const w = Math.max(1, Math.round(Number(width) || 0));
-  const h = Math.max(1, Math.round(Number(height) || 0));
-  let resized = false;
-  if (canvas.width !== w) {
-    canvas.width = w;
-    resized = true;
-  }
-  if (canvas.height !== h) {
-    canvas.height = h;
-    resized = true;
-  }
-  if (setStyleSize) {
-    const cssW = `${w}px`;
-    const cssH = `${h}px`;
-    if (canvas.style.width !== cssW) canvas.style.width = cssW;
-    if (canvas.style.height !== cssH) canvas.style.height = cssH;
-  }
-  return resized;
-}
-
-function syncCanvasBackingToDisplaySize(canvas) {
-  if (!canvas) return false;
-  const rect = canvas.getBoundingClientRect();
-  return syncCanvasElementSize(canvas, rect.width, rect.height, false);
 }
 
 function renderDetachedPreviewFrame(frame) {
   if (!isDetachedPreviewOpen() || !window.knobman_renderFrameRaw) return;
   const raw = window.knobman_renderFrameRaw(frame);
   if (!raw || !raw.data) return;
-  const doc = detachedPreviewWindow.document;
+  const doc = state.detachedPreviewWindow.document;
   const canvas = doc.getElementById("detachedPreviewCanvas");
   const info = doc.getElementById("detachedPreviewInfo");
   if (!canvas) return;
@@ -1623,21 +111,21 @@ function renderDetachedPreviewFrame(frame) {
 function advanceDetachedPreviewFrame() {
   const total = detachedPreviewRenderFrames();
   if (total <= 1) {
-    detachedPreviewFrame = 0;
+    state.detachedPreviewFrame = 0;
     return;
   }
-  if (document.getElementById("prefBiDir").checked) {
-    detachedPreviewFrame += detachedPreviewDir;
-    if (detachedPreviewFrame >= total - 1) {
-      detachedPreviewFrame = total - 1;
-      detachedPreviewDir = -1;
-    } else if (detachedPreviewFrame <= 0) {
-      detachedPreviewFrame = 0;
-      detachedPreviewDir = 1;
+  if (el("prefBiDir").checked) {
+    state.detachedPreviewFrame += state.detachedPreviewDir;
+    if (state.detachedPreviewFrame >= total - 1) {
+      state.detachedPreviewFrame = total - 1;
+      state.detachedPreviewDir = -1;
+    } else if (state.detachedPreviewFrame <= 0) {
+      state.detachedPreviewFrame = 0;
+      state.detachedPreviewDir = 1;
     }
     return;
   }
-  detachedPreviewFrame = (detachedPreviewFrame + 1) % total;
+  state.detachedPreviewFrame = (state.detachedPreviewFrame + 1) % total;
 }
 
 function detachedPreviewTick() {
@@ -1645,43 +133,44 @@ function detachedPreviewTick() {
     cleanupDetachedPreviewWindow();
     return;
   }
-  renderDetachedPreviewFrame(detachedPreviewFrame);
+  renderDetachedPreviewFrame(state.detachedPreviewFrame);
   advanceDetachedPreviewFrame();
 }
 
 function setDetachedPreviewPlaying(playing) {
   if (!isDetachedPreviewOpen()) return;
-  detachedPreviewPlaying = Boolean(playing);
-  if (detachedPreviewTimer) {
-    clearInterval(detachedPreviewTimer);
-    detachedPreviewTimer = null;
+  state.detachedPreviewPlaying = Boolean(playing);
+  if (state.detachedPreviewTimer) {
+    clearInterval(state.detachedPreviewTimer);
+    state.detachedPreviewTimer = null;
   }
-  if (detachedPreviewPlaying) {
-    detachedPreviewTimer = setInterval(
+  if (state.detachedPreviewPlaying) {
+    state.detachedPreviewTimer = setInterval(
       detachedPreviewTick,
       detachedPreviewDelayMs(),
     );
   }
-  const toggle = detachedPreviewWindow.document.getElementById(
-    "detachedPreviewToggle",
-  );
+  const toggle =
+    state.detachedPreviewWindow.document.getElementById(
+      "detachedPreviewToggle",
+    );
   if (toggle) {
-    toggle.textContent = detachedPreviewPlaying ? "Pause" : "Play";
+    toggle.textContent = state.detachedPreviewPlaying ? "Pause" : "Play";
   }
 }
 
 function refreshDetachedPreviewNow() {
   if (!isDetachedPreviewOpen()) return;
-  if (detachedPreviewPlaying) {
+  if (state.detachedPreviewPlaying) {
     setDetachedPreviewPlaying(true);
     return;
   }
-  detachedPreviewFrame = clampInt(
-    currentFrame,
+  state.detachedPreviewFrame = clampInt(
+    state.currentFrame,
     0,
     detachedPreviewRenderFrames() - 1,
   );
-  renderDetachedPreviewFrame(detachedPreviewFrame);
+  renderDetachedPreviewFrame(state.detachedPreviewFrame);
 }
 
 function openDetachedPreviewWindow() {
@@ -1724,31 +213,31 @@ function openDetachedPreviewWindow() {
 </html>`);
   win.document.close();
 
-  detachedPreviewWindow = win;
-  detachedPreviewFrame = clampInt(
-    currentFrame,
+  state.detachedPreviewWindow = win;
+  state.detachedPreviewFrame = clampInt(
+    state.currentFrame,
     0,
     detachedPreviewRenderFrames() - 1,
   );
-  detachedPreviewDir = 1;
+  state.detachedPreviewDir = 1;
 
   const toggle = win.document.getElementById("detachedPreviewToggle");
   const syncBtn = win.document.getElementById("detachedPreviewSync");
   const closeBtn = win.document.getElementById("detachedPreviewClose");
   if (toggle) {
     toggle.addEventListener("click", () => {
-      setDetachedPreviewPlaying(!detachedPreviewPlaying);
+      setDetachedPreviewPlaying(!state.detachedPreviewPlaying);
     });
   }
   if (syncBtn) {
     syncBtn.addEventListener("click", () => {
-      detachedPreviewFrame = clampInt(
-        currentFrame,
+      state.detachedPreviewFrame = clampInt(
+        state.currentFrame,
         0,
         detachedPreviewRenderFrames() - 1,
       );
-      detachedPreviewDir = 1;
-      renderDetachedPreviewFrame(detachedPreviewFrame);
+      state.detachedPreviewDir = 1;
+      renderDetachedPreviewFrame(state.detachedPreviewFrame);
     });
   }
   if (closeBtn) {
@@ -1758,8 +247,8 @@ function openDetachedPreviewWindow() {
   win.addEventListener("beforeunload", cleanupDetachedPreviewWindow);
 
   setDetachedPreviewPlaying(true);
-  renderDetachedPreviewFrame(detachedPreviewFrame);
-  const btn = document.getElementById("btnPreviewWin");
+  renderDetachedPreviewFrame(state.detachedPreviewFrame);
+  const btn = el("btnPreviewWin");
   if (btn) btn.textContent = "Close Preview";
 }
 
@@ -1772,19 +261,19 @@ function toggleDetachedPreviewWindow() {
 }
 
 function releaseLayerPreviewCache() {
-  layerPreviewCache.forEach((entry) => {
+  state.layerPreviewCache.forEach((entry) => {
     if (entry && entry.url) URL.revokeObjectURL(entry.url);
   });
-  layerPreviewCache.clear();
+  state.layerPreviewCache.clear();
 }
 
 function invalidateLayerPreviews() {
-  layerPreviewRevision += 1;
+  state.layerPreviewRevision += 1;
   releaseLayerPreviewCache();
 }
 
 function layerPreviewCacheKey(layerIndex, frame) {
-  return `${layerPreviewRevision}:${layerIndex}:${frame}`;
+  return `${state.layerPreviewRevision}:${layerIndex}:${frame}`;
 }
 
 function buildLayerPreviewFromRaw(raw) {
@@ -1809,20 +298,9 @@ function buildLayerPreviewFromRaw(raw) {
   };
 }
 
-function canvasToBlobSync(canvas) {
-  const dataUrl = canvas.toDataURL("image/png");
-  const comma = dataUrl.indexOf(",");
-  if (comma < 0) return null;
-  const b64 = dataUrl.slice(comma + 1);
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type: "image/png" });
-}
-
 function getLayerPreviewCached(layerIndex, frame) {
   const key = layerPreviewCacheKey(layerIndex, frame);
-  const cached = layerPreviewCache.get(key);
+  const cached = state.layerPreviewCache.get(key);
   if (cached) return cached;
   if (!window.knobman_getLayerPreview) return null;
   const raw = window.knobman_getLayerPreview(
@@ -1832,1527 +310,50 @@ function getLayerPreviewCached(layerIndex, frame) {
   );
   const built = buildLayerPreviewFromRaw(raw);
   if (!built) return null;
-  layerPreviewCache.set(key, built);
+  state.layerPreviewCache.set(key, built);
   return built;
 }
 
 function renderLayerPreviewsAsync(jobs) {
-  const token = ++layerPreviewToken;
+  const token = ++state.layerPreviewToken;
   (async () => {
     for (let i = 0; i < jobs.length; i++) {
-      if (token !== layerPreviewToken) return;
+      if (token !== state.layerPreviewToken) return;
       if (i > 0) await new Promise((resolve) => setTimeout(resolve, 0));
       const job = jobs[i];
       if (!job || !job.img || !job.img.isConnected) continue;
       const preview = getLayerPreviewCached(job.layerIndex, job.frame);
       if (!preview) continue;
-      if (token !== layerPreviewToken || !job.img.isConnected) return;
+      if (token !== state.layerPreviewToken || !job.img.isConnected) return;
       job.img.src = preview.url;
       job.img.classList.add("ready");
     }
   })();
 }
 
-function curveCanvasMetrics() {
-  const w = curveCanvas ? curveCanvas.width : 320;
-  const h = curveCanvas ? curveCanvas.height : 200;
-  const pad = { left: 28, right: 12, top: 12, bottom: 22 };
-  return {
-    w,
-    h,
-    pad,
-    plotW: Math.max(1, w - pad.left - pad.right),
-    plotH: Math.max(1, h - pad.top - pad.bottom),
-  };
-}
-
-function syncCurveCanvasSize() {
-  syncCanvasBackingToDisplaySize(curveCanvas);
-}
-
-function curveToCanvasPoint(tm, lv, m) {
-  return {
-    x: m.pad.left + (tm / 100) * m.plotW,
-    y: m.h - m.pad.bottom - (lv / 100) * m.plotH,
-  };
-}
-
-function canvasToCurvePoint(x, y, m) {
-  const tx = (x - m.pad.left) / m.plotW;
-  const ty = (m.h - m.pad.bottom - y) / m.plotH;
-  return {
-    t: clampInt(tx * 100, 0, 100),
-    l: clampInt(ty * 100, 0, 100),
-  };
-}
-
-function normalizeCurvePoints(points) {
-  const out = [];
-  (points || []).forEach((p) => {
-    const t = clampInt(Number(p.t), 0, 100);
-    const l = clampInt(Number(p.l), 0, 100);
-    if (!Number.isFinite(t) || !Number.isFinite(l)) return;
-    out.push({ t, l });
-  });
-  out.sort((a, b) => a.t - b.t);
-
-  const unique = [];
-  out.forEach((p) => {
-    if (unique.length === 0 || unique[unique.length - 1].t !== p.t)
-      unique.push(p);
-  });
-
-  if (unique.length === 0) {
-    unique.push({ t: 0, l: 0 }, { t: 100, l: 100 });
-  }
-  if (unique[0].t !== 0) unique.unshift({ t: 0, l: unique[0].l });
-  if (unique[unique.length - 1].t !== 100)
-    unique.push({ t: 100, l: unique[unique.length - 1].l });
-
-  unique[0].t = 0;
-  unique[unique.length - 1].t = 100;
-
-  while (unique.length > CURVE_POINT_LIMIT) {
-    unique.splice(unique.length - 2, 1);
-  }
-
-  for (let i = 1; i < unique.length - 1; i++) {
-    const minT = unique[i - 1].t + 1;
-    const maxT = unique[i + 1].t - 1;
-    unique[i].t = clampInt(unique[i].t, minT, maxT);
-  }
-  return unique;
-}
-
-function readSelectedCurve() {
-  const raw = window.knobman_getCurve
-    ? window.knobman_getCurve(selectedCurve)
-    : null;
-  const rawTm = raw && Array.isArray(raw.tm) ? raw.tm : [];
-  const rawLv = raw && Array.isArray(raw.lv) ? raw.lv : [];
-  const points = [];
-  for (let i = 0; i < CURVE_POINT_LIMIT; i++) {
-    const t = Number(rawTm[i]);
-    const l = Number(rawLv[i]);
-    if (!Number.isFinite(t) || !Number.isFinite(l)) continue;
-    if (t < 0 || l < 0) continue;
-    points.push({ t, l });
-  }
-  return {
-    points: normalizeCurvePoints(points),
-    stepReso: clampInt(
-      Number(raw && raw.stepReso != null ? raw.stepReso : 0),
-      0,
-      64,
-    ),
-  };
-}
-
-function writeSelectedCurve(points, stepReso) {
-  if (!window.knobman_setCurve) return false;
-  const clean = normalizeCurvePoints(points);
-  const tm = new Array(CURVE_POINT_LIMIT).fill(-1);
-  const lv = new Array(CURVE_POINT_LIMIT).fill(-1);
-  tm[0] = 0;
-  lv[0] = clean[0].l;
-  tm[CURVE_POINT_LIMIT - 1] = 100;
-  lv[CURVE_POINT_LIMIT - 1] = clean[clean.length - 1].l;
-  const interior = clean.slice(1, -1).slice(0, CURVE_POINT_LIMIT - 2);
-  interior.forEach((p, i) => {
-    tm[i + 1] = p.t;
-    lv[i + 1] = p.l;
-  });
-
-  const ok = window.knobman_setCurve(selectedCurve, {
-    tm,
-    lv,
-    stepReso: clampInt(Number(stepReso), 0, 64),
-  });
-  if (ok) markDirty();
-  return ok;
-}
-
-function frameRatioForCurve() {
-  const renderFrames =
-    parseInt(document.getElementById("prefFrames").value, 10) || 1;
-  if (renderFrames <= 1) return 0;
-  return clampFloat(currentFrame / (renderFrames - 1), 0, 1);
-}
-
-function syncCurveTabState() {
-  const tabs = document.getElementById("curveTabs");
-  if (!tabs) return;
-  tabs.querySelectorAll("button").forEach((btn) => {
-    const idx = parseInt(btn.dataset.curve, 10) || 1;
-    btn.classList.toggle("active", idx === selectedCurve);
-  });
-}
-
-function drawCurveEditor() {
-  if (!curveCanvas || !curveCtx) return;
-  syncCurveCanvasSize();
-  const m = curveCanvasMetrics();
-  const state = readSelectedCurve();
-
-  const stepInput = document.getElementById("curveStepReso");
-  if (stepInput && document.activeElement !== stepInput) {
-    stepInput.value = String(state.stepReso);
-  }
-
-  curveCtx.clearRect(0, 0, m.w, m.h);
-  curveCtx.fillStyle = "#141414";
-  curveCtx.fillRect(0, 0, m.w, m.h);
-
-  curveCtx.strokeStyle = "#2f2f2f";
-  curveCtx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const x = m.pad.left + (i / 4) * m.plotW;
-    const y = m.pad.top + (i / 4) * m.plotH;
-    curveCtx.beginPath();
-    curveCtx.moveTo(x, m.pad.top);
-    curveCtx.lineTo(x, m.h - m.pad.bottom);
-    curveCtx.stroke();
-    curveCtx.beginPath();
-    curveCtx.moveTo(m.pad.left, y);
-    curveCtx.lineTo(m.w - m.pad.right, y);
-    curveCtx.stroke();
-  }
-
-  curveCtx.strokeStyle = "#4b4b4b";
-  curveCtx.strokeRect(m.pad.left, m.pad.top, m.plotW, m.plotH);
-
-  const ratio = frameRatioForCurve();
-  const evalLv = clampFloat(
-    Number(
-      window.knobman_evalCurve
-        ? window.knobman_evalCurve(selectedCurve, ratio)
-        : 0,
-    ),
-    0,
-    100,
-  );
-  const frameX = curveToCanvasPoint(ratio * 100, 0, m).x;
-  const evalY = curveToCanvasPoint(0, evalLv, m).y;
-
-  curveCtx.save();
-  curveCtx.setLineDash([4, 4]);
-  curveCtx.strokeStyle = "#f3b24a";
-  curveCtx.beginPath();
-  curveCtx.moveTo(frameX, m.pad.top);
-  curveCtx.lineTo(frameX, m.h - m.pad.bottom);
-  curveCtx.stroke();
-
-  curveCtx.strokeStyle = "#5db2ff";
-  curveCtx.beginPath();
-  curveCtx.moveTo(m.pad.left, evalY);
-  curveCtx.lineTo(m.w - m.pad.right, evalY);
-  curveCtx.stroke();
-  curveCtx.restore();
-
-  curveCtx.strokeStyle = "#7ec7ff";
-  curveCtx.lineWidth = 2;
-  curveCtx.beginPath();
-  state.points.forEach((p, i) => {
-    const c = curveToCanvasPoint(p.t, p.l, m);
-    if (i === 0) curveCtx.moveTo(c.x, c.y);
-    else curveCtx.lineTo(c.x, c.y);
-  });
-  curveCtx.stroke();
-
-  state.points.forEach((p, i) => {
-    const c = curveToCanvasPoint(p.t, p.l, m);
-    const isEndpoint = i === 0 || i === state.points.length - 1;
-    curveCtx.beginPath();
-    curveCtx.arc(c.x, c.y, i === curveSelectedPoint ? 5 : 4, 0, Math.PI * 2);
-    curveCtx.fillStyle = isEndpoint ? "#e4e4e4" : "#f3b24a";
-    curveCtx.fill();
-    curveCtx.strokeStyle = "#000";
-    curveCtx.lineWidth = 1;
-    curveCtx.stroke();
-  });
-
-  curveCtx.fillStyle = "#a0a0a0";
-  curveCtx.font = "10px system-ui, sans-serif";
-  curveCtx.fillText("0", m.pad.left - 6, m.h - 6);
-  curveCtx.fillText("100", m.w - m.pad.right - 18, m.h - 6);
-  curveCtx.fillText("100", 3, m.pad.top + 3);
-  curveCtx.fillStyle = "#7d7d7d";
-  curveCtx.fillText(`Frame ${currentFrame}`, m.pad.left + 6, m.h - 6);
-  curveCtx.fillText(`Value ${evalLv.toFixed(1)}`, m.pad.left + 78, m.h - 6);
-}
-
-function refreshCurveEditor() {
-  syncCurveTabState();
-  drawCurveEditor();
-}
-
-function focusCurve(curveIdx) {
-  selectedCurve = clampInt(Number(curveIdx), 1, 8);
-  curveSelectedPoint = -1;
-  refreshCurveEditor();
-}
-
-function curveHitPoint(points, x, y) {
-  const m = curveCanvasMetrics();
-  let best = -1;
-  let bestDist = 1e9;
-  points.forEach((p, i) => {
-    const c = curveToCanvasPoint(p.t, p.l, m);
-    const dx = c.x - x;
-    const dy = c.y - y;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < bestDist) {
-      best = i;
-      bestDist = d2;
-    }
-  });
-  return bestDist <= 64 ? best : -1;
-}
-
-function curveEventToCanvasXY(e) {
-  if (!curveCanvas) return { x: 0, y: 0 };
-  const rect = curveCanvas.getBoundingClientRect();
-  const scaleX = rect.width > 0 ? curveCanvas.width / rect.width : 1;
-  const scaleY = rect.height > 0 ? curveCanvas.height / rect.height : 1;
-  return {
-    x: (e.clientX - rect.left) * scaleX,
-    y: (e.clientY - rect.top) * scaleY,
-  };
-}
-
-function onCurvePointerDown(e) {
-  if (e.button !== 0 || !curveCanvas) return;
-  const m = curveCanvasMetrics();
-  const state = readSelectedCurve();
-  const pos = curveEventToCanvasXY(e);
-  const hit = curveHitPoint(state.points, pos.x, pos.y);
-
-  if (hit >= 0) {
-    curveDragPoint = hit;
-    curveSelectedPoint = hit;
-    curveCanvas.setPointerCapture(e.pointerId);
-    refreshCurveEditor();
-    return;
-  }
-
-  if (state.points.length >= CURVE_POINT_LIMIT) {
-    setStatus("Curve has reached the 12-point limit");
-    return;
-  }
-
-  const p = canvasToCurvePoint(pos.x, pos.y, m);
-  if (p.t <= 0 || p.t >= 100) return;
-  let insertAt = state.points.findIndex((pt) => pt.t > p.t);
-  if (insertAt < 0) insertAt = state.points.length - 1;
-  state.points.splice(insertAt, 0, p);
-  curveSelectedPoint = insertAt;
-  writeSelectedCurve(state.points, state.stepReso);
-  refreshCurveEditor();
-}
-
-function onCurvePointerMove(e) {
-  if (curveDragPoint < 0 || !curveCanvas) return;
-  const m = curveCanvasMetrics();
-  const state = readSelectedCurve();
-  if (curveDragPoint >= state.points.length) {
-    curveDragPoint = -1;
-    return;
-  }
-
-  const pos = curveEventToCanvasXY(e);
-  const p = canvasToCurvePoint(pos.x, pos.y, m);
-  const i = curveDragPoint;
-  if (i === 0) {
-    p.t = 0;
-  } else if (i === state.points.length - 1) {
-    p.t = 100;
-  } else {
-    p.t = clampInt(p.t, state.points[i - 1].t + 1, state.points[i + 1].t - 1);
-  }
-  state.points[i] = p;
-  writeSelectedCurve(state.points, state.stepReso);
-  refreshCurveEditor();
-}
-
-function onCurvePointerUp(e) {
-  if (!curveCanvas) return;
-  if (curveDragPoint >= 0) {
-    curveCanvas.releasePointerCapture(e.pointerId);
-  }
-  curveDragPoint = -1;
-}
-
-function onCurveContextMenu(e) {
-  e.preventDefault();
-  const state = readSelectedCurve();
-  const pos = curveEventToCanvasXY(e);
-  const hit = curveHitPoint(state.points, pos.x, pos.y);
-  if (hit <= 0 || hit >= state.points.length - 1) return;
-  state.points.splice(hit, 1);
-  curveSelectedPoint = -1;
-  writeSelectedCurve(state.points, state.stepReso);
-  refreshCurveEditor();
-}
-
-function deleteSelectedCurvePoint() {
-  const state = readSelectedCurve();
-  if (curveSelectedPoint <= 0 || curveSelectedPoint >= state.points.length - 1)
-    return;
-  state.points.splice(curveSelectedPoint, 1);
-  curveSelectedPoint = -1;
-  writeSelectedCurve(state.points, state.stepReso);
-  refreshCurveEditor();
-}
-
-function initCurveEditor() {
-  const tabs = document.getElementById("curveTabs");
-  curveCanvas = document.getElementById("curveCanvas");
-  if (!tabs || !curveCanvas) return;
-  curveCtx = curveCanvas.getContext("2d");
-
-  const details = document.getElementById("curveEditorDetails");
-  if (details) {
-    details.addEventListener("toggle", () => {
-      if (details.open) refreshCurveEditor();
-    });
-  }
-
-  tabs.innerHTML = "";
-  for (let i = 1; i <= 8; i++) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.dataset.curve = String(i);
-    btn.textContent = `Curve ${i}`;
-    btn.addEventListener("click", () => focusCurve(i));
-    tabs.appendChild(btn);
-  }
-
-  const stepInput = document.getElementById("curveStepReso");
-  if (stepInput) {
-    stepInput.addEventListener("change", () => {
-      const state = readSelectedCurve();
-      const step = clampInt(parseInt(stepInput.value, 10) || 0, 0, 64);
-      writeSelectedCurve(state.points, step);
-      refreshCurveEditor();
-    });
-  }
-
-  const deleteBtn = document.getElementById("curveDeletePoint");
-  if (deleteBtn) deleteBtn.addEventListener("click", deleteSelectedCurvePoint);
-
-  curveCanvas.addEventListener("pointerdown", onCurvePointerDown);
-  curveCanvas.addEventListener("pointermove", onCurvePointerMove);
-  curveCanvas.addEventListener("pointerup", onCurvePointerUp);
-  curveCanvas.addEventListener("pointercancel", onCurvePointerUp);
-  curveCanvas.addEventListener("contextmenu", onCurveContextMenu);
-
-  syncCurveTabState();
-  refreshCurveEditor();
-}
-
-function shapeCommandArity(cmd) {
-  switch (cmd) {
-    case "M":
-      return 2;
-    case "L":
-      return 2;
-    case "Q":
-      return 4;
-    case "C":
-      return 6;
-    case "Z":
-      return 0;
-    default:
-      return -1;
-  }
-}
-
-function tokenizeShapePath(path) {
-  const tokens = [];
-  const s = String(path || "");
-  let i = 0;
-  while (i < s.length) {
-    const ch = s[i];
-    if ((ch >= "A" && ch <= "Z") || (ch >= "a" && ch <= "z")) {
-      tokens.push(ch);
-      i++;
-      continue;
-    }
-    if (ch === "," || ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
-      i++;
-      continue;
-    }
-    let j = i;
-    if (s[j] === "+" || s[j] === "-") j++;
-    let sawDigit = false;
-    let sawDot = false;
-    while (j < s.length) {
-      const c = s[j];
-      if (c >= "0" && c <= "9") {
-        sawDigit = true;
-        j++;
-        continue;
-      }
-      if (c === "." && !sawDot) {
-        sawDot = true;
-        j++;
-        continue;
-      }
-      break;
-    }
-    if (!sawDigit) {
-      i++;
-      continue;
-    }
-    tokens.push(s.slice(i, j));
-    i = j;
-  }
-  return tokens;
-}
-
-function parseSvgShapeCommands(path) {
-  const out = [];
-  const tokens = tokenizeShapePath(path);
-  if (tokens.length === 0) return out;
-
-  let cmd = "";
-  let i = 0;
-  while (i < tokens.length) {
-    const tk = tokens[i];
-    if (tk.length === 1 && /[A-Za-z]/.test(tk)) {
-      cmd = tk.toUpperCase();
-      i++;
-      if (cmd === "Z") {
-        out.push({ cmd: "Z", values: [] });
-      }
-      continue;
-    }
-    if (!cmd) {
-      i++;
-      continue;
-    }
-    const arity = shapeCommandArity(cmd);
-    if (arity <= 0) {
-      i++;
-      continue;
-    }
-    const vals = [];
-    while (i < tokens.length && vals.length < arity) {
-      const n = Number(tokens[i]);
-      if (!Number.isFinite(n)) break;
-      vals.push(n);
-      i++;
-    }
-    if (vals.length === arity) {
-      out.push({ cmd, values: vals });
-      if (cmd === "M") cmd = "L";
-      continue;
-    }
-    break;
-  }
-  return out;
-}
-
-function parseKnobShapeToSvgCommands(path) {
-  const text = String(path || "").trim();
-  if (!text.includes("/") || !text.includes(":")) return [];
-
-  const chunks = text
-    .split("/")
-    .map((p) => p.trim())
-    .filter(Boolean);
-  if (chunks.length === 0) return [];
-  const knotText = chunks[0]
-    .split(":")
-    .map((c) => c.trim())
-    .filter(Boolean);
-  const knots = [];
-  knotText.forEach((ch) => {
-    const vals = ch.split(",").map((v) => Number(v.trim()));
-    if (vals.length !== 6 || vals.some((v) => !Number.isFinite(v))) return;
-    knots.push({
-      inX: vals[0],
-      inY: vals[1],
-      pX: vals[2],
-      pY: vals[3],
-      outX: vals[4],
-      outY: vals[5],
-    });
-  });
-  if (knots.length < 2) return [];
-
-  const toPct = (v) => ((v - 128) / 256) * 100;
-  const out = [
-    {
-      cmd: "M",
-      values: [toPct(knots[0].pX), toPct(knots[0].pY)],
-    },
-  ];
-
-  for (let i = 1; i < knots.length; i++) {
-    const prev = knots[i - 1];
-    const cur = knots[i];
-    out.push({
-      cmd: "C",
-      values: [
-        toPct(prev.outX),
-        toPct(prev.outY),
-        toPct(cur.inX),
-        toPct(cur.inY),
-        toPct(cur.pX),
-        toPct(cur.pY),
-      ],
-    });
-  }
-
-  const first = knots[0];
-  const last = knots[knots.length - 1];
-  out.push({
-    cmd: "C",
-    values: [
-      toPct(last.outX),
-      toPct(last.outY),
-      toPct(first.inX),
-      toPct(first.inY),
-      toPct(first.pX),
-      toPct(first.pY),
-    ],
-  });
-  out.push({ cmd: "Z", values: [] });
-  return out;
-}
-
-function normalizeShapeCommands(commands) {
-  const out = [];
-  let hasClose = false;
-  (commands || []).forEach((raw) => {
-    const cmd = String(raw && raw.cmd ? raw.cmd : "").toUpperCase();
-    const arity = shapeCommandArity(cmd);
-    if (arity < 0) return;
-    if (cmd === "Z") {
-      hasClose = true;
-      return;
-    }
-    const vals = Array.isArray(raw.values) ? raw.values.slice(0, arity) : [];
-    if (vals.length !== arity) return;
-    const clamped = vals.map((v) => clampFloat(Number(v), 0, 100));
-    out.push({ cmd, values: clamped });
-  });
-
-  if (out.length === 0 || out[0].cmd !== "M") {
-    out.unshift({ cmd: "M", values: [50, 50] });
-  }
-  const cleaned = [out[0]];
-  for (let i = 1; i < out.length; i++) {
-    if (out[i].cmd === "M") continue;
-    cleaned.push(out[i]);
-  }
-  if (hasClose) cleaned.push({ cmd: "Z", values: [] });
-  return cleaned;
-}
-
-function formatShapeNumber(v) {
-  const n = clampFloat(Number(v), 0, 100);
-  if (!Number.isFinite(n)) return "0";
-  if (Math.abs(Math.round(n) - n) < 1e-6) return String(Math.round(n));
-  return n.toFixed(2).replace(/\.?0+$/, "");
-}
-
-function serializeShapeCommands(commands) {
-  const parts = [];
-  (commands || []).forEach((c) => {
-    if (!c || !c.cmd) return;
-    if (c.cmd === "Z") {
-      parts.push("Z");
-      return;
-    }
-    parts.push(c.cmd);
-    for (let i = 0; i < c.values.length; i += 2) {
-      parts.push(
-        formatShapeNumber(c.values[i]),
-        formatShapeNumber(c.values[i + 1]),
-      );
-    }
-  });
-  return parts.join(" ");
-}
-
-function isShapeLayerSelected() {
-  return Number(window.knobman_getParam(selectedLayer, "primType") || 0) === 15;
-}
-
-function shapeEditorEnabled() {
-  return isShapeLayerSelected() && shapeCanvas && shapeCtx;
-}
-
-function setShapeOverlayVisible(visible) {
-  if (!shapeCanvas) return;
-  shapeCanvas.style.display = visible ? "block" : "none";
-  shapeCanvas.style.pointerEvents = visible ? "auto" : "none";
-}
-
-function shapeMetrics() {
-  const w = shapeCanvas ? shapeCanvas.width : canvasW;
-  const h = shapeCanvas ? shapeCanvas.height : canvasH;
-  const pad = 10;
-  return {
-    w,
-    h,
-    pad,
-    plotW: Math.max(1, w - pad * 2),
-    plotH: Math.max(1, h - pad * 2),
-  };
-}
-
-function shapeToCanvas(x, y, m) {
-  return {
-    x: m.pad + (clampFloat(x, 0, 100) / 100) * m.plotW,
-    y: m.h - m.pad - (clampFloat(y, 0, 100) / 100) * m.plotH,
-  };
-}
-
-function canvasToShape(x, y, m) {
-  return {
-    x: clampFloat(((x - m.pad) / m.plotW) * 100, 0, 100),
-    y: clampFloat(((m.h - m.pad - y) / m.plotH) * 100, 0, 100),
-  };
-}
-
-function shapeCurrentPoint(commands) {
-  let cur = null;
-  let start = null;
-  (commands || []).forEach((c) => {
-    switch (c.cmd) {
-      case "M":
-        cur = { x: c.values[0], y: c.values[1] };
-        start = { x: cur.x, y: cur.y };
-        break;
-      case "L":
-        cur = { x: c.values[0], y: c.values[1] };
-        break;
-      case "Q":
-        cur = { x: c.values[2], y: c.values[3] };
-        break;
-      case "C":
-        cur = { x: c.values[4], y: c.values[5] };
-        break;
-      case "Z":
-        if (start) cur = { x: start.x, y: start.y };
-        break;
-      default:
-        break;
-    }
-  });
-  return cur || { x: 50, y: 50 };
-}
-
-function parseShapeFromLayer() {
-  const raw = String(window.knobman_getParam(selectedLayer, "shape") || "");
-  let commands = parseSvgShapeCommands(raw);
-  if (commands.length === 0 && raw.includes("/")) {
-    commands = parseKnobShapeToSvgCommands(raw);
-  }
-  return normalizeShapeCommands(commands);
-}
-
-function syncShapeTextarea(path) {
-  const ta = document.querySelector("#paramContent textarea");
-  if (!ta || ta === document.activeElement) return;
-  ta.value = path;
-}
-
-function writeShapeCommands(commands) {
-  const normalized = normalizeShapeCommands(commands);
-  const path = serializeShapeCommands(normalized);
-  const ok = window.knobman_setParam(selectedLayer, "shape", path);
-  if (!ok) return false;
-  shapeCommands = normalized;
-  syncShapeTextarea(path);
-  markDirty();
-  return true;
-}
-
-function shapeHandles(commands) {
-  const handles = [];
-  (commands || []).forEach((c, idx) => {
-    if (c.cmd === "M" || c.cmd === "L") {
-      handles.push({
-        cmdIndex: idx,
-        valueIndex: 0,
-        role: "anchor",
-        x: c.values[0],
-        y: c.values[1],
-      });
-    } else if (c.cmd === "Q") {
-      handles.push({
-        cmdIndex: idx,
-        valueIndex: 0,
-        role: "control",
-        x: c.values[0],
-        y: c.values[1],
-      });
-      handles.push({
-        cmdIndex: idx,
-        valueIndex: 2,
-        role: "anchor",
-        x: c.values[2],
-        y: c.values[3],
-      });
-    } else if (c.cmd === "C") {
-      handles.push({
-        cmdIndex: idx,
-        valueIndex: 0,
-        role: "control",
-        x: c.values[0],
-        y: c.values[1],
-      });
-      handles.push({
-        cmdIndex: idx,
-        valueIndex: 2,
-        role: "control",
-        x: c.values[2],
-        y: c.values[3],
-      });
-      handles.push({
-        cmdIndex: idx,
-        valueIndex: 4,
-        role: "anchor",
-        x: c.values[4],
-        y: c.values[5],
-      });
-    }
-  });
-  return handles;
-}
-
-function shapeHitHandle(handles, x, y, m) {
-  let best = null;
-  let bestDist = 1e9;
-  handles.forEach((h) => {
-    const p = shapeToCanvas(h.x, h.y, m);
-    const dx = p.x - x;
-    const dy = p.y - y;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < bestDist) {
-      best = h;
-      bestDist = d2;
-    }
-  });
-  return bestDist <= 80 ? best : null;
-}
-
-function shapeEventToCanvasXY(e) {
-  if (!shapeCanvas) return { x: 0, y: 0 };
-  const rect = shapeCanvas.getBoundingClientRect();
-  const scaleX = rect.width > 0 ? shapeCanvas.width / rect.width : 1;
-  const scaleY = rect.height > 0 ? shapeCanvas.height / rect.height : 1;
-  return {
-    x: (e.clientX - rect.left) * scaleX,
-    y: (e.clientY - rect.top) * scaleY,
-  };
-}
-
-function applyShapeModeButtons() {
-  const toolbar = document.getElementById("shapeToolbar");
-  if (!toolbar) return;
-  toolbar.querySelectorAll("button[data-shape-mode]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.shapeMode === shapeMode);
-  });
-}
-
-function addShapeCommandAt(mode, x, y) {
-  const cmds = normalizeShapeCommands(shapeCommands);
-  const p = { x: clampFloat(x, 0, 100), y: clampFloat(y, 0, 100) };
-  if (cmds.length === 0) {
-    cmds.push({ cmd: "M", values: [p.x, p.y] });
-    return cmds;
-  }
-
-  if (mode === "M") {
-    cmds[0] = { cmd: "M", values: [p.x, p.y] };
-    return cmds;
-  }
-
-  const cur = shapeCurrentPoint(cmds);
-  if (mode === "L") {
-    cmds.push({ cmd: "L", values: [p.x, p.y] });
-    return cmds;
-  }
-  if (mode === "Q") {
-    const cx = (cur.x + p.x) * 0.5;
-    const cy = (cur.y + p.y) * 0.5;
-    cmds.push({ cmd: "Q", values: [cx, cy, p.x, p.y] });
-    return cmds;
-  }
-  if (mode === "C") {
-    const c1x = cur.x + (p.x - cur.x) / 3;
-    const c1y = cur.y + (p.y - cur.y) / 3;
-    const c2x = cur.x + (p.x - cur.x) * (2 / 3);
-    const c2y = cur.y + (p.y - cur.y) * (2 / 3);
-    cmds.push({ cmd: "C", values: [c1x, c1y, c2x, c2y, p.x, p.y] });
-    return cmds;
-  }
-  return cmds;
-}
-
-function closeShapePath() {
-  if (!shapeEditorEnabled()) return;
-  const cmds = normalizeShapeCommands(shapeCommands);
-  if (cmds.length === 0) return;
-  if (cmds[cmds.length - 1].cmd === "Z") return;
-  cmds.push({ cmd: "Z", values: [] });
-  writeShapeCommands(cmds);
-  drawShapeOverlay();
-}
-
-function deleteShapeSelection() {
-  if (!shapeEditorEnabled() || !shapeSelectedHandle) return;
-  const cmds = normalizeShapeCommands(shapeCommands);
-  const idx = shapeSelectedHandle.cmdIndex;
-  if (idx <= 0 || idx >= cmds.length) {
-    setStatus("Initial move point cannot be deleted");
-    return;
-  }
-  cmds.splice(idx, 1);
-  shapeSelectedHandle = null;
-  shapeDragHandle = null;
-  writeShapeCommands(cmds);
-  drawShapeOverlay();
-}
-
-function drawShapeOverlay() {
-  if (!shapeCtx || !shapeCanvas) return;
-  shapeCtx.clearRect(0, 0, shapeCanvas.width, shapeCanvas.height);
-  if (!shapeEditorEnabled()) return;
-
-  const m = shapeMetrics();
-  const fillEnabled = Boolean(window.knobman_getParam(selectedLayer, "fill"));
-  shapeCtx.save();
-  shapeCtx.strokeStyle = "rgba(220,220,220,0.25)";
-  shapeCtx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const x = m.pad + (i / 4) * m.plotW;
-    const y = m.pad + (i / 4) * m.plotH;
-    shapeCtx.beginPath();
-    shapeCtx.moveTo(x, m.pad);
-    shapeCtx.lineTo(x, m.h - m.pad);
-    shapeCtx.stroke();
-    shapeCtx.beginPath();
-    shapeCtx.moveTo(m.pad, y);
-    shapeCtx.lineTo(m.w - m.pad, y);
-    shapeCtx.stroke();
-  }
-
-  shapeCtx.beginPath();
-  let cur = null;
-  let start = null;
-  shapeCommands.forEach((c) => {
-    if (c.cmd === "M") {
-      const p = shapeToCanvas(c.values[0], c.values[1], m);
-      shapeCtx.moveTo(p.x, p.y);
-      cur = { x: c.values[0], y: c.values[1] };
-      start = { x: cur.x, y: cur.y };
-    } else if (c.cmd === "L" && cur) {
-      const p = shapeToCanvas(c.values[0], c.values[1], m);
-      shapeCtx.lineTo(p.x, p.y);
-      cur = { x: c.values[0], y: c.values[1] };
-    } else if (c.cmd === "Q" && cur) {
-      const c1 = shapeToCanvas(c.values[0], c.values[1], m);
-      const p = shapeToCanvas(c.values[2], c.values[3], m);
-      shapeCtx.quadraticCurveTo(c1.x, c1.y, p.x, p.y);
-      cur = { x: c.values[2], y: c.values[3] };
-    } else if (c.cmd === "C" && cur) {
-      const c1 = shapeToCanvas(c.values[0], c.values[1], m);
-      const c2 = shapeToCanvas(c.values[2], c.values[3], m);
-      const p = shapeToCanvas(c.values[4], c.values[5], m);
-      shapeCtx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, p.x, p.y);
-      cur = { x: c.values[4], y: c.values[5] };
-    } else if (c.cmd === "Z" && start) {
-      const p = shapeToCanvas(start.x, start.y, m);
-      shapeCtx.lineTo(p.x, p.y);
-      cur = { x: start.x, y: start.y };
-    }
-  });
-  if (fillEnabled) {
-    shapeCtx.fillStyle = "rgba(14,99,156,0.15)";
-    shapeCtx.fill();
-  }
-  shapeCtx.strokeStyle = "#f6d06f";
-  shapeCtx.lineWidth = 2;
-  shapeCtx.stroke();
-
-  let prev = null;
-  let subStart = null;
-  shapeCommands.forEach((c) => {
-    if (c.cmd === "M") {
-      prev = { x: c.values[0], y: c.values[1] };
-      subStart = { x: prev.x, y: prev.y };
-      return;
-    }
-    if (c.cmd === "Q" && prev) {
-      const a = shapeToCanvas(prev.x, prev.y, m);
-      const ctrl = shapeToCanvas(c.values[0], c.values[1], m);
-      const end = shapeToCanvas(c.values[2], c.values[3], m);
-      shapeCtx.setLineDash([4, 4]);
-      shapeCtx.strokeStyle = "rgba(98,180,255,0.85)";
-      shapeCtx.beginPath();
-      shapeCtx.moveTo(a.x, a.y);
-      shapeCtx.lineTo(ctrl.x, ctrl.y);
-      shapeCtx.lineTo(end.x, end.y);
-      shapeCtx.stroke();
-      shapeCtx.setLineDash([]);
-      prev = { x: c.values[2], y: c.values[3] };
-      return;
-    }
-    if (c.cmd === "C" && prev) {
-      const a = shapeToCanvas(prev.x, prev.y, m);
-      const c1 = shapeToCanvas(c.values[0], c.values[1], m);
-      const c2 = shapeToCanvas(c.values[2], c.values[3], m);
-      const end = shapeToCanvas(c.values[4], c.values[5], m);
-      shapeCtx.setLineDash([4, 4]);
-      shapeCtx.strokeStyle = "rgba(98,180,255,0.85)";
-      shapeCtx.beginPath();
-      shapeCtx.moveTo(a.x, a.y);
-      shapeCtx.lineTo(c1.x, c1.y);
-      shapeCtx.moveTo(end.x, end.y);
-      shapeCtx.lineTo(c2.x, c2.y);
-      shapeCtx.stroke();
-      shapeCtx.setLineDash([]);
-      prev = { x: c.values[4], y: c.values[5] };
-      return;
-    }
-    if (c.cmd === "L") {
-      prev = { x: c.values[0], y: c.values[1] };
-      return;
-    }
-    if (c.cmd === "Z" && subStart) {
-      prev = { x: subStart.x, y: subStart.y };
-    }
-  });
-
-  const handles = shapeHandles(shapeCommands);
-  handles.forEach((h) => {
-    const p = shapeToCanvas(h.x, h.y, m);
-    const selected = Boolean(
-      shapeSelectedHandle &&
-      shapeSelectedHandle.cmdIndex === h.cmdIndex &&
-      shapeSelectedHandle.valueIndex === h.valueIndex,
-    );
-    shapeCtx.beginPath();
-    shapeCtx.arc(p.x, p.y, selected ? 5 : 4, 0, Math.PI * 2);
-    shapeCtx.fillStyle = h.role === "anchor" ? "#ffe28a" : "#78c9ff";
-    shapeCtx.fill();
-    shapeCtx.strokeStyle = "#101010";
-    shapeCtx.lineWidth = 1;
-    shapeCtx.stroke();
-  });
-
-  shapeCtx.fillStyle = "#fff";
-  shapeCtx.font = "11px system-ui, sans-serif";
-  shapeCtx.fillText("Shape Edit Overlay", m.pad + 6, m.pad + 14);
-  shapeCtx.restore();
-}
-
-function refreshShapeEditor() {
-  const panel = document.getElementById("shapeEditorPanel");
-  if (!panel) return;
-  const active = isShapeLayerSelected();
-  panel.classList.toggle("disabled", !active);
-  setShapeOverlayVisible(active);
-
-  const hint = document.getElementById("shapeHelp");
-  if (!active) {
-    shapeCommands = [];
-    shapeDragHandle = null;
-    shapeSelectedHandle = null;
-    if (hint)
-      hint.textContent =
-        "Select a layer with Primitive = Shape to edit its path.";
-    if (shapeCtx && shapeCanvas)
-      shapeCtx.clearRect(0, 0, shapeCanvas.width, shapeCanvas.height);
-    return;
-  }
-  if (hint)
-    hint.textContent =
-      "Click to add points. Drag handles to edit. Right click or Delete removes selected segment.";
-  shapeCommands = parseShapeFromLayer();
-  drawShapeOverlay();
-}
-
-function onShapePointerDown(e) {
-  if (!shapeEditorEnabled() || e.button !== 0) return;
-  const m = shapeMetrics();
-  const pos = shapeEventToCanvasXY(e);
-  const handles = shapeHandles(shapeCommands);
-  const hit = shapeHitHandle(handles, pos.x, pos.y, m);
-  if (hit) {
-    shapeSelectedHandle = {
-      cmdIndex: hit.cmdIndex,
-      valueIndex: hit.valueIndex,
-    };
-    shapeDragHandle = { cmdIndex: hit.cmdIndex, valueIndex: hit.valueIndex };
-    shapeCanvas.setPointerCapture(e.pointerId);
-    drawShapeOverlay();
-    return;
-  }
-  const p = canvasToShape(pos.x, pos.y, m);
-  const next = addShapeCommandAt(shapeMode, p.x, p.y);
-  writeShapeCommands(next);
-  drawShapeOverlay();
-}
-
-function onShapePointerMove(e) {
-  if (!shapeEditorEnabled() || !shapeDragHandle) return;
-  const m = shapeMetrics();
-  const pos = shapeEventToCanvasXY(e);
-  const p = canvasToShape(pos.x, pos.y, m);
-  const cmds = normalizeShapeCommands(shapeCommands);
-  const cmd = cmds[shapeDragHandle.cmdIndex];
-  if (!cmd || cmd.cmd === "Z") return;
-  const i = shapeDragHandle.valueIndex;
-  if (i < 0 || i + 1 >= cmd.values.length) return;
-  cmd.values[i] = p.x;
-  cmd.values[i + 1] = p.y;
-  writeShapeCommands(cmds);
-  drawShapeOverlay();
-}
-
-function onShapePointerUp(e) {
-  if (!shapeCanvas) return;
-  if (shapeDragHandle) {
-    shapeCanvas.releasePointerCapture(e.pointerId);
-  }
-  shapeDragHandle = null;
-}
-
-function onShapeContextMenu(e) {
-  if (!shapeEditorEnabled()) return;
-  e.preventDefault();
-  const m = shapeMetrics();
-  const pos = shapeEventToCanvasXY(e);
-  const hit = shapeHitHandle(shapeHandles(shapeCommands), pos.x, pos.y, m);
-  if (!hit) return;
-  shapeSelectedHandle = { cmdIndex: hit.cmdIndex, valueIndex: hit.valueIndex };
-  deleteShapeSelection();
-}
-
-function initShapeEditor() {
-  shapeCanvas = document.getElementById("shapeOverlay");
-  if (!shapeCanvas) return;
-  shapeCtx = shapeCanvas.getContext("2d");
-  setShapeOverlayVisible(false);
-
-  shapeCanvas.addEventListener("pointerdown", onShapePointerDown);
-  shapeCanvas.addEventListener("pointermove", onShapePointerMove);
-  shapeCanvas.addEventListener("pointerup", onShapePointerUp);
-  shapeCanvas.addEventListener("pointercancel", onShapePointerUp);
-  shapeCanvas.addEventListener("contextmenu", onShapeContextMenu);
-
-  const toolbar = document.getElementById("shapeToolbar");
-  if (toolbar) {
-    toolbar.querySelectorAll("button[data-shape-mode]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        shapeMode = btn.dataset.shapeMode || "L";
-        applyShapeModeButtons();
-      });
-    });
-  }
-  applyShapeModeButtons();
-
-  const closeBtn = document.getElementById("shapeClosePath");
-  if (closeBtn) closeBtn.addEventListener("click", closeShapePath);
-  const delBtn = document.getElementById("shapeDeleteSeg");
-  if (delBtn) delBtn.addEventListener("click", deleteShapeSelection);
-}
-
-async function fetchBuiltinTextureBytes(filename) {
-  const paths = [
-    "../assets/textures/" + filename,
-    "/assets/textures/" + filename,
-    "assets/textures/" + filename,
-  ];
-  for (const path of paths) {
-    try {
-      const res = await fetch(path);
-      if (!res.ok) continue;
-      const buf = await res.arrayBuffer();
-      if (buf.byteLength > 0) return new Uint8Array(buf);
-    } catch (_err) {
-      // Try next candidate path.
-    }
-  }
-  return null;
-}
-
-async function ensureBuiltinTextures() {
-  if (builtinTextureLoadPromise) return builtinTextureLoadPromise;
-  builtinTextureLoadPromise = (async () => {
-    const existing = window.knobman_getTextureList
-      ? window.knobman_getTextureList() || []
-      : [];
-    const byName = new Set(
-      existing.map((t) => String(t.name || "").toLowerCase()),
-    );
-    for (const filename of BUILTIN_TEXTURE_FILES) {
-      if (byName.has(filename.toLowerCase())) continue;
-      const data = await fetchBuiltinTextureBytes(filename);
-      if (!data) continue;
-      const idx = window.knobman_addTexture(filename, data);
-      if (idx > 0) byName.add(filename.toLowerCase());
-    }
-  })().finally(() => {
-    builtinTextureLoadPromise = null;
-  });
-  return builtinTextureLoadPromise;
-}
-
-function sampleLabelFromFileName(fileName) {
-  return stripFileExtension(fileName).replace(/[_-]+/g, " ").trim();
-}
-
-function recentDocsLoad() {
-  try {
-    const raw = storageGet(RECENT_DOCS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_err) {
-    return [];
-  }
-}
-
-function recentDocsSave(entries) {
-  storageSet(RECENT_DOCS_KEY, JSON.stringify(entries || []));
-}
-
-async function rememberRecentDoc(entry) {
-  if (!entry || !entry.kind || !entry.fileName) return;
-  const now = Date.now();
-  const removed = [];
-  const items = recentDocsLoad().filter((item) => {
-    let keep = true;
-    if (!item || item.kind !== entry.kind) return true;
-    if (entry.kind === "sample") {
-      keep = item.fileName !== entry.fileName;
-    } else {
-      keep = item.id !== entry.id && item.fileName !== entry.fileName;
-    }
-    if (!keep && item.handleKey) removed.push(item.handleKey);
-    return keep;
-  });
-
-  const next = {
-    id: entry.id || uniqueId(entry.kind),
-    kind: entry.kind,
-    fileName: entry.fileName,
-    label:
-      entry.label ||
-      (entry.kind === "sample"
-        ? sampleLabelFromFileName(entry.fileName)
-        : stripFileExtension(entry.fileName) || entry.fileName),
-    ts: now,
-    handleKey: entry.handleKey || null,
-    reopenable:
-      entry.reopenable !== false &&
-      (entry.kind === "sample" || !!entry.handleKey),
-  };
-
-  items.unshift(next);
-  const truncated = items.slice(RECENT_DOC_LIMIT);
-  for (const t of truncated) {
-    if (t && t.handleKey) removed.push(t.handleKey);
-  }
-  recentDocsSave(items.slice(0, RECENT_DOC_LIMIT));
-  await Promise.all(removed.map((key) => idbDeleteHandle(key)));
-  if (entry.handleKey && entry.handle) {
-    await idbPutHandle(entry.handleKey, entry.handle);
-  }
-}
-
-async function pruneRecentDoc(entry) {
-  if (!entry) return;
-  const items = recentDocsLoad().filter((item) => item && item.id !== entry.id);
-  recentDocsSave(items);
-  if (entry.handleKey) {
-    await idbDeleteHandle(entry.handleKey);
-  }
-}
-
-function formatRecentTimestamp(ts) {
-  if (!Number.isFinite(ts) || ts <= 0) return "";
-  try {
-    return new Date(ts).toLocaleString();
-  } catch (_err) {
-    return "";
-  }
-}
-
-function closeRecentOverlay() {
-  const overlay = document.getElementById("recentOverlay");
-  if (overlay) overlay.hidden = true;
-}
-
-function isRecentOverlayOpen() {
-  const overlay = document.getElementById("recentOverlay");
-  return Boolean(overlay && !overlay.hidden);
-}
-
-function renderRecentList() {
-  const list = document.getElementById("recentList");
-  if (!list) return;
-  list.innerHTML = "";
-
-  const entries = recentDocsLoad();
-  if (entries.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "placeholder";
-    empty.textContent = "No recent projects yet.";
-    list.appendChild(empty);
-    return;
-  }
-
-  entries.forEach((entry) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "sample-item";
-    btn.disabled = entry.reopenable === false;
-
-    const label = document.createElement("strong");
-    label.textContent = entry.label || entry.fileName || "Untitled";
-    btn.appendChild(label);
-
-    const meta = document.createElement("small");
-    meta.textContent = entry.fileName || "";
-    btn.appendChild(meta);
-
-    const metaRow = document.createElement("div");
-    metaRow.className = "sample-meta-row";
-    const tag = document.createElement("span");
-    tag.className = "sample-tag";
-    tag.textContent = entry.kind === "sample" ? "Sample" : "Local";
-    metaRow.appendChild(tag);
-    const stamp = document.createElement("small");
-    stamp.textContent =
-      formatRecentTimestamp(entry.ts) ||
-      (entry.reopenable === false ? "Reopen unavailable" : "");
-    metaRow.appendChild(stamp);
-    btn.appendChild(metaRow);
-
-    btn.addEventListener("click", () => {
-      void openRecentDoc(entry);
-    });
-    list.appendChild(btn);
-  });
-}
-
-function openRecentOverlay() {
-  const overlay = document.getElementById("recentOverlay");
-  if (!overlay) return;
-  renderRecentList();
-  overlay.hidden = false;
-}
-
-// ── Welcome screen ────────────────────────────────────────────────────────────
-
-const WELCOME_SUPPRESS_KEY = "knobman_welcome_suppress";
-
-function shouldShowWelcome() {
-  return storageGet(WELCOME_SUPPRESS_KEY) !== "1";
-}
-
-function closeWelcomeOverlay() {
-  const overlay = document.getElementById("welcomeOverlay");
-  if (!overlay) return;
-  const check = document.getElementById("welcomeSuppressCheck");
-  if (check && check.checked) {
-    storageSet(WELCOME_SUPPRESS_KEY, "1");
-  }
-  overlay.hidden = true;
-}
-
-function openWelcomeOverlay() {
-  const overlay = document.getElementById("welcomeOverlay");
-  if (!overlay) return;
-  const check = document.getElementById("welcomeSuppressCheck");
-  if (check) check.checked = false;
-  renderWelcomeSampleList();
-  const search = document.getElementById("welcomeSampleSearch");
-  if (search) {
-    search.value = "";
-    search.focus();
-  }
-  overlay.hidden = false;
-}
-
-function renderWelcomeSampleList() {
-  const list = document.getElementById("welcomeSampleList");
-  const input = document.getElementById("welcomeSampleSearch");
-  if (!list) return;
-  const query = String(input && input.value ? input.value : "")
-    .trim()
-    .toLowerCase();
-
-  list.innerHTML = "";
-  const matches = SAMPLE_PROJECT_FILES.filter((file) => {
-    if (!query) return true;
-    const label = sampleLabelFromFileName(file).toLowerCase();
-    return file.toLowerCase().includes(query) || label.includes(query);
-  });
-
-  if (matches.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "placeholder";
-    empty.textContent = "No matching sample projects.";
-    list.appendChild(empty);
-    return;
-  }
-
-  matches.forEach((file) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "sample-item";
-    const label = document.createElement("strong");
-    label.textContent = sampleLabelFromFileName(file);
-    btn.appendChild(label);
-    const meta = document.createElement("small");
-    meta.textContent = file;
-    btn.appendChild(meta);
-    btn.addEventListener("click", () => {
-      closeWelcomeOverlay();
-      void loadSampleProject(file);
-    });
-    list.appendChild(btn);
-  });
-}
-
-function wireWelcomeOverlay() {
-  const overlay = document.getElementById("welcomeOverlay");
-  const btnCancel = document.getElementById("btnWelcomeCancel");
-  const btnOpen = document.getElementById("btnWelcomeOpenFile");
-  const search = document.getElementById("welcomeSampleSearch");
-
-  if (btnCancel) btnCancel.addEventListener("click", closeWelcomeOverlay);
-  if (btnOpen) {
-    btnOpen.addEventListener("click", () => {
-      closeWelcomeOverlay();
-      document.getElementById("fileInput").click();
-    });
-  }
-  if (search) search.addEventListener("input", renderWelcomeSampleList);
-  if (overlay) {
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) closeWelcomeOverlay();
-    });
-  }
-}
-
-function isSamplesOverlayOpen() {
-  const overlay = document.getElementById("samplesOverlay");
-  return Boolean(overlay && !overlay.hidden);
-}
-
-function closeSamplesOverlay() {
-  const overlay = document.getElementById("samplesOverlay");
-  if (!overlay) return;
-  overlay.hidden = true;
-}
-
-function renderSampleList() {
-  const list = document.getElementById("sampleList");
-  const input = document.getElementById("sampleSearch");
-  if (!list) return;
-  const query = String(input && input.value ? input.value : "")
-    .trim()
-    .toLowerCase();
-
-  list.innerHTML = "";
-  const matches = SAMPLE_PROJECT_FILES.filter((file) => {
-    if (!query) return true;
-    const label = sampleLabelFromFileName(file).toLowerCase();
-    return file.toLowerCase().includes(query) || label.includes(query);
-  });
-
-  if (matches.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "placeholder";
-    empty.textContent = "No matching sample projects.";
-    list.appendChild(empty);
-    return;
-  }
-
-  matches.forEach((file) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "sample-item";
-
-    const label = document.createElement("strong");
-    label.textContent = sampleLabelFromFileName(file);
-    btn.appendChild(label);
-
-    const meta = document.createElement("small");
-    meta.textContent = file;
-    btn.appendChild(meta);
-
-    btn.addEventListener("click", () => {
-      void loadSampleProject(file);
-    });
-    list.appendChild(btn);
-  });
-}
-
-function openSamplesOverlay() {
-  const overlay = document.getElementById("samplesOverlay");
-  const input = document.getElementById("sampleSearch");
-  if (!overlay) return;
-  overlay.hidden = false;
-  renderSampleList();
-  if (input) input.focus();
-}
-
-async function fetchSampleProjectBytes(fileName) {
-  const paths = [
-    "../assets/samples/" + fileName,
-    "/assets/samples/" + fileName,
-    "assets/samples/" + fileName,
-  ];
-  for (const path of paths) {
-    try {
-      const res = await fetch(path);
-      if (!res.ok) continue;
-      const buf = await res.arrayBuffer();
-      if (buf.byteLength > 0) return new Uint8Array(buf);
-    } catch (_err) {
-      // Try next candidate path.
-    }
-  }
-  return null;
-}
-
-// ── Initialise after WASM load ────────────────────────────────────────────────
-
 function onWasmReady() {
-  document.getElementById("loading").style.display = "none";
-  document.getElementById("app").style.display = "flex";
+  el("loading").style.display = "none";
+  el("app").style.display = "flex";
 
   wireControls();
-  wireWelcomeOverlay();
-  renderSampleList();
+  projects.wireWelcomeOverlay();
+  projects.renderSampleList();
 
-  window.knobman_init(64, 64, zoomFactor);
-  document.getElementById("zoomSelect").value = String(zoomFactor);
-  initCurveEditor();
-  initShapeEditor();
+  window.knobman_init(64, 64, state.zoomFactor);
+  el("zoomSelect").value = String(state.zoomFactor);
+  curveEditor.initCurveEditor();
+  shapeEditor.initShapeEditor();
 
-  const restored = restoreSession();
+  const restored = projects.restoreSession();
   refreshFromDoc();
-  ensureBuiltinTextures().then(() => {
+  projects.ensureBuiltinTextures().then(() => {
     refreshParamPanel();
     markDirty();
   });
   scheduleRender();
 
-  if (!restored && shouldShowWelcome()) {
-    openWelcomeOverlay();
+  if (!restored && projects.shouldShowWelcome()) {
+    projects.openWelcomeOverlay();
     setStatus("Ready");
   } else {
     setStatus(restored ? "Session restored" : "Ready");
@@ -3364,300 +365,250 @@ function refreshFromDoc() {
   syncCanvasSize();
   refreshLayerList();
   refreshParamPanel();
-  refreshShapeEditor();
+  shapeEditor.refreshShapeEditor();
 
-  const renderFrames =
-    parseInt(document.getElementById("prefFrames").value, 10) || 1;
+  const renderFrames = parseInt(el("prefFrames").value, 10) || 1;
   const visibleFrames = Math.max(1, renderFrames);
   const maxPreviewFrame = Math.max(0, visibleFrames - 1);
-  if (currentFrame > maxPreviewFrame) currentFrame = maxPreviewFrame;
-  if (currentFrame < 0) currentFrame = 0;
-  document.getElementById("frameSlider").max = Math.max(0, visibleFrames - 1);
-  document.getElementById("frameSlider").value = currentFrame;
-  document.getElementById("frameValue").textContent = String(currentFrame);
-  window.knobman_setPreviewFrame(currentFrame);
-  refreshCurveEditor();
+  if (state.currentFrame > maxPreviewFrame) state.currentFrame = maxPreviewFrame;
+  if (state.currentFrame < 0) state.currentFrame = 0;
+  el("frameSlider").max = Math.max(0, visibleFrames - 1);
+  el("frameSlider").value = state.currentFrame;
+  el("frameValue").textContent = String(state.currentFrame);
+  window.knobman_setPreviewFrame(state.currentFrame);
+  curveEditor.refreshCurveEditor();
   refreshDetachedPreviewNow();
   markDirty();
 }
-
-// ── Canvas ────────────────────────────────────────────────────────────────────
 
 function syncCanvasSize() {
   const dims = window.knobman_getDimensions();
   if (!dims) return;
   const targetW = Math.max(1, Math.round(Number(dims.width) || 0));
   const targetH = Math.max(1, Math.round(Number(dims.height) || 0));
-  const docSizeChanged = canvasW !== targetW || canvasH !== targetH;
+  const docSizeChanged =
+    state.canvasW !== targetW || state.canvasH !== targetH;
 
-  const canvas = document.getElementById("knobCanvas");
-  syncCanvasElementSize(canvas, targetW, targetH);
+  syncCanvasElementSize(el("knobCanvas"), targetW, targetH);
 
-  const overlay = document.getElementById("shapeOverlay");
+  const overlay = el("shapeOverlay");
   if (overlay) {
     syncCanvasElementSize(overlay, targetW, targetH);
   }
 
-  canvasW = targetW;
-  canvasH = targetH;
+  state.canvasW = targetW;
+  state.canvasH = targetH;
   if (
     !docSizeChanged &&
-    pixelBuf &&
-    imageData &&
-    imageData.width === canvasW &&
-    imageData.height === canvasH
-  )
+    state.pixelBuf &&
+    state.imageData &&
+    state.imageData.width === state.canvasW &&
+    state.imageData.height === state.canvasH
+  ) {
     return;
+  }
 
-  imageData = new ImageData(canvasW, canvasH);
-  pixelBuf = new Uint8Array(canvasW * canvasH * 4);
+  state.imageData = new ImageData(state.canvasW, state.canvasH);
+  state.pixelBuf = new Uint8Array(state.canvasW * state.canvasH * 4);
 }
 
 function scheduleRender() {
-  if (!rafPending) {
-    rafPending = true;
+  if (!state.rafPending) {
+    state.rafPending = true;
     requestAnimationFrame(renderFrame);
   }
 }
 
 function renderFrame() {
-  rafPending = false;
-  if (!wasmReady || !dirty) return;
-  dirty = false;
+  state.rafPending = false;
+  if (!state.wasmReady || !state.dirty) return;
+  state.dirty = false;
 
   try {
     syncCanvasSize();
-    if (!window.knobman_render || !pixelBuf || !imageData) return;
+    if (!window.knobman_render || !state.pixelBuf || !state.imageData) return;
     const t0 = performance.now();
-    window.knobman_render(pixelBuf);
-    lastRenderMs = Math.round(performance.now() - t0);
-    imageData.data.set(pixelBuf);
+    window.knobman_render(state.pixelBuf);
+    state.lastRenderMs = Math.round(performance.now() - t0);
+    state.imageData.data.set(state.pixelBuf);
 
-    const canvas = document.getElementById("knobCanvas");
+    const canvas = el("knobCanvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
-    ctx.putImageData(imageData, 0, 0);
+    ctx.putImageData(state.imageData, 0, 0);
 
     const layers = window.knobman_getLayerList
       ? window.knobman_getLayerList() || []
       : [];
-    const active = layers.find((l) => l.selected);
+    const active = layers.find((layer) => layer.selected);
     updateStatusMetrics(
       active ? active.name || `Layer ${active.index + 1}` : "",
     );
-    saveSession();
+    projects.saveSession();
   } catch (err) {
-    dirty = true;
+    state.dirty = true;
     console.error("renderFrame failed:", err);
     setStatus("Render failed");
   }
 }
 
 function markDirty() {
-  dirty = true;
-  modifiedSinceSave = true;
+  state.dirty = true;
+  state.modifiedSinceSave = true;
   scheduleRender();
-  if (isDetachedPreviewOpen() && !detachedPreviewPlaying) {
+  if (isDetachedPreviewOpen() && !state.detachedPreviewPlaying) {
     refreshDetachedPreviewNow();
   }
   updateUndoRedoButtons();
 }
 
-// ── Controls ──────────────────────────────────────────────────────────────────
-
 function wireControls() {
-  // Frame scrubber
-  const slider = document.getElementById("frameSlider");
+  const slider = el("frameSlider");
   slider.addEventListener("input", () => {
-    currentFrame = parseInt(slider.value, 10) || 0;
-    const renderFrames =
-      parseInt(document.getElementById("prefFrames").value, 10) || 1;
-    if (currentFrame >= renderFrames) currentFrame = renderFrames - 1;
-    if (currentFrame < 0) currentFrame = 0;
-    slider.value = String(currentFrame);
-    document.getElementById("frameValue").textContent = String(currentFrame);
-    window.knobman_setPreviewFrame(currentFrame);
-    refreshCurveEditor();
+    state.currentFrame = parseInt(slider.value, 10) || 0;
+    const renderFrames = parseInt(el("prefFrames").value, 10) || 1;
+    if (state.currentFrame >= renderFrames) state.currentFrame = renderFrames - 1;
+    if (state.currentFrame < 0) state.currentFrame = 0;
+    slider.value = String(state.currentFrame);
+    el("frameValue").textContent = String(state.currentFrame);
+    window.knobman_setPreviewFrame(state.currentFrame);
+    curveEditor.refreshCurveEditor();
     refreshDetachedPreviewNow();
     markDirty();
   });
 
-  // Zoom
-  const zoomSelect = document.getElementById("zoomSelect");
+  const zoomSelect = el("zoomSelect");
   zoomSelect.addEventListener("change", () => {
     const z = parseInt(zoomSelect.value, 10) || 8;
-    zoomFactor = z;
+    state.zoomFactor = z;
     if (window.knobman_setZoom) window.knobman_setZoom(z);
     syncCanvasSize();
     markDirty();
   });
 
-  // Prefs bar
-  document
-    .getElementById("prefWidth")
-    .addEventListener("change", onPrefWidthChange);
-  document
-    .getElementById("prefHeight")
-    .addEventListener("change", onPrefHeightChange);
-  document
-    .getElementById("prefLockAspect")
-    .addEventListener("change", onPrefLockAspectChange);
-  document
-    .getElementById("prefFrames")
-    .addEventListener("change", onPrefsChange);
-  document
-    .getElementById("prefPreviewFrames")
-    .addEventListener("change", onPrefsChange);
-  document
-    .getElementById("prefBgColor")
-    .addEventListener("input", onPrefsChange);
-  document
-    .getElementById("prefBgAlpha")
-    .addEventListener("input", onPrefsChange);
-  document
-    .getElementById("prefOversample")
-    .addEventListener("change", onPrefsChange);
-  document
-    .getElementById("prefExport")
-    .addEventListener("change", onPrefsChange);
-  document
-    .getElementById("prefAlign")
-    .addEventListener("change", onPrefsChange);
-  document
-    .getElementById("prefDuration")
-    .addEventListener("change", onPrefsChange);
-  document.getElementById("prefLoop").addEventListener("change", onPrefsChange);
-  document
-    .getElementById("prefBiDir")
-    .addEventListener("change", onPrefsChange);
+  el("prefWidth").addEventListener("change", onPrefWidthChange);
+  el("prefHeight").addEventListener("change", onPrefHeightChange);
+  el("prefLockAspect").addEventListener("change", onPrefLockAspectChange);
+  el("prefFrames").addEventListener("change", onPrefsChange);
+  el("prefPreviewFrames").addEventListener("change", onPrefsChange);
+  el("prefBgColor").addEventListener("input", onPrefsChange);
+  el("prefBgAlpha").addEventListener("input", onPrefsChange);
+  el("prefOversample").addEventListener("change", onPrefsChange);
+  el("prefExport").addEventListener("change", onPrefsChange);
+  el("prefAlign").addEventListener("change", onPrefsChange);
+  el("prefDuration").addEventListener("change", onPrefsChange);
+  el("prefLoop").addEventListener("change", onPrefsChange);
+  el("prefBiDir").addEventListener("change", onPrefsChange);
 
-  // Toolbar
-  document.getElementById("btnNew").addEventListener("click", onNew);
-  document.getElementById("btnOpen").addEventListener("click", () => {
-    void openProjectWithPicker();
+  el("btnNew").addEventListener("click", projects.onNew);
+  el("btnOpen").addEventListener("click", () => {
+    void projects.openProjectWithPicker();
   });
-  document
-    .getElementById("btnRecent")
-    .addEventListener("click", openRecentOverlay);
-  document
-    .getElementById("btnSamples")
-    .addEventListener("click", openSamplesOverlay);
-  document.getElementById("fileInput").addEventListener("change", onFileOpen);
-  document.getElementById("btnSave").addEventListener("click", onSave);
-  document.getElementById("btnExport").addEventListener("click", onExport);
-  document
-    .getElementById("btnPreviewWin")
-    .addEventListener("click", toggleDetachedPreviewWindow);
-  document.getElementById("btnUndo").addEventListener("click", onUndo);
-  document.getElementById("btnRedo").addEventListener("click", onRedo);
+  el("btnRecent").addEventListener("click", projects.openRecentOverlay);
+  el("btnSamples").addEventListener("click", projects.openSamplesOverlay);
+  el("fileInput").addEventListener("change", projects.onFileOpen);
+  el("btnSave").addEventListener("click", projects.onSave);
+  el("btnExport").addEventListener("click", projects.onExport);
+  el("btnPreviewWin").addEventListener("click", toggleDetachedPreviewWindow);
+  el("btnUndo").addEventListener("click", onUndo);
+  el("btnRedo").addEventListener("click", onRedo);
 
-  // Layer controls
-  document.getElementById("btnAddLayer").addEventListener("click", onAddLayer);
-  document
-    .getElementById("btnDeleteLayer")
-    .addEventListener("click", onDeleteLayer);
-  document.getElementById("btnMoveUp").addEventListener("click", onMoveUp);
-  document.getElementById("btnMoveDown").addEventListener("click", onMoveDown);
-  document
-    .getElementById("btnDuplicate")
-    .addEventListener("click", onDuplicate);
+  el("btnAddLayer").addEventListener("click", onAddLayer);
+  el("btnDeleteLayer").addEventListener("click", onDeleteLayer);
+  el("btnMoveUp").addEventListener("click", onMoveUp);
+  el("btnMoveDown").addEventListener("click", onMoveDown);
+  el("btnDuplicate").addEventListener("click", onDuplicate);
 
-  const samplesOverlay = document.getElementById("samplesOverlay");
-  const sampleSearch = document.getElementById("sampleSearch");
-  const closeSamples = document.getElementById("btnCloseSamples");
+  const samplesOverlay = el("samplesOverlay");
+  const sampleSearch = el("sampleSearch");
+  const closeSamples = el("btnCloseSamples");
   if (samplesOverlay) {
     samplesOverlay.addEventListener("click", (e) => {
-      if (e.target === samplesOverlay) closeSamplesOverlay();
+      if (e.target === samplesOverlay) projects.closeSamplesOverlay();
     });
   }
   if (sampleSearch) {
-    sampleSearch.addEventListener("input", renderSampleList);
+    sampleSearch.addEventListener("input", projects.renderSampleList);
   }
   if (closeSamples) {
-    closeSamples.addEventListener("click", closeSamplesOverlay);
+    closeSamples.addEventListener("click", projects.closeSamplesOverlay);
   }
 
-  const recentOverlay = document.getElementById("recentOverlay");
-  const closeRecent = document.getElementById("btnCloseRecent");
+  const recentOverlay = el("recentOverlay");
+  const closeRecent = el("btnCloseRecent");
   if (recentOverlay) {
     recentOverlay.addEventListener("click", (e) => {
-      if (e.target === recentOverlay) closeRecentOverlay();
+      if (e.target === recentOverlay) projects.closeRecentOverlay();
     });
   }
   if (closeRecent) {
-    closeRecent.addEventListener("click", closeRecentOverlay);
+    closeRecent.addEventListener("click", projects.closeRecentOverlay);
   }
 
   document.addEventListener("keydown", onKeyDown);
   window.addEventListener("beforeunload", (e) => {
-    if (modifiedSinceSave) e.preventDefault();
+    if (state.modifiedSinceSave) e.preventDefault();
   });
   window.addEventListener("resize", () => {
     syncCanvasSize();
-    refreshCurveEditor();
-    drawShapeOverlay();
+    curveEditor.refreshCurveEditor();
+    shapeEditor.drawShapeOverlay();
     markDirty();
   });
 }
 
 function syncAspectRatioFromInputs() {
-  const w = parseInt(document.getElementById("prefWidth").value, 10) || 64;
-  const h = parseInt(document.getElementById("prefHeight").value, 10) || 64;
-  prefAspectRatio = Math.max(0.01, w / Math.max(1, h));
+  const w = parseInt(el("prefWidth").value, 10) || 64;
+  const h = parseInt(el("prefHeight").value, 10) || 64;
+  state.prefAspectRatio = Math.max(0.01, w / Math.max(1, h));
 }
 
 function onPrefLockAspectChange() {
-  prefAspectLock = document.getElementById("prefLockAspect").checked;
-  if (prefAspectLock) {
+  state.prefAspectLock = el("prefLockAspect").checked;
+  if (state.prefAspectLock) {
     syncAspectRatioFromInputs();
   }
 }
 
 function onPrefWidthChange() {
-  if (prefAspectLock) {
-    const w = parseInt(document.getElementById("prefWidth").value, 10) || 64;
-    const h = Math.max(1, Math.round(w / Math.max(0.01, prefAspectRatio)));
-    document.getElementById("prefHeight").value = h;
+  if (state.prefAspectLock) {
+    const w = parseInt(el("prefWidth").value, 10) || 64;
+    const h = Math.max(1, Math.round(w / Math.max(0.01, state.prefAspectRatio)));
+    el("prefHeight").value = h;
   }
   syncAspectRatioFromInputs();
   onPrefsChange();
 }
 
 function onPrefHeightChange() {
-  if (prefAspectLock) {
-    const h = parseInt(document.getElementById("prefHeight").value, 10) || 64;
-    const w = Math.max(1, Math.round(h * Math.max(0.01, prefAspectRatio)));
-    document.getElementById("prefWidth").value = w;
+  if (state.prefAspectLock) {
+    const h = parseInt(el("prefHeight").value, 10) || 64;
+    const w = Math.max(1, Math.round(h * Math.max(0.01, state.prefAspectRatio)));
+    el("prefWidth").value = w;
   }
   syncAspectRatioFromInputs();
   onPrefsChange();
 }
 
 function onPrefsChange() {
-  const renderFrames =
-    parseInt(document.getElementById("prefFrames").value, 10) || 1;
+  const renderFrames = parseInt(el("prefFrames").value, 10) || 1;
   const previewFrames =
-    parseInt(document.getElementById("prefPreviewFrames").value, 10) ||
-    renderFrames;
+    parseInt(el("prefPreviewFrames").value, 10) || renderFrames;
   const prefs = {
-    width: parseInt(document.getElementById("prefWidth").value, 10) || 64,
-    height: parseInt(document.getElementById("prefHeight").value, 10) || 64,
+    width: parseInt(el("prefWidth").value, 10) || 64,
+    height: parseInt(el("prefHeight").value, 10) || 64,
     frames: renderFrames,
-    renderFrames: renderFrames,
-    previewFrames: previewFrames,
-    oversampling:
-      parseInt(document.getElementById("prefOversample").value, 10) || 0,
-    alignHorizontal:
-      parseInt(document.getElementById("prefAlign").value, 10) || 0,
-    exportOption:
-      parseInt(document.getElementById("prefExport").value, 10) || 0,
-    duration:
-      parseInt(document.getElementById("prefDuration").value, 10) || 100,
-    loop: parseInt(document.getElementById("prefLoop").value, 10) || 0,
-    biDir: document.getElementById("prefBiDir").checked,
-    bgAlpha: parseInt(document.getElementById("prefBgAlpha").value, 10) || 0,
-    bgColor: document.getElementById("prefBgColor").value,
+    renderFrames,
+    previewFrames,
+    oversampling: parseInt(el("prefOversample").value, 10) || 0,
+    alignHorizontal: parseInt(el("prefAlign").value, 10) || 0,
+    exportOption: parseInt(el("prefExport").value, 10) || 0,
+    duration: parseInt(el("prefDuration").value, 10) || 100,
+    loop: parseInt(el("prefLoop").value, 10) || 0,
+    biDir: el("prefBiDir").checked,
+    bgAlpha: parseInt(el("prefBgAlpha").value, 10) || 0,
+    bgColor: el("prefBgColor").value,
   };
   window.knobman_setPrefs(prefs);
   refreshFromDoc();
@@ -3665,52 +616,50 @@ function onPrefsChange() {
 }
 
 function syncPrefsFromGo() {
-  const p = window.knobman_getPrefs();
-  if (!p) return;
-  if (p.width != null) document.getElementById("prefWidth").value = p.width;
-  if (p.height != null) document.getElementById("prefHeight").value = p.height;
-  if (p.renderFrames != null)
-    document.getElementById("prefFrames").value = p.renderFrames;
-  else if (p.frames != null)
-    document.getElementById("prefFrames").value = p.frames;
-  if (p.previewFrames != null)
-    document.getElementById("prefPreviewFrames").value = p.previewFrames;
-  if (p.oversampling != null)
-    document.getElementById("prefOversample").value = p.oversampling;
-  if (p.alignHorizontal != null)
-    document.getElementById("prefAlign").value = p.alignHorizontal;
-  if (p.exportOption != null)
-    document.getElementById("prefExport").value = p.exportOption;
-  if (p.duration != null)
-    document.getElementById("prefDuration").value = p.duration;
-  if (p.loop != null) document.getElementById("prefLoop").value = p.loop;
-  if (p.biDir != null)
-    document.getElementById("prefBiDir").checked = Boolean(p.biDir);
-  if (p.bgAlpha != null)
-    document.getElementById("prefBgAlpha").value = p.bgAlpha;
-  if (p.bgColor) document.getElementById("prefBgColor").value = p.bgColor;
-  prefAspectLock = document.getElementById("prefLockAspect").checked;
+  const prefs = window.knobman_getPrefs();
+  if (!prefs) return;
+  if (prefs.width != null) el("prefWidth").value = prefs.width;
+  if (prefs.height != null) el("prefHeight").value = prefs.height;
+  if (prefs.renderFrames != null) el("prefFrames").value = prefs.renderFrames;
+  else if (prefs.frames != null) el("prefFrames").value = prefs.frames;
+  if (prefs.previewFrames != null) {
+    el("prefPreviewFrames").value = prefs.previewFrames;
+  }
+  if (prefs.oversampling != null) {
+    el("prefOversample").value = prefs.oversampling;
+  }
+  if (prefs.alignHorizontal != null) {
+    el("prefAlign").value = prefs.alignHorizontal;
+  }
+  if (prefs.exportOption != null) {
+    el("prefExport").value = prefs.exportOption;
+  }
+  if (prefs.duration != null) el("prefDuration").value = prefs.duration;
+  if (prefs.loop != null) el("prefLoop").value = prefs.loop;
+  if (prefs.biDir != null) el("prefBiDir").checked = Boolean(prefs.biDir);
+  if (prefs.bgAlpha != null) el("prefBgAlpha").value = prefs.bgAlpha;
+  if (prefs.bgColor) el("prefBgColor").value = prefs.bgColor;
+  state.prefAspectLock = el("prefLockAspect").checked;
   syncAspectRatioFromInputs();
 }
 
-// ── Layers ────────────────────────────────────────────────────────────────────
-
 function refreshLayerList() {
-  const layerList = document.getElementById("layerList");
+  const layerList = el("layerList");
   layerList.innerHTML = "";
 
   const layers = window.knobman_getLayerList() || [];
-  if (selectedLayer >= layers.length)
-    selectedLayer = Math.max(0, layers.length - 1);
+  if (state.selectedLayer >= layers.length) {
+    state.selectedLayer = Math.max(0, layers.length - 1);
+  }
   const previewJobs = [];
-  layerPreviewToken += 1;
+  state.layerPreviewToken += 1;
 
   layers.forEach((layer) => {
     const li = document.createElement("li");
     li.dataset.layerIndex = String(layer.index);
     if (layer.selected) {
       li.classList.add("active");
-      selectedLayer = layer.index;
+      state.selectedLayer = layer.index;
     }
 
     const vis = document.createElement("span");
@@ -3764,7 +713,7 @@ function refreshLayerList() {
     li.appendChild(previews);
 
     li.addEventListener("click", () => {
-      selectedLayer = window.knobman_selectLayer(layer.index);
+      state.selectedLayer = window.knobman_selectLayer(layer.index);
       refreshLayerList();
       refreshParamPanel();
       markDirty();
@@ -3775,8 +724,6 @@ function refreshLayerList() {
 
   renderLayerPreviewsAsync(previewJobs);
 }
-
-// ── Primitive parameter panel ─────────────────────────────────────────────────
 
 function fieldsForPrimType(primType) {
   return PARAMS_BY_PRIM_TYPE[primType] || [];
@@ -3795,18 +742,18 @@ function coerceParamValue(def, input) {
     return input.value;
   }
   if (def.numeric === "int") {
-    const v = parseInt(input.value, 10);
-    return Number.isFinite(v) ? v : 0;
+    const value = parseInt(input.value, 10);
+    return Number.isFinite(value) ? value : 0;
   }
   if (def.numeric === "float") {
-    const v = parseFloat(input.value);
-    return Number.isFinite(v) ? v : 0;
+    const value = parseFloat(input.value);
+    return Number.isFinite(value) ? value : 0;
   }
   return input.value;
 }
 
 function applyParamChange(key, value) {
-  const ok = window.knobman_setParam(selectedLayer, key, value);
+  const ok = window.knobman_setParam(state.selectedLayer, key, value);
   if (!ok) return false;
   if (key !== "name" && key !== "primType") {
     invalidateLayerPreviews();
@@ -3820,14 +767,14 @@ function applyParamChange(key, value) {
     refreshParamPanel();
   }
   if (key === "shape") {
-    refreshShapeEditor();
+    shapeEditor.refreshShapeEditor();
   }
   markDirty();
   return true;
 }
 
 function applyEffectParamChange(key, value) {
-  const ok = window.knobman_setEffectParam(selectedLayer, key, value);
+  const ok = window.knobman_setEffectParam(state.selectedLayer, key, value);
   if (!ok) return false;
   markDirty();
   return true;
@@ -3858,8 +805,8 @@ function buildParamRow(key, value) {
     alphaInput.min = "0";
     alphaInput.max = "255";
     alphaInput.step = "1";
-    const a = window.knobman_getParam(selectedLayer, "colorAlpha");
-    alphaInput.value = String(a == null ? 255 : a);
+    const alpha = window.knobman_getParam(state.selectedLayer, "colorAlpha");
+    alphaInput.value = String(alpha == null ? 255 : alpha);
 
     const alphaOut = document.createElement("output");
     alphaOut.textContent = alphaInput.value;
@@ -3917,9 +864,9 @@ function buildParamRow(key, value) {
 
     const hint = document.createElement("small");
     const has = Boolean(
-      window.knobman_getParam(selectedLayer, "hasEmbeddedImage"),
+      window.knobman_getParam(state.selectedLayer, "hasEmbeddedImage"),
     );
-    const name = String(window.knobman_getParam(selectedLayer, "file") || "");
+    const name = String(window.knobman_getParam(state.selectedLayer, "file") || "");
     hint.textContent = has
       ? "Embedded: " + (name || "(unnamed)")
       : "No embedded image";
@@ -3935,10 +882,10 @@ function buildParamRow(key, value) {
   if (def.type === "select") {
     input = document.createElement("select");
     (def.options || []).forEach((opt) => {
-      const el = document.createElement("option");
-      el.value = String(opt.value);
-      el.textContent = opt.label;
-      input.appendChild(el);
+      const option = document.createElement("option");
+      option.value = String(opt.value);
+      option.textContent = opt.label;
+      input.appendChild(option);
     });
     input.value = String(value ?? 0);
   } else if (def.type === "textarea") {
@@ -3965,17 +912,12 @@ function buildParamRow(key, value) {
   const eventName =
     def.type === "select" || def.type === "checkbox" ? "change" : "input";
   input.addEventListener(eventName, () => {
-    const v = coerceParamValue(def, input);
-    applyParamChange(key, v);
+    const nextValue = coerceParamValue(def, input);
+    applyParamChange(key, nextValue);
   });
 
-  if (def.type === "checkbox") {
-    row.appendChild(caption);
-    row.appendChild(input);
-  } else {
-    row.appendChild(caption);
-    row.appendChild(input);
-  }
+  row.appendChild(caption);
+  row.appendChild(input);
   return row;
 }
 
@@ -3994,10 +936,10 @@ function buildEffectRow(key, value) {
   if (def.type === "select") {
     input = document.createElement("select");
     (def.options || []).forEach((opt) => {
-      const el = document.createElement("option");
-      el.value = String(opt.value);
-      el.textContent = opt.label;
-      input.appendChild(el);
+      const option = document.createElement("option");
+      option.value = String(opt.value);
+      option.textContent = opt.label;
+      input.appendChild(option);
     });
     input.value = String(value ?? 0);
   } else if (def.type === "textarea") {
@@ -4020,20 +962,15 @@ function buildEffectRow(key, value) {
   const eventName =
     def.type === "select" || def.type === "checkbox" ? "change" : "input";
   input.addEventListener(eventName, () => {
-    const v = coerceParamValue(def, input);
-    applyEffectParamChange(key, v);
-    if (isCurveSelectorField(key) && Number(v) > 0) {
-      focusCurve(Number(v));
+    const nextValue = coerceParamValue(def, input);
+    applyEffectParamChange(key, nextValue);
+    if (isCurveSelectorField(key) && Number(nextValue) > 0) {
+      curveEditor.focusCurve(Number(nextValue));
     }
   });
 
-  if (def.type === "checkbox") {
-    row.appendChild(caption);
-    row.appendChild(input);
-  } else {
-    row.appendChild(caption);
-    row.appendChild(input);
-  }
+  row.appendChild(caption);
+  row.appendChild(input);
   return row;
 }
 
@@ -4055,7 +992,7 @@ function appendEffectSections(content) {
     const body = document.createElement("div");
     body.className = "effect-section-body";
     section.fields.forEach((key) => {
-      const value = window.knobman_getEffectParam(selectedLayer, key);
+      const value = window.knobman_getEffectParam(state.selectedLayer, key);
       const row = buildEffectRow(key, value);
       if (row) body.appendChild(row);
     });
@@ -4080,7 +1017,7 @@ function appendTexturePanel(content, primType) {
     ? window.knobman_getTextureList() || []
     : [];
   const selectedTexture =
-    window.knobman_getParam(selectedLayer, "textureFile") ?? 0;
+    window.knobman_getParam(state.selectedLayer, "textureFile") ?? 0;
 
   const selectRow = document.createElement("div");
   selectRow.className = "param-row";
@@ -4092,10 +1029,10 @@ function appendTexturePanel(content, primType) {
   noneOption.textContent = "None";
   select.appendChild(noneOption);
   textures.forEach((tex) => {
-    const opt = document.createElement("option");
-    opt.value = String(tex.index);
-    opt.textContent = `${tex.index}: ${tex.name} (${tex.width}x${tex.height})`;
-    select.appendChild(opt);
+    const option = document.createElement("option");
+    option.value = String(tex.index);
+    option.textContent = `${tex.index}: ${tex.name} (${tex.width}x${tex.height})`;
+    select.appendChild(option);
   });
   select.value = String(selectedTexture || 0);
   select.addEventListener("change", () => {
@@ -4173,9 +1110,11 @@ function appendTexturePanel(content, primType) {
       img.src = url;
       img.alt = tex.name;
       img.loading = "lazy";
-      img.addEventListener("load", () => URL.revokeObjectURL(url), {
-        once: true,
-      });
+      img.addEventListener(
+        "load",
+        () => URL.revokeObjectURL(url),
+        { once: true },
+      );
       thumb.appendChild(img);
     } else {
       const fallback = document.createElement("span");
@@ -4195,7 +1134,7 @@ function appendTexturePanel(content, primType) {
 }
 
 function refreshParamPanel() {
-  const content = document.getElementById("paramContent");
+  const content = el("paramContent");
   content.innerHTML = "";
 
   const layers = window.knobman_getLayerList() || [];
@@ -4206,284 +1145,25 @@ function refreshParamPanel() {
     content.appendChild(p);
     return;
   }
-  selectedLayer = Math.max(0, Math.min(selectedLayer, layers.length - 1));
+  state.selectedLayer = Math.max(
+    0,
+    Math.min(state.selectedLayer, layers.length - 1),
+  );
 
-  const primType = window.knobman_getParam(selectedLayer, "primType") ?? 0;
+  const primType = window.knobman_getParam(state.selectedLayer, "primType") ?? 0;
   const fields = ["name", "primType", ...fieldsForPrimType(primType)];
 
   fields.forEach((key) => {
-    const value = window.knobman_getParam(selectedLayer, key);
+    const value = window.knobman_getParam(state.selectedLayer, key);
     const row = buildParamRow(key, value);
     if (row) content.appendChild(row);
   });
 
   appendTexturePanel(content, primType);
   appendEffectSections(content);
-  refreshShapeEditor();
+  shapeEditor.refreshShapeEditor();
 }
 
-// ── Toolbar handlers ──────────────────────────────────────────────────────────
-
-function onNew() {
-  window.knobman_newDocument();
-  projectBaseName = "project";
-  modifiedSinceSave = false;
-  invalidateLayerPreviews();
-  currentFrame = 0;
-  refreshFromDoc();
-  ensureBuiltinTextures().then(() => refreshParamPanel());
-  storageRemove(SESSION_KEY);
-  storageRemove(LEGACY_SESSION_KEY);
-  setStatus("New document");
-}
-
-async function onSave() {
-  const data = window.knobman_saveFile();
-  if (!data || data.length === 0) {
-    setStatus("Save failed");
-    return;
-  }
-  const fileName = buildDownloadName("project", "knob");
-  const result = await saveBytes(
-    data,
-    fileName,
-    "application/octet-stream",
-    "knobman-save",
-  );
-  if (result.mode === "canceled") {
-    setStatus("Save canceled");
-    return;
-  }
-  if (result.mode === "picker" && result.handle) {
-    const savedName = result.handle.name || fileName;
-    setProjectBaseNameFromFileName(savedName);
-    await rememberRecentDoc({
-      kind: "file",
-      fileName: savedName,
-      label: stripFileExtension(savedName),
-      handleKey: uniqueId("handle"),
-      handle: result.handle,
-    });
-  }
-  modifiedSinceSave = false;
-  setStatus(
-    result.mode === "picker" ? `Saved ${fileName}` : `Downloaded ${fileName}`,
-  );
-}
-
-function downloadBytes(fileName, mimeType, bytes) {
-  const blob = new Blob([bytes], {
-    type: mimeType || "application/octet-stream",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function buildPickerTypes(fileName, mimeType) {
-  const extIdx = fileName.lastIndexOf(".");
-  if (extIdx < 0 || extIdx === fileName.length - 1) return undefined;
-  const ext = fileName.slice(extIdx).toLowerCase();
-  if (!ext || !mimeType) return undefined;
-  return [
-    {
-      description: ext.slice(1).toUpperCase() + " File",
-      accept: { [mimeType]: [ext] },
-    },
-  ];
-}
-
-function sanitizeFileBaseName(name) {
-  const raw = String(name || "").trim();
-  const mapped = raw
-    .replace(/[^A-Za-z0-9._-]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^[_\. -]+|[_\. -]+$/g, "");
-  if (!mapped) return "project";
-  return mapped.slice(0, 64);
-}
-
-function stripFileExtension(name) {
-  const s = String(name || "");
-  const idx = s.lastIndexOf(".");
-  if (idx <= 0) return s;
-  return s.slice(0, idx);
-}
-
-function setProjectBaseNameFromFileName(fileName) {
-  projectBaseName = sanitizeFileBaseName(stripFileExtension(fileName));
-}
-
-function filenameTimestampNow() {
-  const d = new Date();
-  const pad2 = (n) => String(n).padStart(2, "0");
-  return (
-    [d.getFullYear(), pad2(d.getMonth() + 1), pad2(d.getDate())].join("") +
-    "-" +
-    [pad2(d.getHours()), pad2(d.getMinutes()), pad2(d.getSeconds())].join("")
-  );
-}
-
-function buildDownloadName(tag, ext) {
-  const base = sanitizeFileBaseName(projectBaseName || "project");
-  const suffix = sanitizeFileBaseName(tag || "file");
-  const ts = filenameTimestampNow();
-  const extension = String(ext || "").replace(/^\./, "");
-  return extension
-    ? `${base}_${ts}_${suffix}.${extension}`
-    : `${base}_${ts}_${suffix}`;
-}
-
-async function saveBytes(bytes, fileName, mimeType, pickerId) {
-  if (
-    window.isSecureContext &&
-    typeof window.showSaveFilePicker === "function"
-  ) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        id: pickerId || "knobman-download",
-        suggestedName: fileName,
-        types: buildPickerTypes(fileName, mimeType),
-      });
-      const writable = await handle.createWritable();
-      await writable.write(bytes);
-      await writable.close();
-      return { mode: "picker", handle };
-    } catch (err) {
-      if (err && err.name === "AbortError") return { mode: "canceled" };
-      console.warn(
-        "showSaveFilePicker failed, falling back to download link:",
-        err,
-      );
-    }
-  }
-  downloadBytes(fileName, mimeType, bytes);
-  return { mode: "download" };
-}
-
-async function onExport() {
-  const option = parseInt(document.getElementById("prefExport").value, 10) || 0;
-  if (option === 0 || option === 1) {
-    if (!window.knobman_exportPNGStrip) {
-      setStatus("PNG strip export unavailable");
-      return;
-    }
-    const horizontal = option === 1;
-    const out = window.knobman_exportPNGStrip(horizontal);
-    if (!out || out.length === 0) {
-      setStatus("PNG strip export failed");
-      return;
-    }
-    const suffix = horizontal ? "strip_h" : "strip_v";
-    const fileName = buildDownloadName(suffix, "png");
-    const result = await saveBytes(
-      out,
-      fileName,
-      "image/png",
-      "knobman-export-png-strip",
-    );
-    if (result.mode === "canceled") {
-      setStatus("PNG strip export canceled");
-      return;
-    }
-    setStatus(
-      result.mode === "picker"
-        ? `Exported ${fileName}`
-        : `Downloaded ${fileName}`,
-    );
-    return;
-  }
-  if (option === 2) {
-    if (!window.knobman_exportPNGFramesZip) {
-      setStatus("PNG frames export unavailable");
-      return;
-    }
-    const out = window.knobman_exportPNGFramesZip();
-    if (!out || out.length === 0) {
-      setStatus("PNG frames export failed");
-      return;
-    }
-    const fileName = buildDownloadName("frames", "zip");
-    const result = await saveBytes(
-      out,
-      fileName,
-      "application/zip",
-      "knobman-export-frames-zip",
-    );
-    if (result.mode === "canceled") {
-      setStatus("PNG frames export canceled");
-      return;
-    }
-    setStatus(
-      result.mode === "picker"
-        ? `Exported ${fileName}`
-        : `Downloaded ${fileName}`,
-    );
-    return;
-  }
-  if (option === 3) {
-    if (!window.knobman_exportGIF) {
-      setStatus("GIF export unavailable");
-      return;
-    }
-    const out = window.knobman_exportGIF();
-    if (!out || out.length === 0) {
-      setStatus("GIF export failed");
-      return;
-    }
-    const fileName = buildDownloadName("anim", "gif");
-    const result = await saveBytes(
-      out,
-      fileName,
-      "image/gif",
-      "knobman-export-gif",
-    );
-    if (result.mode === "canceled") {
-      setStatus("GIF export canceled");
-      return;
-    }
-    setStatus(
-      result.mode === "picker"
-        ? `Exported ${fileName}`
-        : `Downloaded ${fileName}`,
-    );
-    return;
-  }
-  if (option === 4) {
-    if (!window.knobman_exportAPNG) {
-      setStatus("APNG export unavailable");
-      return;
-    }
-    const out = window.knobman_exportAPNG();
-    if (!out || out.length === 0) {
-      setStatus("APNG export failed");
-      return;
-    }
-    const fileName = buildDownloadName("anim", "apng");
-    const result = await saveBytes(
-      out,
-      fileName,
-      "image/apng",
-      "knobman-export-apng",
-    );
-    if (result.mode === "canceled") {
-      setStatus("APNG export canceled");
-      return;
-    }
-    setStatus(
-      result.mode === "picker"
-        ? `Exported ${fileName}`
-        : `Downloaded ${fileName}`,
-    );
-    return;
-  }
-  setStatus("Unknown export option");
-}
 function onUndo() {
   if (!window.knobman_undo || !window.knobman_undo()) return;
   invalidateLayerPreviews();
@@ -4501,16 +1181,18 @@ function onRedo() {
 }
 
 function updateUndoRedoButtons() {
-  const btnUndo = document.getElementById("btnUndo");
-  const btnRedo = document.getElementById("btnRedo");
-  if (btnUndo)
+  const btnUndo = el("btnUndo");
+  const btnRedo = el("btnRedo");
+  if (btnUndo) {
     btnUndo.disabled = !(window.knobman_canUndo && window.knobman_canUndo());
-  if (btnRedo)
+  }
+  if (btnRedo) {
     btnRedo.disabled = !(window.knobman_canRedo && window.knobman_canRedo());
+  }
 }
 
 function onAddLayer() {
-  selectedLayer = window.knobman_addLayer();
+  state.selectedLayer = window.knobman_addLayer();
   invalidateLayerPreviews();
   refreshLayerList();
   refreshParamPanel();
@@ -4518,7 +1200,7 @@ function onAddLayer() {
 }
 
 function onDeleteLayer() {
-  window.knobman_deleteLayer(selectedLayer);
+  window.knobman_deleteLayer(state.selectedLayer);
   invalidateLayerPreviews();
   refreshLayerList();
   refreshParamPanel();
@@ -4526,7 +1208,7 @@ function onDeleteLayer() {
 }
 
 function onMoveUp() {
-  selectedLayer = window.knobman_moveLayer(-1);
+  state.selectedLayer = window.knobman_moveLayer(-1);
   invalidateLayerPreviews();
   refreshLayerList();
   refreshParamPanel();
@@ -4534,7 +1216,7 @@ function onMoveUp() {
 }
 
 function onMoveDown() {
-  selectedLayer = window.knobman_moveLayer(1);
+  state.selectedLayer = window.knobman_moveLayer(1);
   invalidateLayerPreviews();
   refreshLayerList();
   refreshParamPanel();
@@ -4542,140 +1224,11 @@ function onMoveDown() {
 }
 
 function onDuplicate() {
-  selectedLayer = window.knobman_duplicateLayer();
+  state.selectedLayer = window.knobman_duplicateLayer();
   invalidateLayerPreviews();
   refreshLayerList();
   refreshParamPanel();
   markDirty();
-}
-
-function applyLoadedProjectBytes(bytes, fileName, statusPrefix) {
-  const ok = window.knobman_loadFile(bytes);
-  if (!ok) return false;
-  setProjectBaseNameFromFileName(fileName);
-  modifiedSinceSave = false;
-  invalidateLayerPreviews();
-  currentFrame = 0;
-  refreshFromDoc();
-  ensureBuiltinTextures().then(() => refreshParamPanel());
-  markDirty();
-  setStatus((statusPrefix || "Loaded") + " " + fileName);
-  return true;
-}
-
-async function loadSampleProject(fileName) {
-  setStatus("Loading sample " + fileName + "...");
-  const bytes = await fetchSampleProjectBytes(fileName);
-  if (!bytes || bytes.length === 0) {
-    setStatus("Failed to load sample " + fileName);
-    return;
-  }
-  if (!applyLoadedProjectBytes(bytes, fileName, "Loaded sample")) {
-    setStatus("Failed to load sample " + fileName);
-    return;
-  }
-  await rememberRecentDoc({
-    kind: "sample",
-    fileName,
-    label: sampleLabelFromFileName(fileName),
-  });
-  closeSamplesOverlay();
-  closeRecentOverlay();
-}
-
-async function loadProjectFromHandle(handle) {
-  if (!handle || typeof handle.getFile !== "function") return false;
-  const file = await handle.getFile();
-  const data = new Uint8Array(await file.arrayBuffer());
-  if (!applyLoadedProjectBytes(data, file.name, "Loaded")) return false;
-  const handleKey = uniqueId("handle");
-  await rememberRecentDoc({
-    id: handle.name || file.name,
-    kind: "file",
-    fileName: file.name,
-    label: stripFileExtension(file.name),
-    handleKey,
-    handle,
-  });
-  closeRecentOverlay();
-  return true;
-}
-
-async function openProjectWithPicker() {
-  if (!supportsOpenPicker()) {
-    document.getElementById("fileInput").click();
-    return;
-  }
-  try {
-    const handles = await window.showOpenFilePicker({
-      id: "knobman-open",
-      multiple: false,
-      types: [
-        {
-          description: "KnobMan Project",
-          accept: { "application/octet-stream": [".knob"] },
-        },
-      ],
-    });
-    const handle = handles && handles[0];
-    if (!handle) return;
-    const ok = await loadProjectFromHandle(handle);
-    if (!ok) setStatus("Failed to load selected file");
-  } catch (err) {
-    if (err && err.name === "AbortError") return;
-    console.warn("showOpenFilePicker failed, falling back to file input:", err);
-    document.getElementById("fileInput").click();
-  }
-}
-
-async function openRecentDoc(entry) {
-  if (!entry) return;
-  try {
-    if (entry.kind === "sample") {
-      await loadSampleProject(entry.fileName);
-      return;
-    }
-    if (!entry.handleKey) {
-      setStatus("Reopen unavailable for this project");
-      return;
-    }
-    const handle = await idbGetHandle(entry.handleKey);
-    if (!handle) {
-      await pruneRecentDoc(entry);
-      renderRecentList();
-      setStatus("Recent file handle is no longer available");
-      return;
-    }
-    if (!(await loadProjectFromHandle(handle))) {
-      setStatus("Failed to reopen " + entry.fileName);
-    }
-  } catch (err) {
-    console.warn("Failed to reopen recent project:", err);
-    setStatus("Failed to reopen " + (entry.fileName || "recent project"));
-  }
-}
-
-function onFileOpen(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    const data = new Uint8Array(reader.result);
-    if (!applyLoadedProjectBytes(data, file.name, "Loaded")) {
-      setStatus("Failed to load " + file.name);
-      return;
-    }
-    void rememberRecentDoc({
-      kind: "file",
-      fileName: file.name,
-      label: stripFileExtension(file.name),
-      reopenable: false,
-    });
-    closeRecentOverlay();
-  };
-  reader.readAsArrayBuffer(file);
-  e.target.value = "";
 }
 
 function keyName(e) {
@@ -4692,21 +1245,21 @@ function isEditableTarget(target) {
 function onKeyDown(e) {
   const key = keyName(e);
   if (key === "escape") {
-    const welcomeOverlay = document.getElementById("welcomeOverlay");
+    const welcomeOverlay = el("welcomeOverlay");
     if (welcomeOverlay && !welcomeOverlay.hidden) {
       e.preventDefault();
-      closeWelcomeOverlay();
+      projects.closeWelcomeOverlay();
       return;
     }
   }
-  if (key === "escape" && isSamplesOverlayOpen()) {
+  if (key === "escape" && projects.isSamplesOverlayOpen()) {
     e.preventDefault();
-    closeSamplesOverlay();
+    projects.closeSamplesOverlay();
     return;
   }
-  if (key === "escape" && isRecentOverlayOpen()) {
+  if (key === "escape" && projects.isRecentOverlayOpen()) {
     e.preventDefault();
-    closeRecentOverlay();
+    projects.closeRecentOverlay();
     return;
   }
   const mod = e.ctrlKey || e.metaKey;
@@ -4723,17 +1276,17 @@ function onKeyDown(e) {
   }
   if (mod && key === "s") {
     e.preventDefault();
-    onSave();
+    void projects.onSave();
     return;
   }
   if (mod && key === "o") {
     e.preventDefault();
-    void openProjectWithPicker();
+    void projects.openProjectWithPicker();
     return;
   }
   if (mod && key === "e") {
     e.preventDefault();
-    onExport();
+    void projects.onExport();
     return;
   }
   if (mod && key === "d") {
@@ -4744,8 +1297,11 @@ function onKeyDown(e) {
   if (editing) return;
   if (key === "delete" || key === "backspace") {
     e.preventDefault();
-    if (isShapeLayerSelected() && shapeSelectedHandle) {
-      deleteShapeSelection();
+    if (
+      shapeEditor.isShapeLayerSelected() &&
+      state.shapeSelectedHandle
+    ) {
+      shapeEditor.deleteShapeSelection();
     } else {
       onDeleteLayer();
     }
@@ -4759,16 +1315,11 @@ function onKeyDown(e) {
   if (key === "arrowdown") {
     e.preventDefault();
     onMoveDown();
-    return;
   }
 }
 
-// ── Status bar ────────────────────────────────────────────────────────────────
-
-let lastRenderMs = 0;
-
 function setStatus(msg) {
-  document.getElementById("statusMsg").textContent = msg;
+  el("statusMsg").textContent = msg;
 }
 
 function updateStatusMetrics(layerName) {
@@ -4779,99 +1330,24 @@ function updateStatusMetrics(layerName) {
   const parts = [];
   if (w && h) parts.push(`${w}×${h}`);
   if (frames) parts.push(`${frames} fr`);
-  parts.push(`F${currentFrame}`);
+  parts.push(`F${state.currentFrame}`);
   if (layerName) parts.push(`L: ${layerName}`);
-  if (lastRenderMs > 0) parts.push(`${lastRenderMs}ms`);
-  document.getElementById("statusMetrics").textContent = parts.join(" | ");
+  if (state.lastRenderMs > 0) parts.push(`${state.lastRenderMs}ms`);
+  el("statusMetrics").textContent = parts.join(" | ");
 }
 
-// ── Session persistence (localStorage) ───────────────────────────────────────
+const go = new Go();
 
-function saveSession() {
-  if (!window.knobman_saveFile) return;
-  try {
-    const bytes = window.knobman_saveFile();
-    if (!bytes || !bytes.length) return;
-    const payload = {
-      version: 2,
-      ts: Date.now(),
-      data: bytesToBase64(new Uint8Array(bytes)),
-      currentFrame,
-      zoomFactor,
-      selectedLayer,
-      selectedCurve,
-      prefAspectLock,
-      projectBaseName,
-    };
-    storageSet(SESSION_KEY, JSON.stringify(payload));
-    storageRemove(LEGACY_SESSION_KEY);
-  } catch (_err) {}
-}
-
-function applyRestoredSessionState(state) {
-  if (!state || typeof state !== "object") return;
-  if (state.projectBaseName) {
-    projectBaseName = sanitizeFileBaseName(state.projectBaseName);
-  }
-  zoomFactor = clampInt(Number(state.zoomFactor) || zoomFactor, 1, 16);
-  const zoomSelect = document.getElementById("zoomSelect");
-  if (zoomSelect) zoomSelect.value = String(zoomFactor);
-  if (window.knobman_setZoom) window.knobman_setZoom(zoomFactor);
-
-  currentFrame = Math.max(0, Number(state.currentFrame) || 0);
-  selectedCurve = clampInt(Number(state.selectedCurve) || 1, 1, 8);
-  prefAspectLock = Boolean(state.prefAspectLock);
-  const lock = document.getElementById("prefLockAspect");
-  if (lock) lock.checked = prefAspectLock;
-  syncAspectRatioFromInputs();
-
-  if (window.knobman_selectLayer) {
-    selectedLayer = window.knobman_selectLayer(
-      Number(state.selectedLayer) || 0,
-    );
-  }
-}
-
-function restoreSessionPayload() {
-  const raw = storageGet(SESSION_KEY);
-  if (raw) {
-    try {
-      const payload = JSON.parse(raw);
-      if (
-        payload &&
-        typeof payload.data === "string" &&
-        payload.data.length > 0
-      )
-        return payload;
-      console.warn("Session payload missing or has invalid data field");
-      storageRemove(SESSION_KEY);
-    } catch (_err) {
-      console.warn("Corrupt session removed from storage");
-      storageRemove(SESSION_KEY);
-    }
-  }
-
-  const legacy = storageGet(LEGACY_SESSION_KEY);
-  if (!legacy) return null;
-  return { version: 1, data: legacy };
-}
-
-function restoreSession() {
-  if (!window.knobman_loadFile) return false;
-  try {
-    const payload = restoreSessionPayload();
-    if (!payload || !payload.data) return false;
-    const bytes = base64ToBytes(payload.data);
-    if (!window.knobman_loadFile(bytes)) {
-      storageRemove(SESSION_KEY);
-      storageRemove(LEGACY_SESSION_KEY);
-      return false;
-    }
-    applyRestoredSessionState(payload);
-    return true;
-  } catch (_err) {
-    storageRemove(SESSION_KEY);
-    storageRemove(LEGACY_SESSION_KEY);
-    return false;
-  }
-}
+WebAssembly.instantiateStreaming(
+  fetch("knobman.wasm", { cache: "no-store" }),
+  go.importObject,
+)
+  .then((result) => {
+    go.run(result.instance);
+    state.wasmReady = true;
+    onWasmReady();
+  })
+  .catch((err) => {
+    el("loading").textContent = "Failed to load WASM: " + err;
+    console.error(err);
+  });
