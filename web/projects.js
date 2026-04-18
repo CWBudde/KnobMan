@@ -17,6 +17,7 @@ import {
   idbDeleteHandle,
   idbGetHandle,
   idbPutHandle,
+  isPristineSessionPayload,
   resolveAssetUrl,
   sanitizeFileBaseName,
   storageGet,
@@ -825,6 +826,29 @@ export function createProjects({
     try {
       const payload = restoreSessionPayload();
       if (!payload || !payload.data) return false;
+      let blankSessionData = "";
+      if (window.knobman_saveFile) {
+        const blankBytes = window.knobman_saveFile();
+        if (blankBytes && blankBytes.length) {
+          blankSessionData = bytesToBase64(new Uint8Array(blankBytes));
+        }
+      }
+      if (
+        blankSessionData &&
+        isPristineSessionPayload(payload, {
+          data: blankSessionData,
+          currentFrame: 0,
+          zoomFactor: state.zoomFactor,
+          selectedLayer: 0,
+          selectedCurve: 1,
+          prefAspectLock: false,
+          projectBaseName: "project",
+        })
+      ) {
+        storageRemove(SESSION_KEY);
+        storageRemove(LEGACY_SESSION_KEY);
+        return false;
+      }
       const bytes = base64ToBytes(payload.data);
       if (!window.knobman_loadFile(bytes)) {
         storageRemove(SESSION_KEY);

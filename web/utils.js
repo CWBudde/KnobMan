@@ -247,6 +247,19 @@ export function resolveAssetUrl(assetGroup, fileName, locationHref) {
   return new URL(relativePath, currentUrl).href;
 }
 
+export function isPristineSessionPayload(payload, baseline) {
+  if (!payload || !baseline) return false;
+  return (
+    payload.data === baseline.data &&
+    Number(payload.currentFrame || 0) === Number(baseline.currentFrame || 0) &&
+    Number(payload.zoomFactor || 0) === Number(baseline.zoomFactor || 0) &&
+    Number(payload.selectedLayer || 0) === Number(baseline.selectedLayer || 0) &&
+    Number(payload.selectedCurve || 0) === Number(baseline.selectedCurve || 0) &&
+    Boolean(payload.prefAspectLock) === Boolean(baseline.prefAspectLock) &&
+    String(payload.projectBaseName || "") === String(baseline.projectBaseName || "")
+  );
+}
+
 export function filenameTimestampNow() {
   const d = new Date();
   const pad2 = (n) => String(n).padStart(2, "0");
