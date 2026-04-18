@@ -366,25 +366,40 @@ export function getTransformEffectRows(effectValues) {
   ];
 
   const zoomSeparated = Boolean(values.zoomXYSepa);
-  appendAnimatedEffectRows(
+  appendStaticOrAnimatedEffectRows(
     rows,
+    values,
     "zoomXAnim",
     "zoomXF",
     "zoomXT",
     zoomSeparated ? "Zoom X" : "Zoom",
-    { showValues: isCurveEnabled(values.zoomXAnim) },
   );
   if (zoomSeparated) {
-    appendAnimatedEffectRows(rows, "zoomYAnim", "zoomYF", "zoomYT", "Zoom Y", {
-      showValues: isCurveEnabled(values.zoomYAnim),
-    });
+    appendStaticOrAnimatedEffectRows(
+      rows,
+      values,
+      "zoomYAnim",
+      "zoomYF",
+      "zoomYT",
+      "Zoom Y",
+    );
   }
-  appendAnimatedEffectRows(rows, "offXAnim", "offXF", "offXT", "Offset X", {
-    showValues: isCurveEnabled(values.offXAnim),
-  });
-  appendAnimatedEffectRows(rows, "offYAnim", "offYF", "offYT", "Offset Y", {
-    showValues: isCurveEnabled(values.offYAnim),
-  });
+  appendStaticOrAnimatedEffectRows(
+    rows,
+    values,
+    "offXAnim",
+    "offXF",
+    "offXT",
+    "Offset X",
+  );
+  appendStaticOrAnimatedEffectRows(
+    rows,
+    values,
+    "offYAnim",
+    "offYF",
+    "offYT",
+    "Offset Y",
+  );
 
   [
     "keepDir",
@@ -415,9 +430,14 @@ export function getColorEffectRows(effectValues) {
     ["saturation", "saturationAnim", "saturationF", "saturationT", "Saturation"],
     ["hue", "hueAnim", "hueF", "hueT", "Hue"],
   ].forEach(([, curveKey, fromKey, toKey, labelBase]) => {
-    appendAnimatedEffectRows(rows, curveKey, fromKey, toKey, labelBase, {
-      showValues: isCurveEnabled(values[curveKey]),
-    });
+    appendStaticOrAnimatedEffectRows(
+      rows,
+      values,
+      curveKey,
+      fromKey,
+      toKey,
+      labelBase,
+    );
   });
 
   return rows;
