@@ -1,4 +1,4 @@
-import { HANDLE_DB_NAME, HANDLE_STORE_NAME } from "./state.js";
+import { EFFECT_DEFS, HANDLE_DB_NAME, HANDLE_STORE_NAME } from "./state.js";
 
 export function clampFloat(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -295,6 +295,82 @@ export function hasBoundedRangeControl(def) {
       Number.isFinite(def.max) &&
       Number(def.max) > Number(def.min),
   );
+}
+
+function getEffectLabel(key) {
+  return EFFECT_DEFS[key]?.label || key;
+}
+
+function isCurveEnabled(value) {
+  return Number(value) > 0;
+}
+
+function appendAnimatedEffectRows(rows, curveKey, fromKey, toKey, labelBase, opts) {
+  const disabled = Boolean(opts?.disabled);
+  rows.push({
+    key: curveKey,
+    label: `${labelBase} Curve`,
+    disabled,
+  });
+  if (opts?.showValues) {
+    rows.push({
+      key: fromKey,
+      label: `${labelBase} From`,
+      disabled,
+    });
+    rows.push({
+      key: toKey,
+      label: `${labelBase} To`,
+      disabled,
+    });
+  }
+}
+
+export function getTransformEffectRows(effectValues) {
+  const values = effectValues || {};
+  const rows = [
+    { key: "antiAlias", label: getEffectLabel("antiAlias"), disabled: false },
+    { key: "unfold", label: getEffectLabel("unfold"), disabled: false },
+    { key: "animStep", label: getEffectLabel("animStep"), disabled: false },
+    { key: "zoomXYSepa", label: getEffectLabel("zoomXYSepa"), disabled: false },
+  ];
+
+  const zoomSeparated = Boolean(values.zoomXYSepa);
+  appendAnimatedEffectRows(
+    rows,
+    "zoomXAnim",
+    "zoomXF",
+    "zoomXT",
+    zoomSeparated ? "Zoom X" : "Zoom",
+    { showValues: isCurveEnabled(values.zoomXAnim) },
+  );
+  appendAnimatedEffectRows(rows, "zoomYAnim", "zoomYF", "zoomYT", "Zoom Y", {
+    disabled: !zoomSeparated,
+    showValues: zoomSeparated && isCurveEnabled(values.zoomYAnim),
+  });
+  appendAnimatedEffectRows(rows, "offXAnim", "offXF", "offXT", "Offset X", {
+    showValues: isCurveEnabled(values.offXAnim),
+  });
+  appendAnimatedEffectRows(rows, "offYAnim", "offYF", "offYT", "Offset Y", {
+    showValues: isCurveEnabled(values.offYAnim),
+  });
+
+  [
+    "keepDir",
+    "centerX",
+    "centerY",
+    "angleF",
+    "angleT",
+    "angleAnim",
+  ].forEach((key) => {
+    rows.push({
+      key,
+      label: getEffectLabel(key),
+      disabled: false,
+    });
+  });
+
+  return rows;
 }
 
 export function filenameTimestampNow() {

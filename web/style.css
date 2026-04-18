@@ -451,6 +451,10 @@ button:active {
   font-size: 11px;
 }
 
+.param-row.disabled > span {
+  opacity: 0.65;
+}
+
 .param-row input[type="text"],
 .param-row input[type="number"],
 .param-row input[type="range"],

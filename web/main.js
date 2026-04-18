@@ -15,6 +15,7 @@ import {
   clampInt,
   getLayerControlLabel,
   getLayerToggleLabel,
+  getTransformEffectRows,
   hasBoundedRangeControl,
   isCurveSelectorField,
   syncCanvasElementSize,
@@ -808,7 +809,7 @@ function parseNumericValue(def, rawValue) {
   return rawValue;
 }
 
-function buildBoundedNumericControl(def, value, onChange) {
+function buildBoundedNumericControl(def, value, onChange, options = {}) {
   const wrap = document.createElement("div");
   wrap.className = "param-numeric";
 
@@ -825,6 +826,10 @@ function buildBoundedNumericControl(def, value, onChange) {
   number.max = String(def.max);
   number.step = String(def.step ?? 1);
   number.value = String(value ?? 0);
+  if (options.disabled) {
+    slider.disabled = true;
+    number.disabled = true;
+  }
 
   function syncAndApply(rawValue, source) {
     const nextValue = parseNumericValue(def, rawValue);
@@ -1023,16 +1028,17 @@ function buildParamRow(key, value) {
   return row;
 }
 
-function buildEffectRow(key, value) {
+function buildEffectRow(key, value, options = {}) {
   const def = EFFECT_DEFS[key];
   if (!def) return null;
 
   const row = document.createElement("div");
   row.className = "param-row";
   if (def.type === "checkbox") row.classList.add("checkbox");
+  if (options.disabled) row.classList.add("disabled");
 
   const caption = document.createElement("span");
-  caption.textContent = def.label;
+  caption.textContent = options.label || def.label;
 
   let input;
   if (def.type === "select") {
@@ -1060,6 +1066,9 @@ function buildEffectRow(key, value) {
       input.value = String(value ?? "");
     }
   }
+  if (options.disabled) {
+    input.disabled = true;
+  }
 
   const eventName =
     def.type === "select" || def.type === "checkbox" ? "change" : "input";
@@ -1072,7 +1081,7 @@ function buildEffectRow(key, value) {
         if (isCurveSelectorField(key) && Number(nextValue) > 0) {
           curveEditor.focusCurve(Number(nextValue));
         }
-      }),
+      }, options),
     );
   } else {
     input.addEventListener(eventName, () => {
@@ -1104,9 +1113,24 @@ function appendEffectSections(content) {
 
     const body = document.createElement("div");
     body.className = "effect-section-body";
-    section.fields.forEach((key) => {
-      const value = window.knobman_getEffectParam(state.selectedLayer, key);
-      const row = buildEffectRow(key, value);
+    const rows =
+      section.title === "Transform"
+        ? getTransformEffectRows(
+            Object.fromEntries(
+              section.fields.map((key) => [
+                key,
+                window.knobman_getEffectParam(state.selectedLayer, key),
+              ]),
+            ),
+          )
+        : section.fields.map((key) => ({
+            key,
+            label: EFFECT_DEFS[key]?.label || key,
+            disabled: false,
+          }));
+    rows.forEach((rowInfo) => {
+      const value = window.knobman_getEffectParam(state.selectedLayer, rowInfo.key);
+      const row = buildEffectRow(rowInfo.key, value, rowInfo);
       if (row) body.appendChild(row);
     });
     details.appendChild(body);
