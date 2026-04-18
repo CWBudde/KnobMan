@@ -29,6 +29,15 @@ type caseEntry struct {
 	Suite       string
 	Baseline    string
 	Name        string
+	DocBG       string
+	RefDocB64   string
+	RefWhiteB64 string
+	RefDarkB64  string
+	RefCheckB64 string
+	ActDocB64   string
+	ActWhiteB64 string
+	ActDarkB64  string
+	ActCheckB64 string
 	RMSE        float64
 	AvgDiff     float64
 	MaxDiff     uint8
@@ -108,6 +117,8 @@ func main() {
 }
 
 func loadCases(parityDir string) (loadResult, error) {
+	repoRoot, _ := detectRepoRoot()
+
 	suiteDirs, err := os.ReadDir(parityDir)
 	if err != nil {
 		return loadResult{}, fmt.Errorf("read parity dir %s: %w", parityDir, err)
@@ -160,7 +171,7 @@ func loadCases(parityDir string) (loadResult, error) {
 					}
 				}
 
-				entry, err := buildEntry(suiteName, baselineName, name, baselinePath, artifactPath)
+				entry, err := buildEntry(repoRoot, suiteName, baselineName, name, baselinePath, artifactPath)
 				if err != nil {
 					return loadResult{}, fmt.Errorf("build entry %s/%s/%s: %w", suiteName, baselineName, name, err)
 				}
@@ -190,7 +201,7 @@ func loadCases(parityDir string) (loadResult, error) {
 	return result, nil
 }
 
-func buildEntry(suite, baseline, name, baselinePath, artifactPath string) (caseEntry, error) {
+func buildEntry(repoRoot, suite, baseline, name, baselinePath, artifactPath string) (caseEntry, error) {
 	ref, err := readPNGAsRGBA(baselinePath)
 	if err != nil {
 		return caseEntry{}, fmt.Errorf("read baseline: %w", err)
@@ -225,10 +236,68 @@ func buildEntry(suite, baseline, name, baselinePath, artifactPath string) (caseE
 		return caseEntry{}, fmt.Errorf("encode amplified diff: %w", err)
 	}
 
+	docBGColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	docBG := "#ffffff"
+	if repoRoot != "" {
+		if bg, css, err := documentBackground(repoRoot, suite, name); err == nil {
+			docBGColor = bg
+			docBG = css
+		}
+	}
+
+	refDocB64, err := pngToBase64(compositeOverSolid(ref, docBGColor))
+	if err != nil {
+		return caseEntry{}, fmt.Errorf("encode baseline doc matte: %w", err)
+	}
+
+	refWhiteB64, err := pngToBase64(compositeOverSolid(ref, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
+	if err != nil {
+		return caseEntry{}, fmt.Errorf("encode baseline white matte: %w", err)
+	}
+
+	refDarkB64, err := pngToBase64(compositeOverSolid(ref, color.RGBA{R: 12, G: 16, B: 22, A: 255}))
+	if err != nil {
+		return caseEntry{}, fmt.Errorf("encode baseline dark matte: %w", err)
+	}
+
+	refCheckB64, err := pngToBase64(compositeOverCheckerboard(ref))
+	if err != nil {
+		return caseEntry{}, fmt.Errorf("encode baseline checkerboard matte: %w", err)
+	}
+
+	actDocB64, err := pngToBase64(compositeOverSolid(act, docBGColor))
+	if err != nil {
+		return caseEntry{}, fmt.Errorf("encode artifact doc matte: %w", err)
+	}
+
+	actWhiteB64, err := pngToBase64(compositeOverSolid(act, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
+	if err != nil {
+		return caseEntry{}, fmt.Errorf("encode artifact white matte: %w", err)
+	}
+
+	actDarkB64, err := pngToBase64(compositeOverSolid(act, color.RGBA{R: 12, G: 16, B: 22, A: 255}))
+	if err != nil {
+		return caseEntry{}, fmt.Errorf("encode artifact dark matte: %w", err)
+	}
+
+	actCheckB64, err := pngToBase64(compositeOverCheckerboard(act))
+	if err != nil {
+		return caseEntry{}, fmt.Errorf("encode artifact checkerboard matte: %w", err)
+	}
+
 	return caseEntry{
 		Suite:       suite,
 		Baseline:    baseline,
 		Name:        name,
+		DocBG:       docBG,
+		RefDocB64:   refDocB64,
+		RefWhiteB64: refWhiteB64,
+		RefDarkB64:  refDarkB64,
+		RefCheckB64: refCheckB64,
+		ActDocB64:   actDocB64,
+		ActWhiteB64: actWhiteB64,
+		ActDarkB64:  actDarkB64,
+		ActCheckB64: actCheckB64,
 		RMSE:        stats.RMSE,
 		AvgDiff:     stats.AvgDiff,
 		MaxDiff:     stats.MaxDiff,
@@ -559,6 +628,82 @@ func rerenderArtifact(repoRoot, parityDir, suite, name string) error {
 	return nil
 }
 
+func documentBackground(repoRoot, suite, name string) (color.RGBA, string, error) {
+	inputPath, _, err := parityCaseSpec(repoRoot, suite, name)
+	if err != nil {
+		return color.RGBA{}, "", err
+	}
+
+	data, err := os.ReadFile(inputPath)
+	if err != nil {
+		return color.RGBA{}, "", fmt.Errorf("read input %s: %w", inputPath, err)
+	}
+
+	doc, err := fileio.Load(data)
+	if err != nil {
+		return color.RGBA{}, "", fmt.Errorf("load input %s: %w", inputPath, err)
+	}
+
+	bg := color.RGBA{R: doc.Prefs.BkColor.Val.R, G: doc.Prefs.BkColor.Val.G, B: doc.Prefs.BkColor.Val.B, A: 255}
+
+	return bg, fmt.Sprintf("#%02x%02x%02x", bg.R, bg.G, bg.B), nil
+}
+
+func compositeOverSolid(src *image.RGBA, bg color.RGBA) *image.RGBA {
+	if src == nil {
+		return nil
+	}
+
+	bounds := src.Bounds()
+	out := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			r, g, b, a := rgbaAt(src, x, y)
+			out.SetRGBA(x-bounds.Min.X, y-bounds.Min.Y, compositePixel(r, g, b, a, bg))
+		}
+	}
+
+	return out
+}
+
+func compositeOverCheckerboard(src *image.RGBA) *image.RGBA {
+	if src == nil {
+		return nil
+	}
+
+	bounds := src.Bounds()
+	out := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+	light := color.RGBA{R: 216, G: 222, B: 233, A: 255}
+	dark := color.RGBA{R: 195, G: 202, B: 214, A: 255}
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			bg := light
+			if ((x-bounds.Min.X)/6+(y-bounds.Min.Y)/6)%2 != 0 {
+				bg = dark
+			}
+
+			r, g, b, a := rgbaAt(src, x, y)
+			out.SetRGBA(x-bounds.Min.X, y-bounds.Min.Y, compositePixel(r, g, b, a, bg))
+		}
+	}
+
+	return out
+}
+
+func compositePixel(r, g, b, a uint8, bg color.RGBA) color.RGBA {
+	srcA := int(a)
+	invA := 255 - srcA
+
+	return color.RGBA{
+		R: uint8((int(r)*srcA + int(bg.R)*invA) / 255),
+		G: uint8((int(g)*srcA + int(bg.G)*invA) / 255),
+		B: uint8((int(b)*srcA + int(bg.B)*invA) / 255),
+		A: 255,
+	}
+}
+
 func isSafePathPart(s string) bool {
 	if strings.TrimSpace(s) == "" {
 		return false
@@ -685,10 +830,11 @@ func renderCard(w io.Writer, entry *caseEntry) {
 
 	fmt.Fprintf(
 		w,
-		`<div class="card" data-name="%s" data-suite="%s" data-baseline="%s" data-rmse="%.4f" data-avg-diff="%.4f" data-max-diff="%d" data-diff-pixels="%d" data-diff-ratio="%.6f">`,
+		`<div class="card" data-name="%s" data-suite="%s" data-baseline="%s" data-doc-bg="%s" data-rmse="%.4f" data-avg-diff="%.4f" data-max-diff="%d" data-diff-pixels="%d" data-diff-ratio="%.6f">`,
 		esc(entry.Name),
 		esc(entry.Suite),
 		esc(entry.Baseline),
+		esc(entry.DocBG),
 		entry.RMSE,
 		entry.AvgDiff,
 		entry.MaxDiff,
@@ -719,19 +865,51 @@ func renderCard(w io.Writer, entry *caseEntry) {
 
 	fmt.Fprint(w, `<div class="img-col col-ref">`)
 	fmt.Fprintf(w, `<label>%s</label>`, esc(refLabel))
-	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="baseline">`, entry.RefB64)
+	fmt.Fprintf(
+		w,
+		`<img class="parity-image matte-target" src="data:image/png;base64,%s" alt="baseline" data-matte-document="%s" data-matte-white="%s" data-matte-dark="%s" data-matte-checkerboard="%s">`,
+		entry.RefDocB64,
+		entry.RefDocB64,
+		entry.RefWhiteB64,
+		entry.RefDarkB64,
+		entry.RefCheckB64,
+	)
 	fmt.Fprint(w, `</div>`)
 
 	fmt.Fprint(w, `<div class="img-col col-artifact">`)
 	fmt.Fprint(w, `<label>Artifact</label>`)
-	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="artifact">`, entry.ActB64)
+	fmt.Fprintf(
+		w,
+		`<img class="parity-image matte-target" src="data:image/png;base64,%s" alt="artifact" data-matte-document="%s" data-matte-white="%s" data-matte-dark="%s" data-matte-checkerboard="%s">`,
+		entry.ActDocB64,
+		entry.ActDocB64,
+		entry.ActWhiteB64,
+		entry.ActDarkB64,
+		entry.ActCheckB64,
+	)
 	fmt.Fprint(w, `</div>`)
 
 	fmt.Fprint(w, `<div class="img-col col-overlay">`)
 	fmt.Fprint(w, `<label>Overlay</label>`)
 	fmt.Fprint(w, `<div class="slider-wrap">`)
-	fmt.Fprintf(w, `<img class="base" src="data:image/png;base64,%s" alt="base">`, entry.RefB64)
-	fmt.Fprintf(w, `<div class="slider-overlay"><img src="data:image/png;base64,%s" alt="overlay"></div>`, entry.ActB64)
+	fmt.Fprintf(
+		w,
+		`<img class="base matte-target" src="data:image/png;base64,%s" alt="base" data-matte-document="%s" data-matte-white="%s" data-matte-dark="%s" data-matte-checkerboard="%s">`,
+		entry.RefDocB64,
+		entry.RefDocB64,
+		entry.RefWhiteB64,
+		entry.RefDarkB64,
+		entry.RefCheckB64,
+	)
+	fmt.Fprintf(
+		w,
+		`<div class="slider-overlay"><img class="matte-target" src="data:image/png;base64,%s" alt="overlay" data-matte-document="%s" data-matte-white="%s" data-matte-dark="%s" data-matte-checkerboard="%s"></div>`,
+		entry.ActDocB64,
+		entry.ActDocB64,
+		entry.ActWhiteB64,
+		entry.ActDarkB64,
+		entry.ActCheckB64,
+	)
 	fmt.Fprint(w, `<div class="slider-divider"></div></div></div>`)
 
 	fmt.Fprint(w, `<div class="img-col col-amp">`)
@@ -850,14 +1028,31 @@ body { background: #101216; color: #d7dce4; font-family: ui-monospace, SFMono-Re
 }
 .img-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow: auto; }
 .img-col label { font-size: 11px; color: #93a1b5; text-align: center; }
-.parity-image { display: block; image-rendering: auto; width: 100%; height: auto; border-radius: 6px; background: #0c1016; max-width: 100%; }
+.parity-image {
+  display: block; image-rendering: auto; width: 100%; height: auto; border-radius: 6px;
+  background-color: #0c1016; background-image: none; max-width: 100%;
+}
 .resample-pixelated .parity-image { image-rendering: pixelated; }
+.container.matte-document .parity-image, .container.matte-document .slider-wrap { background-color: var(--doc-bg, #ffffff); }
+.container.matte-white .parity-image, .container.matte-white .slider-wrap { background-color: #ffffff; }
+.container.matte-dark .parity-image, .container.matte-dark .slider-wrap { background-color: #0c1016; }
+.container.matte-checkerboard .parity-image, .container.matte-checkerboard .slider-wrap {
+  background-color: #d8dee9;
+  background-image:
+    linear-gradient(45deg, #c3cad6 25%, transparent 25%, transparent 75%, #c3cad6 75%, #c3cad6),
+    linear-gradient(45deg, #c3cad6 25%, transparent 25%, transparent 75%, #c3cad6 75%, #c3cad6);
+  background-position: 0 0, 6px 6px;
+  background-size: 12px 12px;
+}
 .original-size .img-grid { grid-template-columns: repeat(5, max-content); }
 .original-size .img-col { min-width: max-content; }
 .original-size .parity-image, .original-size .slider-wrap { align-self: flex-start; }
 .original-size .parity-image { width: auto; height: auto; max-width: none; }
 .col-raw { display: none; }
-.slider-wrap { position: relative; overflow: hidden; width: 100%; cursor: col-resize; border-radius: 6px; background: #0c1016; }
+.slider-wrap {
+  position: relative; overflow: hidden; width: 100%; cursor: col-resize; border-radius: 6px;
+  background-color: #0c1016; background-image: none;
+}
 .slider-wrap img.base { display: block; image-rendering: auto; width: 100%; height: auto; }
 .resample-pixelated .slider-wrap img.base { image-rendering: pixelated; }
 .original-size .slider-wrap { width: auto; }
@@ -921,6 +1116,12 @@ code { color: #f4f7fb; }
       <option value="amp">Diff: amplified</option>
       <option value="raw">Diff: raw</option>
       <option value="both">Diff: both</option>
+    </select>
+    <select id="matte-mode" onchange="setMatteMode(this.value)">
+      <option value="document" selected>Matte: document bg</option>
+      <option value="white">Matte: white</option>
+      <option value="dark">Matte: dark</option>
+      <option value="checkerboard">Matte: checkerboard</option>
     </select>
     <select id="resample-mode" onchange="setResampleMode(this.value)">
       <option value="smooth">Scaling: smooth</option>
@@ -1154,14 +1355,29 @@ const pageFooter = `</div>
     container.classList.add(mode === 'pixelated' ? 'resample-pixelated' : 'resample-smooth');
   }
 
+  function setMatteMode(mode) {
+    var selected = mode;
+    if (selected !== 'document' && selected !== 'white' && selected !== 'dark' && selected !== 'checkerboard') {
+      selected = 'document';
+    }
+    var dataKey = 'matte' + selected.charAt(0).toUpperCase() + selected.slice(1);
+    document.querySelectorAll('.matte-target').forEach(function(img) {
+      var b64 = img.dataset[dataKey];
+      if (!b64) return;
+      img.src = 'data:image/png;base64,' + b64;
+    });
+  }
+
   window.filterCards = filterCards;
   window.sortCards = sortCards;
   window.setDiffMode = setDiffMode;
   window.setOriginalSize = setOriginalSize;
   window.setResampleMode = setResampleMode;
+  window.setMatteMode = setMatteMode;
 
   sortCards();
   setDiffMode(document.getElementById('diff-mode').value);
+  setMatteMode(document.getElementById('matte-mode').value);
   setResampleMode(document.getElementById('resample-mode').value);
   filterCards();
 })();

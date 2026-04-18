@@ -35,3 +35,17 @@ func TestResolveTexturesForParityAnonymousEmbedded(t *testing.T) {
 		t.Fatalf("expected non-zero TextureDepth for textured fixture")
 	}
 }
+
+func TestLoadParityDocumentMakesSampleBackgroundTransparent(t *testing.T) {
+	root := testRepoRoot(t)
+	samplePath := filepath.Join(root, "assets", "samples", "LineShadow.knob")
+
+	doc, _, err := LoadParityDocument(samplePath, root)
+	if err != nil {
+		t.Fatalf("LoadParityDocument: %v", err)
+	}
+
+	if got := doc.Prefs.BkColor.Val.A; got != 0 {
+		t.Fatalf("expected sample parity load to clear background alpha, got %d", got)
+	}
+}

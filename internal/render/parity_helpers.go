@@ -26,7 +26,7 @@ func LoadParityDocument(samplePath, repoRoot string) (*model.Document, []*Textur
 		return nil, nil, err
 	}
 
-	restoreFixtureTransparency(samplePath, doc)
+	restoreParityTransparency(samplePath, doc)
 
 	textures, err := ResolveTexturesForParity(doc, repoRoot)
 	if err != nil {
@@ -36,13 +36,15 @@ func LoadParityDocument(samplePath, repoRoot string) (*model.Document, []*Textur
 	return doc, textures, nil
 }
 
-func restoreFixtureTransparency(samplePath string, doc *model.Document) {
+func restoreParityTransparency(samplePath string, doc *model.Document) {
 	if doc == nil {
 		return
 	}
 
 	clean := filepath.ToSlash(samplePath)
 	fixtureDirs := []string{
+		// Legacy PNG parity baselines preserve alpha for real samples too.
+		"assets/samples/",
 		"tests/parity/primitives/inputs/",
 		"tests/parity/animated/inputs/",
 	}

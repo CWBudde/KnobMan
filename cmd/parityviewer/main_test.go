@@ -45,22 +45,31 @@ func TestLoadCasesSortsByRMSEDescending(t *testing.T) {
 
 func TestRenderCardIncludesFiltersAndMetrics(t *testing.T) {
 	entry := caseEntry{
-		Suite:      "primitives",
-		Baseline:   "baseline-java",
-		Name:       "triangle_plain",
-		RMSE:       12.3456,
-		AvgDiff:    3.21,
-		MaxDiff:    17,
-		DiffPixels: 42,
-		DiffRatio:  0.125,
-		RefWidth:   64,
-		RefHeight:  64,
-		ActWidth:   64,
-		ActHeight:  64,
-		RefB64:     "ref",
-		ActB64:     "act",
-		RawDiffB64: "raw",
-		AmpDiffB64: "amp",
+		Suite:       "primitives",
+		Baseline:    "baseline-java",
+		Name:        "triangle_plain",
+		DocBG:       "#ffffff",
+		RMSE:        12.3456,
+		AvgDiff:     3.21,
+		MaxDiff:     17,
+		DiffPixels:  42,
+		DiffRatio:   0.125,
+		RefWidth:    64,
+		RefHeight:   64,
+		ActWidth:    64,
+		ActHeight:   64,
+		RefB64:      "ref",
+		ActB64:      "act",
+		RawDiffB64:  "raw",
+		AmpDiffB64:  "amp",
+		RefDocB64:   "ref-doc",
+		RefWhiteB64: "ref-white",
+		RefDarkB64:  "ref-dark",
+		RefCheckB64: "ref-check",
+		ActDocB64:   "act-doc",
+		ActWhiteB64: "act-white",
+		ActDarkB64:  "act-dark",
+		ActCheckB64: "act-check",
 	}
 
 	var buf bytes.Buffer
@@ -70,6 +79,16 @@ func TestRenderCardIncludesFiltersAndMetrics(t *testing.T) {
 	for _, want := range []string{
 		`data-suite="primitives"`,
 		`data-baseline="baseline-java"`,
+		`data-doc-bg="#ffffff"`,
+		`data-matte-document="ref-doc"`,
+		`data-matte-white="ref-white"`,
+		`data-matte-dark="ref-dark"`,
+		`data-matte-checkerboard="ref-check"`,
+		`data-matte-document="act-doc"`,
+		`data-matte-white="act-white"`,
+		`data-matte-dark="act-dark"`,
+		`data-matte-checkerboard="act-check"`,
+		`class="parity-image matte-target"`,
 		`Re-render Artifact`,
 		`data-rmse="12.3456"`,
 		`data-avg-diff="3.2100"`,
@@ -106,6 +125,20 @@ func TestPageHeaderOriginalSizeStylesExpandImageColumns(t *testing.T) {
 	}
 }
 
+func TestPageHeaderIncludesMatteModeSelector(t *testing.T) {
+	for _, want := range []string{
+		`<select id="matte-mode" onchange="setMatteMode(this.value)">`,
+		`<option value="document" selected>Matte: document bg</option>`,
+		`<option value="white">Matte: white</option>`,
+		`<option value="dark">Matte: dark</option>`,
+		`<option value="checkerboard">Matte: checkerboard</option>`,
+	} {
+		if !strings.Contains(pageHeader, want) {
+			t.Fatalf("pageHeader missing %q", want)
+		}
+	}
+}
+
 func TestPageFooterInitializesResampleMode(t *testing.T) {
 	for _, want := range []string{
 		`function setResampleMode(mode) {`,
@@ -117,6 +150,34 @@ func TestPageFooterInitializesResampleMode(t *testing.T) {
 		if !strings.Contains(pageFooter, want) {
 			t.Fatalf("pageFooter missing %q", want)
 		}
+	}
+}
+
+func TestPageFooterInitializesMatteMode(t *testing.T) {
+	for _, want := range []string{
+		`function setMatteMode(mode) {`,
+		`document.querySelectorAll('.matte-target').forEach(function(img) {`,
+		`img.src = 'data:image/png;base64,' + b64;`,
+		`window.setMatteMode = setMatteMode;`,
+		`setMatteMode(document.getElementById('matte-mode').value);`,
+	} {
+		if !strings.Contains(pageFooter, want) {
+			t.Fatalf("pageFooter missing %q", want)
+		}
+	}
+}
+
+func TestCompositeOverSolidMatte(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	src.SetRGBA(0, 0, color.RGBA{R: 255, G: 0, B: 0, A: 128})
+
+	got := compositeOverSolid(src, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	if got == nil {
+		t.Fatal("compositeOverSolid returned nil")
+	}
+
+	if c := got.RGBAAt(0, 0); c != (color.RGBA{R: 255, G: 127, B: 127, A: 255}) {
+		t.Fatalf("compositeOverSolid pixel = %+v, want {R:255 G:127 B:127 A:255}", c)
 	}
 }
 
